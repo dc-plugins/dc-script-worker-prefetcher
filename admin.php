@@ -77,6 +77,19 @@ function dc_swp_str( $key ) {
 }
 // ─────────────────────────────────────────────────────────────────────────────
 
+// Admin footer — only on this plugin's own page
+add_filter( 'admin_footer_text', function( $text ) {
+    $screen = get_current_screen();
+    if ( $screen && $screen->id === 'toplevel_page_dc-sw-prefetch' ) {
+        return sprintf(
+            /* translators: %s: URL to DC Plugins GitHub organisation */
+            __( 'More plugins by <a href="%s" target="_blank" rel="noopener">DC Plugins</a>', 'dc-sw-prefetch' ),
+            'https://github.com/dc-plugins'
+        );
+    }
+    return $text;
+} );
+
 // Add admin menu
 add_action( 'admin_menu', 'dc_swp_setup_menu' );
 // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedFunctionFound
