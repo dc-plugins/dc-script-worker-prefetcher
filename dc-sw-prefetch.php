@@ -2,7 +2,7 @@
 /**
  * @wordpress-plugin
  * Plugin Name: DC Service Worker Prefetcher
- * Plugin URI:  https://www.dampcig.dk
+ * Plugin URI:  https://github.com/dc-plugins/dc-sw-prefetch
  * Description: Service worker asset caching with W3TC hybrid mode, viewport-based product prefetching, and bot detection.
  * Version:     1.0.0
  * Author:      Dampcig
