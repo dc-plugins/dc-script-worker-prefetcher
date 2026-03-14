@@ -20,6 +20,8 @@ function dc_swp_uninstall() {
 		'dampcig_pwa_preload_products',
 		'dampcig_pwa_product_base',
 		'dampcig_pwa_footer_credit',
+		'dc_swp_disable_emoji',
+		'dc_swp_lcp_preload',
 	] as $dc_swp_opt ) {
 		delete_option( $dc_swp_opt );
 	}

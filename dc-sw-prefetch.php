@@ -4,7 +4,7 @@
  * Plugin Name: DC Service Worker Prefetcher
  * Plugin URI:  https://github.com/dc-plugins/dc-sw-prefetch
  * Description: Partytown service worker with viewport/pagination prefetching for WooCommerce. Offloads third-party scripts via Partytown and pre-fetches visible products & next pages.
- * Version:     1.1.0
+ * Version:     1.2.0
  * Author:      Dampcig
  * Author URI:  https://www.dampcig.dk
  * License:     GPL-2.0+
@@ -484,6 +484,135 @@ function dc_swp_prefetch_footer() {
 	})();
 	</script>
 	<?php
+}
+
+
+// ============================================================
+// WP EMOJI REMOVAL
+// WordPress loads SVG emoji detection JS (fetches from s.w.org)
+// on every page — an unnecessary round-trip with no benefit on
+// modern browsers. Removing it saves ~76 KB and one DNS lookup.
+// A tiny inline style ensures any emoji <img> that slips through
+// is still sized correctly.
+// ============================================================
+
+add_action( 'init', 'dc_swp_maybe_remove_emoji', 1 );
+
+// phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedFunctionFound
+function dc_swp_maybe_remove_emoji() {
+	if ( is_admin() ) return;
+	if ( get_option( 'dc_swp_disable_emoji', 'yes' ) !== 'yes' ) return;
+
+	remove_action( 'wp_head',             'print_emoji_detection_script', 7 );
+	remove_action( 'wp_print_styles',     'print_emoji_styles' );
+	remove_filter( 'the_content_feed',    'wp_staticize_emoji' );
+	remove_filter( 'comment_text_rss',    'wp_staticize_emoji' );
+	remove_filter( 'wp_mail',             'wp_staticize_emoji_for_email' );
+	add_filter( 'emoji_svg_url',          '__return_false' );
+
+	// Size any emoji <img> that still renders (e.g. from cached markup)
+	add_action( 'wp_head', function() {
+		echo '<style>img.emoji{width:1em;height:1em;vertical-align:-0.1em}</style>' . "\n";
+	}, 1 );
+}
+
+
+// ============================================================
+// WooCommerce LCP IMAGE OPTIMISATION
+// Emits <link rel="preload" as="image" imagesrcset imagesizes>
+// in <head> for the LCP product image so the browser starts
+// fetching it immediately — before the parser reaches <body>.
+// Also sets fetchpriority="high" + loading="eager" on the <img>
+// so the browser knows it is the most important image on the page.
+//
+// Works on:
+//   • Single product pages  → woocommerce_single size
+//   • Category / shop pages → woocommerce_thumbnail of first product
+//
+// The imagesrcset attribute matches what WooCommerce outputs in the
+// <img srcset>, so the preloaded resource is never discarded as
+// unused (the PSI mobile viewport picks the 300w candidate).
+// ============================================================
+
+add_action( 'wp', 'dc_swp_setup_lcp_image' );
+
+// phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedFunctionFound
+function dc_swp_setup_lcp_image() {
+	if ( dc_swp_is_bot_request() ) return;
+	if ( ! function_exists( 'is_product' ) ) return; // WooCommerce not active
+	if ( get_option( 'dc_swp_lcp_preload', 'yes' ) !== 'yes' ) return;
+
+	// ── Single product page ──────────────────────────────────────────────
+	if ( is_singular( 'product' ) ) {
+		$product_id   = get_queried_object_id();
+		$thumbnail_id = get_post_thumbnail_id( $product_id );
+		if ( ! $thumbnail_id ) return;
+
+		add_action( 'wp_head', function() use ( $thumbnail_id ) {
+			$src    = wp_get_attachment_image_src( $thumbnail_id, 'woocommerce_single' );
+			$srcset = wp_get_attachment_image_srcset( $thumbnail_id, 'woocommerce_single' );
+			$sizes  = wp_get_attachment_image_sizes( $thumbnail_id, 'woocommerce_single' );
+			if ( ! $src ) return;
+			echo '<link rel="preload" as="image" fetchpriority="high" href="' . esc_url( $src[0] ) . '"'
+				. ( $srcset ? ' imagesrcset="' . esc_attr( $srcset ) . '"' : '' )
+				. ( $sizes  ? ' imagesizes="'  . esc_attr( $sizes )  . '"' : '' )
+				. ">\n";
+		}, 1 );
+
+		add_filter( 'wp_get_attachment_image_attributes', function( $attr, $attachment ) use ( $thumbnail_id ) {
+			if ( (int) $attachment->ID === (int) $thumbnail_id ) {
+				$attr['fetchpriority'] = 'high';
+				$attr['loading']       = 'eager';
+				unset( $attr['decoding'] );
+			}
+			return $attr;
+		}, 20, 2 );
+		return;
+	}
+
+	// ── Category / shop page ─────────────────────────────────────────────
+	if ( is_product_category() || is_shop() ) {
+		$args = [
+			'post_type'      => 'product',
+			'posts_per_page' => 1,
+			'post_status'    => 'publish',
+			'fields'         => 'ids',
+		];
+		if ( is_product_category() ) {
+			$term = get_queried_object();
+			if ( $term ) {
+				$args['tax_query'] = [[ // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_tax_query
+					'taxonomy' => 'product_cat',
+					'field'    => 'term_id',
+					'terms'    => $term->term_id,
+				]];
+			}
+		}
+		$products     = get_posts( $args );
+		if ( empty( $products ) ) return;
+		$thumbnail_id = get_post_thumbnail_id( $products[0] );
+		if ( ! $thumbnail_id ) return;
+
+		add_action( 'wp_head', function() use ( $thumbnail_id ) {
+			$src    = wp_get_attachment_image_src( $thumbnail_id, 'woocommerce_thumbnail' );
+			$srcset = wp_get_attachment_image_srcset( $thumbnail_id, 'woocommerce_thumbnail' );
+			$sizes  = wp_get_attachment_image_sizes( $thumbnail_id, 'woocommerce_thumbnail' );
+			if ( ! $src ) return;
+			echo '<link rel="preload" as="image" fetchpriority="high" href="' . esc_url( $src[0] ) . '"'
+				. ( $srcset ? ' imagesrcset="' . esc_attr( $srcset ) . '"' : '' )
+				. ( $sizes  ? ' imagesizes="'  . esc_attr( $sizes )  . '"' : '' )
+				. ">\n";
+		}, 1 );
+
+		add_filter( 'wp_get_attachment_image_attributes', function( $attr, $attachment ) use ( $thumbnail_id ) {
+			if ( (int) $attachment->ID === (int) $thumbnail_id ) {
+				$attr['fetchpriority'] = 'high';
+				$attr['loading']       = 'eager';
+				unset( $attr['decoding'] );
+			}
+			return $attr;
+		}, 20, 2 );
+	}
 }
 
 

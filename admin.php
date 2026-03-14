@@ -37,6 +37,12 @@ function dc_swp_str( $key ) {
             'benefit_3'         => 'Pagineringslink prefetches 2 s i forvejen',
             'benefit_4'         => 'Bots og crawlers modtager aldrig Partytown (rent HTML)',
             'benefit_5'         => 'Automatiske opdateringer via GitHub Actions workflow',
+            'benefit_6'         => 'WP emoji-scripts fjernet — sparer et DNS-opslag og ~76 KB',
+            'benefit_7'         => 'LCP-billede preloades med korrekt imagesrcset — ingen dobbelt-fetch på mobil',
+            'emoji_label'       => 'Fjern WP Emoji',
+            'emoji_desc'        => 'Fjerner WordPress emoji-detection script og tilhørende CSS (s.w.org fetch). Anbefalet — moderne browsere har native emoji.',
+            'lcp_label'         => 'WooCommerce LCP Preload',
+            'lcp_desc'          => 'Tilføjer <code>&lt;link rel=&quot;preload&quot; imagesrcset&gt;</code> for produktbilledet på produkt- og kategorisider. Matcher mobilbrowserens srcset-kandidat, så PSI-score stiger markant.',
             'credit_label'      => 'Footer Kredit',
             'credit_checkbox'   => 'Vis kærlighed og støt udviklingen ved at tilføje et lille link i footeren',
             'credit_desc'       => 'Indsætter et diskret <a href="https://www.dampcig.dk" target="_blank">Dampcig.dk</a>-link i sidens footer ved at linke copyright-symbolet ©.',
@@ -67,6 +73,12 @@ function dc_swp_str( $key ) {
             'benefit_3'         => 'Pagination next-page link prefetched 2 s ahead',
             'benefit_4'         => 'Bots and crawlers never receive Partytown (clean HTML)',
             'benefit_5'         => 'Automatic updates via GitHub Actions workflow',
+            'benefit_6'         => 'WP emoji scripts removed — saves a DNS lookup and ~76 KB',
+            'benefit_7'         => 'LCP image preloaded with correct imagesrcset — no double-fetch on mobile',
+            'emoji_label'       => 'Remove WP Emoji',
+            'emoji_desc'        => 'Removes the WordPress emoji detection script and its CSS (s.w.org fetch). Recommended — modern browsers have native emoji support.',
+            'lcp_label'         => 'WooCommerce LCP Preload',
+            'lcp_desc'          => 'Adds <code>&lt;link rel=&quot;preload&quot; imagesrcset&gt;</code> for the product image on single product and category pages. Matches the mobile browser\'s srcset candidate so the preload is never wasted.',
             'credit_label'      => 'Footer Credit',
             'credit_checkbox'   => 'Show some love and support development by adding a small link in the footer',
             'credit_desc'       => 'Inserts a discreet <a href="https://www.dampcig.dk" target="_blank">Dampcig.dk</a> link in the footer by linking the copyright symbol ©.',
@@ -116,6 +128,8 @@ function dc_swp_register_settings() {
     register_setting( 'dc-sw-prefetch-settings', 'dampcig_pwa_preload_products',  [ 'sanitize_callback' => 'sanitize_text_field' ] );
     register_setting( 'dc-sw-prefetch-settings', 'dampcig_pwa_product_base',     [ 'sanitize_callback' => 'sanitize_text_field' ] );
     register_setting( 'dc-sw-prefetch-settings', 'dampcig_pwa_footer_credit',    [ 'sanitize_callback' => 'sanitize_text_field' ] );
+    register_setting( 'dc-sw-prefetch-settings', 'dc_swp_disable_emoji',         [ 'sanitize_callback' => 'sanitize_text_field' ] );
+    register_setting( 'dc-sw-prefetch-settings', 'dc_swp_lcp_preload',           [ 'sanitize_callback' => 'sanitize_text_field' ] );
 }
 
 // Admin page HTML
@@ -128,11 +142,15 @@ function dc_swp_admin_page_html() {
         update_option( 'dampcig_pwa_preload_products', isset( $_POST['dampcig_pwa_preload_products'] )  ? 'yes' : 'no' );
         update_option( 'dampcig_pwa_product_base',     sanitize_text_field( wp_unslash( $_POST['dampcig_pwa_product_base'] ?? '' ) ) );
         update_option( 'dampcig_pwa_footer_credit',    isset( $_POST['dampcig_pwa_footer_credit'] )    ? 'yes' : 'no' );
+        update_option( 'dc_swp_disable_emoji',         isset( $_POST['dc_swp_disable_emoji'] )         ? 'yes' : 'no' );
+        update_option( 'dc_swp_lcp_preload',           isset( $_POST['dc_swp_lcp_preload'] )           ? 'yes' : 'no' );
         echo '<div class="notice notice-success"><p>' . esc_html( dc_swp_str( 'saved' ) ) . '</p></div>';
     }
 
     $sw_enabled       = get_option( 'dampcig_pwa_sw_enabled',      'yes' ) === 'yes';
     $preload_products = get_option( 'dampcig_pwa_preload_products', 'yes' ) === 'yes';
+    $disable_emoji    = get_option( 'dc_swp_disable_emoji',         'yes' ) === 'yes';
+    $lcp_preload      = get_option( 'dc_swp_lcp_preload',           'yes' ) === 'yes';
     $product_base_val = get_option( 'dampcig_pwa_product_base',    '' );
     $footer_credit    = get_option( 'dampcig_pwa_footer_credit',   'no' ) === 'yes';
 
@@ -183,6 +201,26 @@ function dc_swp_admin_page_html() {
                     </td>
                 </tr>
                 <tr valign="top">
+                    <th scope="row"><?php echo esc_html( dc_swp_str( 'emoji_label' ) ); ?></th>
+                    <td>
+                        <label class="pwa-toggle">
+                            <input type="checkbox" name="dc_swp_disable_emoji" value="yes" <?php checked( $disable_emoji, true ); ?>>
+                            <span class="pwa-slider"></span>
+                        </label>
+                        <p class="description"><?php echo wp_kses_post( dc_swp_str( 'emoji_desc' ) ); ?></p>
+                    </td>
+                </tr>
+                <tr valign="top">
+                    <th scope="row"><?php echo esc_html( dc_swp_str( 'lcp_label' ) ); ?></th>
+                    <td>
+                        <label class="pwa-toggle">
+                            <input type="checkbox" name="dc_swp_lcp_preload" value="yes" <?php checked( $lcp_preload, true ); ?>>
+                            <span class="pwa-slider"></span>
+                        </label>
+                        <p class="description"><?php echo wp_kses_post( dc_swp_str( 'lcp_desc' ) ); ?></p>
+                    </td>
+                </tr>
+                <tr valign="top">
                     <th scope="row"><?php echo esc_html( dc_swp_str( 'product_base_label' ) ); ?></th>
                     <td>
                         <input type="text" name="dampcig_pwa_product_base"
@@ -216,7 +254,7 @@ function dc_swp_admin_page_html() {
 
             <h2><?php echo esc_html( dc_swp_str( 'benefits_title' ) ); ?></h2>
             <ul style="list-style: disc; margin-left: 20px;">
-                <?php foreach ( [ 'benefit_1','benefit_2','benefit_3','benefit_4','benefit_5' ] as $b ) : ?>
+                <?php foreach ( [ 'benefit_1','benefit_2','benefit_3','benefit_4','benefit_5','benefit_6','benefit_7' ] as $b ) : ?>
                     <li>✅ <?php echo esc_html( dc_swp_str( $b ) ); ?></li>
                 <?php endforeach; ?>
             </ul>

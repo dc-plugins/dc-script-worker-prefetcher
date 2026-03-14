@@ -5,7 +5,7 @@ Requires at least: 6.8
 Tested up to: 6.9
 Requires PHP: 8.0
 WC tested up to: 10.4.3
-Stable tag: 1.1.0
+Stable tag: 1.2.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -24,6 +24,8 @@ On top of Partytown, the plugin ships its own viewport/pagination prefetcher: pr
 * **Automatic updates** — a weekly GitHub Actions workflow detects new Partytown releases and opens a PR with the updated vendor files.
 * **Viewport prefetching** — IntersectionObserver watches visible products and issues `<link rel="prefetch">` before the user clicks.
 * **Pagination prefetch** — next-page link is prefetched 2 s after page load.
+* **WP emoji removal** — dequeues the emoji detection script and CSS (76 KB round-trip to s.w.org eliminated).
+* **WooCommerce LCP preload** — emits `<link rel="preload" imagesrcset>` for the LCP product image on product and category pages, ensuring the preload matches the mobile browser's srcset candidate.
 * **Bot detection** — bots never receive Partytown or prefetch JS, keeping crawl budget clean.
 * **W3TC compatible** — HTML pages are cached by W3TC; Partytown handles only script execution.
 * **Standalone mode** — when W3TC is absent, PHP fallback cache headers keep browsers and CDNs caching correctly.
@@ -85,6 +87,11 @@ Either let the weekly GitHub Action open a PR automatically, or run `bash script
 3. DevTools showing Partytown service worker registered at `/~partytown/`.
 
 == Changelog ==
+
+= 1.2.0 =
+* **New:** WP emoji removal — dequeues `print_emoji_detection_script` and `print_emoji_styles` saving ~76 KB and one s.w.org DNS lookup per page. Toggle in admin (default: on).
+* **New:** WooCommerce LCP image preload — emits `<link rel="preload" as="image" imagesrcset imagesizes>` for the featured product image on single product and category/shop pages. The `imagesrcset` attribute matches the `<img srcset>` so the preload is never discarded by the browser as unused — critical fix for PSI mobile scoring. Toggle in admin (default: on).
+* Version bump: 1.1.0 → 1.2.0.
 
 = 1.1.0 =
 * **Breaking:** replaced custom `dc-sw.js` asset-caching service worker with vendored Partytown 0.10.3.
