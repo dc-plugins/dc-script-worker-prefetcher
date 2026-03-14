@@ -360,7 +360,21 @@ function dc_swp_partytown_config() {
 window.partytown = {
     lib: '/~partytown/',
     debug: false,
-    forward: ['dataLayer.push', 'gtag', 'fbq', 'lintrk', 'twq']
+    forward: ['dataLayer.push', 'gtag', 'fbq', 'lintrk', 'twq'],
+    resolveUrl: function(url, location, type) {
+        var proxyHosts = [
+            'www.googletagmanager.com',
+            'analytics.ahrefs.com',
+            'www.google-analytics.com',
+            'stats.g.doubleclick.net'
+        ];
+        if (type === 'script' && proxyHosts.indexOf(url.hostname) !== -1) {
+            var proxy = new URL('/~partytown/proxytown', location.href);
+            proxy.searchParams.append('url', url.href);
+            return proxy;
+        }
+        return url;
+    }
 };
 </script>
 JS;
@@ -401,6 +415,7 @@ function dc_swp_prefetch_footer() {
 
 		const productBase    = <?php echo wp_json_encode( $product_base ); ?>;
 		const prefetchedUrls = new Set();
+		const visibleItems   = new Set(); // track currently-intersecting elements
 
 		function prefetch(url) {
 			if (!url || prefetchedUrls.has(url)) return;
@@ -410,12 +425,10 @@ function dc_swp_prefetch_footer() {
 			link.href     = url;
 			link.as       = 'document';
 			document.head.appendChild(link);
+			console.log('[DC SW Prefetch] Prefetching:', url);
 		}
 
 		function resolveProductLink(el) {
-			// Find any anchor whose href contains the product base slug — universal
-			// across all themes and localised permalink configurations.
-			const anchors = Array.from( el.querySelectorAll('a[href]') );
 			const bad = (href) => !href
 				|| href.includes('add-to-cart')
 				|| href.includes('?remove_item')
@@ -423,10 +436,17 @@ function dc_swp_prefetch_footer() {
 				|| href.includes('?added-to-cart')
 				|| href.includes('#');
 
+			// Element itself may be the anchor (e.g. upsell-item <a> wrappers)
+			if (el.tagName === 'A' && el.href && !bad(el.href)) return el.href;
+
+			const anchors = Array.from( el.querySelectorAll('a[href]') );
 			// Prefer a link matching the (auto-detected or overridden) product slug
 			let a = anchors.find(a => a.href.includes(productBase) && !bad(a.href));
 			// Fallback: first non-utility anchor inside the item
 			if (!a) a = anchors.find(a => !bad(a.href));
+			if (!a) {
+				console.debug('[DC SW Prefetch] No link in item:', el, '| anchors found:', anchors.length, '| productBase:', productBase);
+			}
 			return a ? a.href : null;
 		}
 
@@ -437,23 +457,34 @@ function dc_swp_prefetch_footer() {
 			if (next && next.href) setTimeout(() => prefetch(next.href), 2000);
 		}
 
+		// Wide selector — catches product grid items and upsell anchor-wrappers
 		const items = document.querySelectorAll(
-			'.products .product, ul.products li.product, .product-item'
+			'.products .product, ul.products li.product, .product-item, li.product, a.upsell-item[href]'
 		);
-		if (!items.length) return;
+		if (!items.length) {
+			console.warn('[DC SW Prefetch] No product items found in DOM');
+			return;
+		}
+
+		console.log('[DC SW Prefetch] Monitoring', items.length, 'products | productBase:', productBase);
 
 		if ('IntersectionObserver' in window) {
 			const observer = new IntersectionObserver((entries) => {
 				entries.forEach(entry => {
-					if (!entry.isIntersecting) return;
-					const url = resolveProductLink(entry.target);
-					if (url) setTimeout(() => { if (entry.isIntersecting) prefetch(url); }, 500);
+					if (entry.isIntersecting) {
+						visibleItems.add(entry.target);
+						const url = resolveProductLink(entry.target);
+						if (url) {
+							prefetch(url);
+						}
+					} else {
+						visibleItems.delete(entry.target);
+					}
 				});
 			}, { rootMargin: '50px', threshold: 0.1 });
 
 			items.forEach(item => observer.observe(item));
 			prefetchNextPage();
-			console.log('[DC Prefetch] Monitoring', items.length, 'products');
 		} else {
 			// Fallback for browsers without IntersectionObserver
 			const vh = window.innerHeight;
