@@ -1,7 +1,7 @@
 <?php
 /**
  * DC Service Worker Prefetcher — Admin Interface
- * Asset-only caching (HTML handled by W3TC), viewport prefetching controls
+ * Partytown third-party script offloading + viewport/pagination prefetching
  * DampCig.dk
  */
 
@@ -18,59 +18,57 @@ function dc_swp_str( $key ) {
         $s  = $da ? [
             'page_title'        => 'SW Prefetch Indstillinger',
             'saved'             => 'Indstillinger gemt!',
-            'info_title'        => 'W3TC Hybrid Integration',
-            'info_body'         => 'Service workeren cacher kun statiske filer (CSS, JS, billeder). HTML-sider håndteres af W3 Total Cache for bedre performance og cache-kontrol.',
-            'sw_label'          => 'Aktiver Service Worker',
-            'sw_desc'           => 'Aktiver service workeren til caching af statiske filer (CSS, JS, fonter, billeder).',
-            'offline_label'     => 'Offline Fallback Side',
-            'offline_desc'      => 'URL til offline-siden der vises når netværket er utilgængeligt.',
+            'info_title'        => 'Partytown Integration',
+            'info_body'         => 'Partytown kører tredjeparts-scripts (Google Analytics, Meta Pixel osv.) i en service worker, så de ikke blokerer browser-tråden. Viewport-prefetch preloader produkter automatisk.',
+            'sw_label'          => 'Aktiver Partytown',
+            'sw_desc'           => 'Aktiver Partytown service worker til offloading af tredjeparts-scripts og viewport-prefetch.',
             'preload_label'     => 'Viewport Preloading',
             'preload_desc'      => '<strong>Anbefalet!</strong> Preloader automatisk produkter synlige i viewporten via browser prefetch. Benytter W3TC cache for øjeblikkelig indlæsning når brugeren klikker.',
-            'strategy_title'    => 'Cache Strategi',
-            'html_label'        => 'HTML Sider',
-            'html_val'          => 'Håndteres af W3 Total Cache',
-            'html_desc'         => 'Alle produktsider, kategorier og andre HTML-sider caches af W3TC for optimal performance.',
-            'static_label'      => 'Statiske Filer',
-            'static_val'        => 'Cache-First (Service Worker)',
-            'static_desc'       => 'CSS, JavaScript, billeder og fonter caches lokalt i browseren for hurtigere indlæsning.',
-            'benefits_title'    => 'Fordele ved W3TC Integration',
-            'benefit_1'         => 'Ingen duplikeret cache (HTML kun i W3TC)',
-            'benefit_2'         => 'W3TC\'s cache invalidation respekteres',
-            'benefit_3'         => 'Hurtigere sider (færre cache-lag)',
-            'benefit_4'         => 'Bedre cache hit ratio',
-            'benefit_5'         => 'Mindre lagerplads brugt i browser',
+            'strategy_title'    => 'Arkitektur',
+            'html_label'        => 'Tredjeparts-scripts',
+            'html_val'          => 'Offloaded via Partytown (service worker)',
+            'html_desc'         => 'Scripts markeret med type="text/partytown" flyttes ud af browser-tråden og kører i service workeren.',
+            'static_label'      => 'HTML-sider',
+            'static_val'        => 'Håndteres af W3 Total Cache',
+            'static_desc'       => 'Produktsider og kategorier caches af W3TC — Partytown interfererer ikke med HTML-cachen.',
+            'benefits_title'    => 'Fordele',
+            'benefit_1'         => 'Tunge annoncerings- og analysescripts blokerer ikke main-thread',
+            'benefit_2'         => 'Viewport-prefetch preloader produktlinks automatisk',
+            'benefit_3'         => 'Pagineringslink prefetches 2 s i forvejen',
+            'benefit_4'         => 'Bots og crawlers modtager aldrig Partytown (rent HTML)',
+            'benefit_5'         => 'Automatiske opdateringer via GitHub Actions workflow',
             'credit_label'      => 'Footer Kredit',
             'credit_checkbox'   => 'Vis kærlighed og støt udviklingen ved at tilføje et lille link i footeren',
             'credit_desc'       => 'Indsætter et diskret <a href="https://www.dampcig.dk" target="_blank">Dampcig.dk</a>-link i sidens footer ved at linke copyright-symbolet ©.',
             'save_button'       => 'Gem Indstillinger',
+            'pt_version_label'  => 'Partytown Version',
         ] : [
             'page_title'        => 'SW Prefetch Settings',
             'saved'             => 'Settings saved!',
-            'info_title'        => 'W3TC Hybrid Integration',
-            'info_body'         => 'The service worker caches only static assets (CSS, JS, images). HTML pages are handled by W3 Total Cache for better performance and cache control.',
-            'sw_label'          => 'Enable Service Worker',
-            'sw_desc'           => 'Activate the service worker for caching static assets (CSS, JS, fonts, images).',
-            'offline_label'     => 'Offline Fallback Page',
-            'offline_desc'      => 'URL of the page shown when the network is unavailable.',
+            'info_title'        => 'Partytown Integration',
+            'info_body'         => 'Partytown runs third-party scripts (Google Analytics, Meta Pixel, etc.) inside a service worker, moving them off the browser main thread. Viewport prefetch pre-loads product pages automatically.',
+            'sw_label'          => 'Enable Partytown',
+            'sw_desc'           => 'Activate Partytown service worker for third-party script offloading and viewport prefetch.',
             'preload_label'     => 'Viewport Preloading',
             'preload_desc'      => '<strong>Recommended!</strong> Automatically prefetches products visible in the viewport via browser prefetch, leveraging W3TC cache for instant loading when the user clicks.',
-            'strategy_title'    => 'Cache Strategy',
-            'html_label'        => 'HTML Pages',
-            'html_val'          => 'Handled by W3 Total Cache',
-            'html_desc'         => 'All product pages, categories and other HTML pages are cached by W3TC for optimal performance.',
-            'static_label'      => 'Static Assets',
-            'static_val'        => 'Cache-First (Service Worker)',
-            'static_desc'       => 'CSS, JavaScript, images and fonts are cached locally in the browser for faster loading.',
-            'benefits_title'    => 'Benefits of W3TC Integration',
-            'benefit_1'         => 'No duplicated cache (HTML only in W3TC)',
-            'benefit_2'         => 'W3TC cache invalidation is respected',
-            'benefit_3'         => 'Faster pages (fewer cache layers)',
-            'benefit_4'         => 'Better cache hit ratio',
-            'benefit_5'         => 'Less storage used in the browser',
+            'strategy_title'    => 'Architecture',
+            'html_label'        => 'Third-party Scripts',
+            'html_val'          => 'Offloaded via Partytown (service worker)',
+            'html_desc'         => 'Scripts tagged with type="text/partytown" are moved off the main thread and run inside the service worker.',
+            'static_label'      => 'HTML Pages',
+            'static_val'        => 'Handled by W3 Total Cache',
+            'static_desc'       => 'Product pages and categories are cached by W3TC — Partytown does not interfere with HTML caching.',
+            'benefits_title'    => 'Benefits',
+            'benefit_1'         => 'Heavy ad/analytics scripts never block the main thread',
+            'benefit_2'         => 'Viewport prefetch pre-loads product links automatically',
+            'benefit_3'         => 'Pagination next-page link prefetched 2 s ahead',
+            'benefit_4'         => 'Bots and crawlers never receive Partytown (clean HTML)',
+            'benefit_5'         => 'Automatic updates via GitHub Actions workflow',
             'credit_label'      => 'Footer Credit',
             'credit_checkbox'   => 'Show some love and support development by adding a small link in the footer',
             'credit_desc'       => 'Inserts a discreet <a href="https://www.dampcig.dk" target="_blank">Dampcig.dk</a> link in the footer by linking the copyright symbol ©.',
             'save_button'       => 'Save Settings',
+            'pt_version_label'  => 'Partytown Version',
         ];
     }
     return $s[ $key ] ?? $key;
@@ -108,10 +106,9 @@ function dc_swp_setup_menu() {
 add_action( 'admin_init', 'dc_swp_register_settings' );
 // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedFunctionFound
 function dc_swp_register_settings() {
-    register_setting( 'dc-sw-prefetch-settings', 'dampcig_pwa_sw_enabled',      [ 'sanitize_callback' => 'sanitize_text_field' ] );
-    register_setting( 'dc-sw-prefetch-settings', 'dampcig_pwa_offline_page',    [ 'sanitize_callback' => 'sanitize_text_field' ] );
-    register_setting( 'dc-sw-prefetch-settings', 'dampcig_pwa_preload_products', [ 'sanitize_callback' => 'sanitize_text_field' ] );
-    register_setting( 'dc-sw-prefetch-settings', 'dampcig_pwa_footer_credit',   [ 'sanitize_callback' => 'sanitize_text_field' ] );
+    register_setting( 'dc-sw-prefetch-settings', 'dampcig_pwa_sw_enabled',       [ 'sanitize_callback' => 'sanitize_text_field' ] );
+    register_setting( 'dc-sw-prefetch-settings', 'dampcig_pwa_preload_products',  [ 'sanitize_callback' => 'sanitize_text_field' ] );
+    register_setting( 'dc-sw-prefetch-settings', 'dampcig_pwa_footer_credit',    [ 'sanitize_callback' => 'sanitize_text_field' ] );
 }
 
 // Admin page HTML
@@ -121,16 +118,22 @@ function dc_swp_admin_page_html() {
 
     if ( isset( $_POST['dc_swp_nonce'] ) && wp_verify_nonce( sanitize_text_field( wp_unslash( $_POST['dc_swp_nonce'] ) ), 'dc_swp_save_settings' ) ) {
         update_option( 'dampcig_pwa_sw_enabled',       isset( $_POST['dampcig_pwa_sw_enabled'] )       ? 'yes' : 'no' );
-        update_option( 'dampcig_pwa_offline_page',     sanitize_text_field( wp_unslash( $_POST['dampcig_pwa_offline_page'] ?? '' ) ) );
         update_option( 'dampcig_pwa_preload_products', isset( $_POST['dampcig_pwa_preload_products'] )  ? 'yes' : 'no' );
         update_option( 'dampcig_pwa_footer_credit',    isset( $_POST['dampcig_pwa_footer_credit'] )    ? 'yes' : 'no' );
         echo '<div class="notice notice-success"><p>' . esc_html( dc_swp_str( 'saved' ) ) . '</p></div>';
     }
 
     $sw_enabled       = get_option( 'dampcig_pwa_sw_enabled',      'yes' ) === 'yes';
-    $offline_page     = get_option( 'dampcig_pwa_offline_page',    '/offline/' );
     $preload_products = get_option( 'dampcig_pwa_preload_products', 'yes' ) === 'yes';
     $footer_credit    = get_option( 'dampcig_pwa_footer_credit',   'no' ) === 'yes';
+
+    // Read vendored Partytown version from package.json
+    $pkg_json   = plugin_dir_path( __FILE__ ) . 'package.json';
+    $pt_version = 'unknown';
+    if ( file_exists( $pkg_json ) ) {
+        $pkg = json_decode( file_get_contents( $pkg_json ), true ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents
+        $pt_version = $pkg['vendored']['@builder.io/partytown'] ?? 'unknown';
+    }
     ?>
     <div class="wrap">
         <h1><?php echo esc_html( dc_swp_str( 'page_title' ) ); ?></h1>
@@ -138,6 +141,9 @@ function dc_swp_admin_page_html() {
         <div class="notice notice-info">
             <p><strong>ℹ️ <?php echo esc_html( dc_swp_str( 'info_title' ) ); ?></strong></p>
             <p><?php echo esc_html( dc_swp_str( 'info_body' ) ); ?></p>
+            <p><?php echo esc_html( dc_swp_str( 'pt_version_label' ) ); ?>: <code><?php echo esc_html( $pt_version ); ?></code>
+               &nbsp;—&nbsp;
+               <a href="https://github.com/QwikDev/partytown/releases" target="_blank" rel="noopener">Changelog ↗</a></p>
         </div>
 
         <form method="post" action="" class="pwa-cache-settings">
@@ -151,13 +157,6 @@ function dc_swp_admin_page_html() {
                             <span class="pwa-slider"></span>
                         </label>
                         <p class="description"><?php echo esc_html( dc_swp_str( 'sw_desc' ) ); ?></p>
-                    </td>
-                </tr>
-                <tr valign="top">
-                    <th scope="row"><?php echo esc_html( dc_swp_str( 'offline_label' ) ); ?></th>
-                    <td>
-                        <input type="text" name="dampcig_pwa_offline_page" value="<?php echo esc_attr( $offline_page ); ?>" class="regular-text" />
-                        <p class="description"><?php echo esc_html( dc_swp_str( 'offline_desc' ) ); ?></p>
                     </td>
                 </tr>
                 <tr valign="top">

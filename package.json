@@ -1,0 +1,17 @@
+{
+  "name": "dc-sw-prefetch",
+  "version": "1.1.0",
+  "description": "DC Service Worker Prefetcher — Partytown + viewport/pagination prefetch for WooCommerce",
+  "private": true,
+  "vendored": {
+    "@builder.io/partytown": "0.10.3"
+  },
+  "scripts": {
+    "update-partytown": "bash scripts/update-partytown.sh"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/dc-plugins/dc-sw-prefetch"
+  },
+  "license": "GPL-2.0+"
+}

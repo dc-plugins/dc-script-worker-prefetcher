@@ -17,7 +17,6 @@ if ( ! defined( 'WP_UNINSTALL_PLUGIN' ) ) {
 function dc_swp_uninstall() {
 	foreach ( [
 		'dampcig_pwa_sw_enabled',
-		'dampcig_pwa_offline_page',
 		'dampcig_pwa_preload_products',
 		'dampcig_pwa_footer_credit',
 	] as $dc_swp_opt ) {

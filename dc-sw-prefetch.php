@@ -3,8 +3,8 @@
  * @wordpress-plugin
  * Plugin Name: DC Service Worker Prefetcher
  * Plugin URI:  https://github.com/dc-plugins/dc-sw-prefetch
- * Description: Service worker asset caching with W3TC hybrid mode, viewport-based product prefetching, and bot detection.
- * Version:     1.0.0
+ * Description: Partytown service worker with viewport/pagination prefetching for WooCommerce. Offloads third-party scripts via Partytown and pre-fetches visible products & next pages.
+ * Version:     1.1.0
  * Author:      Dampcig
  * Author URI:  https://www.dampcig.dk
  * License:     GPL-2.0+
@@ -228,259 +228,196 @@ function dc_swp_fallback_cache_headers() {
 
 
 // ============================================================
-// SERVICE WORKER — serve /dc-sw.js on 'init'
+// PARTYTOWN — serve ~partytown/ lib files from the plugin
 // ============================================================
 
-add_action( 'init', 'dc_swp_serve_service_worker', 1 );
+/**
+ * Partytown lib directory relative to the WordPress root.
+ * Partytown itself is registered at this virtual path.
+ */
+define( 'DC_SWP_PARTYTOWN_LIB', '/wp-content/plugins/dc-sw-prefetch/assets/partytown/' );
+
+add_action( 'init', 'dc_swp_serve_partytown_files', 1 );
 
 /**
- * Intercept requests for /dc-sw.js and stream the service worker JS.
- * Caches static assets (CSS, JS, fonts, images).
- * HTML pages are handled by W3 Total Cache (or fallback headers above).
+ * Stream any requested file from our vendored assets/partytown/ directory
+ * when the request path starts with /~partytown/.
+ *
+ * Partytown resolves its own workers/sandboxes relative to the `lib` config
+ * option, which we point to /~partytown/ in the inline snip below.
  */
 // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedFunctionFound
-function dc_swp_serve_service_worker() {
+function dc_swp_serve_partytown_files() {
 	$request_uri = isset( $_SERVER['REQUEST_URI'] )
 		? wp_parse_url( wp_unslash( $_SERVER['REQUEST_URI'] ), PHP_URL_PATH ) // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized
 		: '';
 
-	if ( $request_uri !== '/dc-sw.js' ) {
+	if ( strncmp( $request_uri, '/~partytown/', 12 ) !== 0 ) {
 		return;
 	}
 
-	if ( dc_swp_is_bot_request() ) {
+	// Resolve the physical file — prevent directory traversal.
+	$relative  = ltrim( substr( $request_uri, strlen( '/~partytown/' ) ), '/' );
+	// Strip query string just in case
+	$relative  = strtok( $relative, '?' );
+	$real_base = realpath( plugin_dir_path( __FILE__ ) . 'assets/partytown' );
+	$file      = realpath( $real_base . '/' . $relative );
+
+	// Security: must resolve inside the partytown assets directory.
+	if ( $file === false || strncmp( $file, $real_base, strlen( $real_base ) ) !== 0 ) {
 		status_header( 404 );
 		exit();
 	}
 
-	$sw_enabled   = get_option( 'dampcig_pwa_sw_enabled', 'yes' ) === 'yes';
-	$offline_page = get_option( 'dampcig_pwa_offline_page', '/offline/' );
-
-	status_header( 200 );
-	header( 'Content-Type: application/javascript; charset=utf-8' );
-	header( 'Service-Worker-Allowed: /' );
-	header( 'X-Robots-Tag: none' );
-	header( 'Cache-Control: no-cache, no-store, must-revalidate' );
-	header( 'Pragma: no-cache' );
-	header( 'Expires: 0' );
-
-	if ( ! $sw_enabled ) {
-		echo "// Service Worker disabled\nself.addEventListener('install', () => self.skipWaiting());";
+	if ( ! is_file( $file ) ) {
+		status_header( 404 );
 		exit();
 	}
 
-	$sw_content = <<<'SWJS'
-'use strict';
+	$ext_map = [
+		'js'   => 'application/javascript; charset=utf-8',
+		'html' => 'text/html; charset=utf-8',
+		'mjs'  => 'application/javascript; charset=utf-8',
+	];
+	$ext  = strtolower( pathinfo( $file, PATHINFO_EXTENSION ) );
+	$mime = $ext_map[ $ext ] ?? 'application/octet-stream';
 
-// ===================================================================
-// DC SERVICE WORKER - ASSET CACHING MODE
-// Assets (CSS, JS, fonts, images) cached locally.
-// HTML pages bypassed to W3TC (or browser/CDN via fallback headers).
-// ===================================================================
+	status_header( 200 );
+	header( 'Content-Type: ' . $mime );
+	header( 'Service-Worker-Allowed: /' );
+	header( 'X-Robots-Tag: none' );
+	// Partytown files are versioned by the plugin; cache for 1 hour, revalidate.
+	header( 'Cache-Control: public, max-age=3600, stale-while-revalidate=60' );
 
-const CACHE_VERSION  = 'dc-sw-assets-v2';
-const OFFLINE_PAGE   = '/offline/';
-
-// Only cache static assets (NOT HTML pages)
-const CACHE_EXTENSIONS = [
-    '.css', '.js',
-    '.woff2', '.woff', '.ttf', '.eot',
-    '.svg', '.png', '.jpg', '.jpeg', '.gif', '.webp', '.ico'
-];
-
-// Never cache these paths
-const EXCLUDED_PATHS = [
-    '/wp-admin', '/wp-login', '/kurv', '/kassen', '/min-konto', '/ajax'
-];
-
-function shouldCacheAsset(url) {
-    try {
-        const urlObj = new URL(url);
-        if (urlObj.origin !== location.origin) return false;
-        for (let path of EXCLUDED_PATHS) {
-            if (urlObj.pathname.includes(path)) return false;
-        }
-        return CACHE_EXTENSIONS.some(ext => urlObj.pathname.toLowerCase().endsWith(ext));
-    } catch (e) {
-        return false;
-    }
-}
-
-// Install — minimal precaching
-self.addEventListener('install', (event) => {
-    console.log('[SW] Installing — DC Service Worker Prefetcher');
-    event.waitUntil(
-        caches.open(CACHE_VERSION).then((cache) => {
-            return fetch(OFFLINE_PAGE, { method: 'HEAD' })
-                .then(() => cache.add(OFFLINE_PAGE))
-                .catch(() => console.log('[PWA] No offline page found, skipping precache'));
-        })
-    );
-    self.skipWaiting();
-});
-
-// Activate — purge old caches
-self.addEventListener('activate', (event) => {
-    console.log('[SW] Activating — purging old caches');
-    event.waitUntil(
-        caches.keys().then((cacheNames) => Promise.all(
-            cacheNames
-                .filter(name => name !== CACHE_VERSION)
-                .map(name => { console.log('[SW] Deleting old cache:', name); return caches.delete(name); })
-        ))
-    );
-    return self.clients.claim();
-});
-
-// Fetch — assets cached, HTML bypassed
-self.addEventListener('fetch', (event) => {
-    const { request } = event;
-    if (request.method !== 'GET') return;
-
-    const urlObj = new URL(request.url);
-    const isExcluded = EXCLUDED_PATHS.some(path => urlObj.pathname.includes(path));
-    if (isExcluded) return;
-
-    if (urlObj.searchParams.has('remove_item')  ||
-        urlObj.searchParams.has('add-to-cart')  ||
-        urlObj.searchParams.has('update_cart'))  return;
-
-    if (urlObj.origin !== self.location.origin) return;
-
-    if (shouldCacheAsset(request.url)) {
-        event.respondWith(
-            caches.match(request).then((cached) => {
-                if (cached) return cached;
-                return fetch(request).then((response) => {
-                    if (response && response.status === 200) {
-                        const clone = response.clone();
-                        caches.open(CACHE_VERSION).then(cache => cache.put(request, clone));
-                    }
-                    return response;
-                }).catch(err => { console.error('[SW] Fetch failed:', request.url); throw err; });
-            })
-        );
-    } else {
-        event.respondWith(
-            fetch(request).catch(() => {
-                if (request.destination === 'document') {
-                    console.log('[SW] Network failed, showing offline page');
-                    return caches.match(OFFLINE_PAGE);
-                }
-            })
-        );
-    }
-});
-
-// Messages
-self.addEventListener('message', (event) => {
-    if (event.data && event.data.type === 'SKIP_WAITING') self.skipWaiting();
-});
-
-console.log('[SW] DC Service Worker Prefetcher loaded');
-SWJS;
-
-	echo $sw_content; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- intentional raw JS output
+	// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- serving a binary-safe static file
+	readfile( $file );
 	exit();
 }
 
 
 // ============================================================
-// REGISTER SERVICE WORKER IN FOOTER + VIEWPORT PRELOADING
+// PARTYTOWN SNIPPET + VIEWPORT/PAGINATION PREFETCHER IN FOOTER
 // ============================================================
 
-add_action( 'wp_footer', 'dc_swp_register_sw', 9999 );
+add_action( 'wp_head', 'dc_swp_partytown_config', 2 );
 
+/**
+ * Emit the Partytown config object and the inline snippet in <head>.
+ * Must run before any type="text/partytown" scripts.
+ */
 // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedFunctionFound
-function dc_swp_register_sw() {
+function dc_swp_partytown_config() {
+	if ( dc_swp_is_bot_request() ) return;
+	if ( is_admin() ) return;
+
+	$pt_enabled = get_option( 'dampcig_pwa_sw_enabled', 'yes' ) === 'yes';
+	if ( ! $pt_enabled ) return;
+
+	// Inline Partytown snippet — serves workers from /~partytown/
+	$snippet_file = plugin_dir_path( __FILE__ ) . 'assets/partytown/partytown.js';
+	if ( ! file_exists( $snippet_file ) ) return;
+
+	$snippet = file_get_contents( $snippet_file ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents
+
+	// Inject window.partytown config before the snippet runs.
+	$config_script = <<<'JS'
+<script>
+window.partytown = {
+    lib: '/~partytown/',
+    debug: false,
+    forward: ['dataLayer.push', 'gtag', 'fbq', 'lintrk', 'twq']
+};
+</script>
+JS;
+
+	echo $config_script; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
+	echo '<script>' . $snippet . '</script>' . "\n"; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
+}
+
+
+add_action( 'wp_footer', 'dc_swp_prefetch_footer', 9999 );
+
+/**
+ * Viewport/pagination prefetcher — runs in wp_footer.
+ * Unchanged from original; does NOT depend on a service worker.
+ */
+// phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedFunctionFound
+function dc_swp_prefetch_footer() {
 	if ( dc_swp_is_bot_request() ) {
 		return;
 	}
 
-	if ( is_cart() || is_checkout() || is_account_page() ) {
-		?>
-		<script>
-		if ('serviceWorker' in navigator) {
-			navigator.serviceWorker.getRegistrations().then(registrations => {
-				registrations.forEach(r => {
-				if (r.active && r.active.scriptURL.includes('dc-sw.js')) {
-					console.log('[SW] Service worker disabled on this page');
-					}
-				});
-			});
-		}
-		</script>
-		<?php
+	if (
+		( function_exists( 'is_cart' )         && is_cart() ) ||
+		( function_exists( 'is_checkout' )     && is_checkout() ) ||
+		( function_exists( 'is_account_page' ) && is_account_page() )
+	) {
 		return;
 	}
 
 	$preload_enabled = get_option( 'dampcig_pwa_preload_products', 'yes' ) === 'yes';
+	if ( ! $preload_enabled ) return;
 	?>
 	<script>
-	<?php if ( $preload_enabled ) : ?>
-	function dampcigPreloadVisibleProducts() {
-		const hasProducts = document.querySelector('.products .product, ul.products li.product, .woocommerce-loop-product__link');
-		if (!hasProducts) return;
+	(function () {
+		'use strict';
 
 		const prefetchedUrls = new Set();
-		const prefetchProduct = (url) => {
-			if (prefetchedUrls.has(url)) return;
+
+		function prefetch(url) {
+			if (!url || prefetchedUrls.has(url)) return;
 			prefetchedUrls.add(url);
-			const link = document.createElement('link');
-			link.rel  = 'prefetch';
-			link.href = url;
-			link.as   = 'document';
+			const link    = document.createElement('link');
+			link.rel      = 'prefetch';
+			link.href     = url;
+			link.as       = 'document';
 			document.head.appendChild(link);
-			console.log('[SW] Prefetching:', url);
-		};
+		}
+
+		function resolveProductLink(el) {
+			const a = el.querySelector('a.woocommerce-loop-product__link')
+				   || el.querySelector('a.product-link')
+				   || el.querySelector(':scope > a');
+			if (!a || !a.href) return null;
+			if (a.href.includes('add-to-cart') || a.href.includes('#') || a.href.includes('?remove_item')) return null;
+			return a.href;
+		}
+
+		function prefetchNextPage() {
+			const next = document.querySelector(
+				'.woocommerce-pagination a.next, .next.page-numbers, a.next-page'
+			);
+			if (next && next.href) setTimeout(() => prefetch(next.href), 2000);
+		}
+
+		const items = document.querySelectorAll(
+			'.products .product, ul.products li.product, .product-item'
+		);
+		if (!items.length) return;
 
 		if ('IntersectionObserver' in window) {
 			const observer = new IntersectionObserver((entries) => {
 				entries.forEach(entry => {
 					if (!entry.isIntersecting) return;
-					let a = entry.target.querySelector('a.woocommerce-loop-product__link')
-					     || entry.target.querySelector('a.product-link')
-					     || entry.target.querySelector(':scope > a');
-					if (a && a.href && !a.href.includes('add-to-cart') && !a.href.includes('#') && !a.href.includes('?remove_item')) {
-						setTimeout(() => { if (entry.isIntersecting) prefetchProduct(a.href); }, 500);
-					}
+					const url = resolveProductLink(entry.target);
+					if (url) setTimeout(() => { if (entry.isIntersecting) prefetch(url); }, 500);
 				});
 			}, { rootMargin: '50px', threshold: 0.1 });
 
-			const items = document.querySelectorAll('.products .product, ul.products li.product, .product-item');
 			items.forEach(item => observer.observe(item));
-
-			const nextPage = document.querySelector('.woocommerce-pagination a.next, .next.page-numbers, a.next-page');
-			if (nextPage && nextPage.href) {
-				setTimeout(() => prefetchProduct(nextPage.href), 2000);
-			}
-					console.log(`[SW] Monitoring ${items.length} products for viewport prefetching`);
+			prefetchNextPage();
+			console.log('[DC Prefetch] Monitoring', items.length, 'products');
 		} else {
+			// Fallback for browsers without IntersectionObserver
 			const vh = window.innerHeight;
-			document.querySelectorAll('.products .product a.woocommerce-loop-product__link, ul.products li.product > a').forEach(a => {
-				if (!a.href || a.href.includes('add-to-cart') || a.href.includes('#')) return;
-				const rect = a.getBoundingClientRect();
-				if (rect.top >= 0 && rect.top <= vh) prefetchProduct(a.href);
+			items.forEach(item => {
+				const url  = resolveProductLink(item);
+				const rect = item.getBoundingClientRect();
+				if (url && rect.top >= 0 && rect.top <= vh) prefetch(url);
 			});
-			const next = document.querySelector('.woocommerce-pagination a.next, .next.page-numbers');
-			if (next && next.href) prefetchProduct(next.href);
+			prefetchNextPage();
 		}
-	}
-	<?php endif; ?>
-
-	if ('serviceWorker' in navigator) {
-		window.addEventListener('load', () => {
-			navigator.serviceWorker.register('/dc-sw.js', { scope: '/' })
-				.then(registration => {
-					console.log('[SW] Service Worker registered');
-					if (registration.active) registration.update();
-					<?php if ( $preload_enabled ) : ?>
-					dampcigPreloadVisibleProducts();
-					<?php endif; ?>
-				})
-				.catch(err => console.error('[SW] Service Worker registration failed:', err));
-		});
-	}
+	})();
 	</script>
 	<?php
 }

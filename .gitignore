@@ -16,3 +16,6 @@ composer.lock
 
 # PHPCS
 .phpcs-cache
+
+# Partytown vendored lib — always commit, never ignore
+!assets/partytown/

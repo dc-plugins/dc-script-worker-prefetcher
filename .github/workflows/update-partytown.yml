@@ -1,0 +1,84 @@
+name: Update Partytown
+
+on:
+  # Run weekly on Monday at 08:00 UTC
+  schedule:
+    - cron: '0 8 * * 1'
+  # Allow manual trigger from the Actions tab
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Pin to specific version (leave blank for latest)'
+        required: false
+        default: ''
+
+jobs:
+  update:
+    name: Vendor latest Partytown lib
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # ── Resolve target version ───────────────────────────────
+      - name: Resolve target version
+        id: version
+        run: |
+          if [ -n "${{ github.event.inputs.version }}" ]; then
+            echo "target=${{ github.event.inputs.version }}" >> "$GITHUB_OUTPUT"
+          else
+            LATEST=$(curl -fsSL https://registry.npmjs.org/@builder.io/partytown/latest \
+              | grep -o '"version":"[^"]*"' | head -1 | cut -d'"' -f4)
+            echo "target=$LATEST" >> "$GITHUB_OUTPUT"
+          fi
+
+      # ── Compare to currently vendored version ────────────────
+      - name: Check if update is needed
+        id: check
+        run: |
+          CURRENT=$(grep -o '"@builder.io/partytown": "[^"]*"' package.json \
+            | cut -d'"' -f4 || echo "none")
+          TARGET="${{ steps.version.outputs.target }}"
+          echo "current=$CURRENT" >> "$GITHUB_OUTPUT"
+          if [ "$CURRENT" = "$TARGET" ]; then
+            echo "needed=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "needed=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      # ── Download & vendor new lib files ──────────────────────
+      - name: Vendor Partytown ${{ steps.version.outputs.target }}
+        if: steps.check.outputs.needed == 'true'
+        env:
+          VERSION: ${{ steps.version.outputs.target }}
+          CURRENT: ${{ steps.check.outputs.current }}
+        run: |
+          bash scripts/update-partytown.sh "$VERSION"
+
+      # ── Open a PR with the diff ───────────────────────────────
+      - name: Create Pull Request
+        if: steps.check.outputs.needed == 'true'
+        uses: peter-evans/create-pull-request@v7
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          branch: chore/partytown-${{ steps.version.outputs.target }}
+          commit-message: "chore: vendor partytown ${{ steps.version.outputs.target }}"
+          title: "chore: update Partytown to ${{ steps.version.outputs.target }}"
+          body: |
+            ## Partytown ${{ steps.version.outputs.target }}
+
+            Automated vendor update from `${{ steps.check.outputs.current }}` → `${{ steps.version.outputs.target }}`.
+
+            **What changed:**
+            - `assets/partytown/` — rebuilt lib files from `@builder.io/partytown@${{ steps.version.outputs.target }}`
+            - `package.json` — bumped `vendored["@builder.io/partytown"]`
+
+            **Review checklist:**
+            - [ ] [Partytown changelog](https://github.com/QwikDev/partytown/releases/tag/v${{ steps.version.outputs.target }}) reviewed
+            - [ ] Tested on staging before merging to `main`
+          labels: dependencies, automated
+          draft: false
