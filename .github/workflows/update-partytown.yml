@@ -31,7 +31,7 @@ jobs:
           if [ -n "${{ github.event.inputs.version }}" ]; then
             echo "target=${{ github.event.inputs.version }}" >> "$GITHUB_OUTPUT"
           else
-            LATEST=$(curl -fsSL https://registry.npmjs.org/@builder.io/partytown/latest \
+            LATEST=$(curl -fsSL https://registry.npmjs.org/@qwik.dev/partytown/latest \
               | grep -o '"version":"[^"]*"' | head -1 | cut -d'"' -f4)
             echo "target=$LATEST" >> "$GITHUB_OUTPUT"
           fi
@@ -40,7 +40,7 @@ jobs:
       - name: Check if update is needed
         id: check
         run: |
-          CURRENT=$(grep -o '"@builder.io/partytown": "[^"]*"' package.json \
+          CURRENT=$(grep -o '"@qwik.dev/partytown": "[^"]*"' package.json \
             | cut -d'"' -f4 || echo "none")
           TARGET="${{ steps.version.outputs.target }}"
           echo "current=$CURRENT" >> "$GITHUB_OUTPUT"
@@ -74,8 +74,8 @@ jobs:
             Automated vendor update from `${{ steps.check.outputs.current }}` → `${{ steps.version.outputs.target }}`.
 
             **What changed:**
-            - `assets/partytown/` — rebuilt lib files from `@builder.io/partytown@${{ steps.version.outputs.target }}`
-            - `package.json` — bumped `vendored["@builder.io/partytown"]`
+            - `assets/partytown/` — rebuilt lib files from `@qwik.dev/partytown@${{ steps.version.outputs.target }}`
+            - `package.json` — bumped `vendored["@qwik.dev/partytown"]`
 
             **Review checklist:**
             - [ ] [Partytown changelog](https://github.com/QwikDev/partytown/releases/tag/v${{ steps.version.outputs.target }}) reviewed

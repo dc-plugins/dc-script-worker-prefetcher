@@ -132,7 +132,7 @@ function dc_swp_admin_page_html() {
     $pt_version = 'unknown';
     if ( file_exists( $pkg_json ) ) {
         $pkg = json_decode( file_get_contents( $pkg_json ), true ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents
-        $pt_version = $pkg['vendored']['@builder.io/partytown'] ?? 'unknown';
+        $pt_version = $pkg['vendored']['@qwik.dev/partytown'] ?? 'unknown';
     }
     ?>
     <div class="wrap">

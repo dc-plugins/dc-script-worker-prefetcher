@@ -1,30 +1,32 @@
 #!/usr/bin/env bash
 # scripts/update-partytown.sh
 # ---------------------------------------------------------------
-# Vendor the latest (or a pinned) @builder.io/partytown lib build
+# Vendor the latest (or a pinned) @qwik.dev/partytown lib build
 # into assets/partytown/ and update the version in package.json.
 #
 # Usage:
 #   bash scripts/update-partytown.sh            # latest
-#   bash scripts/update-partytown.sh 0.10.3     # pinned version
+#   bash scripts/update-partytown.sh 0.11.2     # pinned version
 # ---------------------------------------------------------------
 set -euo pipefail
 
 DEST="assets/partytown"
 PKG="package.json"
+NPM_PKG="@qwik.dev/partytown"
+NPM_SLUG="@qwik.dev/partytown/-/partytown"   # tarball path segment
 
 # ── Resolve target version ────────────────────────────────────
 if [ -n "${1:-}" ]; then
   VERSION="$1"
 else
-  echo "→ Fetching latest @builder.io/partytown version from npm…"
-  VERSION=$(curl -fsSL "https://registry.npmjs.org/@builder.io/partytown/latest" \
+  echo "→ Fetching latest ${NPM_PKG} version from npm…"
+  VERSION=$(curl -fsSL "https://registry.npmjs.org/${NPM_PKG}/latest" \
     | grep -o '"version":"[^"]*"' | head -1 | cut -d'"' -f4)
 fi
 echo "→ Target version: $VERSION"
 
 # ── Compare to currently vendored version ─────────────────────
-CURRENT=$(grep -o '"@builder.io/partytown": "[^"]*"' "$PKG" 2>/dev/null \
+CURRENT=$(grep -o '"@qwik.dev/partytown": "[^"]*"' "$PKG" 2>/dev/null \
           | cut -d'"' -f4 || echo "none")
 if [ "$CURRENT" = "$VERSION" ]; then
   echo "✓ Already at $VERSION — nothing to do."
@@ -36,7 +38,7 @@ TMP=$(mktemp -d)
 trap 'rm -rf "$TMP"' EXIT
 
 echo "→ Downloading partytown-${VERSION}.tgz…"
-curl -fsSL "https://registry.npmjs.org/@builder.io/partytown/-/partytown-${VERSION}.tgz" \
+curl -fsSL "https://registry.npmjs.org/${NPM_SLUG}-${VERSION}.tgz" \
   -o "$TMP/partytown.tgz"
 
 echo "→ Extracting lib/ files…"
@@ -50,13 +52,14 @@ cp -r "$TMP/pkg/lib/." "$DEST/"
 echo "→ Copied lib/ → $DEST/"
 
 # ── Bump version in package.json vendored block ───────────────
-# Uses sed to replace ONLY the vendored entry (not plugin version)
-sed -i.bak "s|\"@builder.io/partytown\": \"${CURRENT}\"|\"@builder.io/partytown\": \"${VERSION}\"|g" "$PKG"
+sed -i.bak "s|\"@qwik.dev/partytown\": \"${CURRENT}\"|\"@qwik.dev/partytown\": \"${VERSION}\"|g" "$PKG"
 rm -f "$PKG.bak"
 echo "→ package.json updated: $CURRENT → $VERSION"
 
 echo ""
 echo "✅ Partytown $VERSION vendored in $DEST/"
 echo "   Commit with:"
+echo "     git add assets/partytown package.json"
+echo "     git commit -m \"chore: vendor partytown $VERSION\""
 echo "     git add assets/partytown package.json"
 echo "     git commit -m \"chore: vendor partytown $VERSION\""

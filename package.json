@@ -4,7 +4,7 @@
   "description": "DC Service Worker Prefetcher — Partytown + viewport/pagination prefetch for WooCommerce",
   "private": true,
   "vendored": {
-    "@builder.io/partytown": "0.10.3"
+    "@qwik.dev/partytown": "0.11.2"
   },
   "scripts": {
     "update-partytown": "bash scripts/update-partytown.sh"
