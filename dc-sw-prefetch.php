@@ -446,7 +446,6 @@ function dc_swp_get_proxy_allowlist() {
 		[
 			'widget.trustpilot.com',
 			'invitejs.trustpilot.com',
-			'analytics.ahrefs.com',
 			'www.googletagmanager.com',
 			'www.google-analytics.com',
 		]
