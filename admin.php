@@ -1,4 +1,4 @@
-<?php
+﻿<?php
 /**
  * DC Service Worker Prefetcher — Admin Interface
  * Partytown third-party script offloading + viewport/pagination prefetching
@@ -19,7 +19,7 @@ function dc_swp_str( $key ) {
             'page_title'        => 'SW Prefetch Indstillinger',
             'saved'             => 'Indstillinger gemt!',
             'info_title'        => 'Partytown Integration',
-            'info_body'         => 'Partytown kører tredjeparts-scripts (Google Analytics, Meta Pixel osv.) i en service worker, så de ikke blokerer browser-tråden. Viewport-prefetch preloader produkter automatisk.',
+            'info_body'         => 'Partytown kører tredjeparts-scripts (Google Analytics, Meta Pixel osv.) i en service worker, så de ikke blokerer browser-tråden. Scripts offloades kun efter samtykke — plugin\'et læser marketingsamtykke-cookies fra Complianz, Cookiebot, CookieYes og andre kendte plugins automatisk.',
             'sw_label'          => 'Aktiver Partytown',
             'sw_desc'           => 'Aktiver Partytown service worker til offloading af tredjeparts-scripts og viewport-prefetch.',
             'preload_label'     => 'Viewport Preloading',
@@ -38,11 +38,17 @@ function dc_swp_str( $key ) {
             'benefit_4'         => 'Bots og crawlers modtager aldrig Partytown (rent HTML)',
             'benefit_5'         => 'Automatiske opdateringer via GitHub Actions workflow',
             'benefit_6'         => 'WP emoji-scripts fjernet — sparer et DNS-opslag og ~76 KB',
-            'benefit_7'         => 'LCP-billede preloades med korrekt imagesrcset — ingen dobbelt-fetch på mobil',
-            'emoji_label'       => 'Fjern WP Emoji',
+            'benefit_7'               => 'Tredjeparts-scripts auto-detekteres og offloades til Partytown med ét klik',
+            'benefit_8'               => 'Samtykke-bevidst: scripts blokeres (text/plain) indtil marketingcookien er sat — understøtter Complianz, Cookiebot, CookieYes, Borlabs, Cookie Notice, WebToffee, Cookie Information og Moove GDPR',
+            'partytown_scripts_label' => 'Partytown Script Liste',
+            'partytown_scripts_desc'  => 'Angiv én URL eller søgestreng per linje. Matcher mod script src. Fulde URL\'er og delvise mønstre (f.eks. <code>analytics.ahrefs.com</code>) understøttes begge.',
+            'partytown_autodetect_btn'  => '🔍 Auto-Detekter Tredjeparts-Scripts',
+            'partytown_autodetect_none' => 'Ingen eksterne scripts fundet på forsiden.',
+            'partytown_autodetect_add'  => 'Tilføj Valgte til Liste',
+            'partytown_exclude_label'   => 'Udelad Scripts (Ekskluderingsliste)',
+            'partytown_exclude_desc'    => 'Én URL-mønster per linje. Scripts der matcher udelades fra Partytown-omskrivning — selv om de er på inkluderingslisten. Widgets, betalings-SDKs og embed-scripts der kræver direkte DOM-adgang bør udelades. Trustpilot-widgets, Stripe og PayPal er altid udeladt automatisk.',
+            'partytown_exclude_builtin' => 'Altid udelukkede (indbygget): widget.trustpilot.com, js.stripe.com, checkout.paypal.com',            'emoji_label'             => 'Fjern WP Emoji',
             'emoji_desc'        => 'Fjerner WordPress emoji-detection script og tilhørende CSS (s.w.org fetch). Anbefalet — moderne browsere har native emoji.',
-            'lcp_label'         => 'WooCommerce LCP Preload',
-            'lcp_desc'          => 'Tilføjer <code>&lt;link rel=&quot;preload&quot; imagesrcset&gt;</code> for produktbilledet på produkt- og kategorisider. Matcher mobilbrowserens srcset-kandidat, så PSI-score stiger markant.',
             'credit_label'      => 'Footer Kredit',
             'credit_checkbox'   => 'Vis kærlighed og støt udviklingen ved at tilføje et lille link i footeren',
             'credit_desc'       => 'Indsætter et diskret <a href="https://www.dampcig.dk" target="_blank">Dampcig.dk</a>-link i sidens footer ved at linke copyright-symbolet ©.',
@@ -51,17 +57,11 @@ function dc_swp_str( $key ) {
             'product_base_label'      => 'Produkt-URL slug',
             'product_base_desc'       => 'URL-segmentet der identificerer produktsider, f.eks. <code>/product/</code> eller <code>/produkt/</code>. Lad feltet være tomt for at bruge den auto-detekterede WooCommerce-indstilling.',
             'product_base_detected'   => 'Auto-detekteret fra WooCommerce',
-            'proxy_label'           => 'Proxy-tilladelsesliste',
-            'proxy_desc'            => 'Én vært pr. linje. Kun HTTPS-scripts fra disse domæner proxies — alle andre afvises (forhindrer misbrug). Partytown omdirigerer automatisk tredjeparts-scripts til denne proxy via <code>resolveUrl</code>.',
-            'proxy_cache_note'      => 'Scripts caches server-side i 24 t og serveres til browseren med 7-dages Cache-Control.',
-            'pt_exclusions_label'   => 'Partytown-udelukkeliste',
-            'pt_exclusions_desc'    => 'Ét script-handle pr. linje. Scripts på denne liste markeres <strong>ikke</strong> som <code>type="text/partytown"</code> og kører normalt på browser-tråden. Brug dette til tracking-scripts der ikke fungerer korrekt i Partytown.',
-            'pt_exclusions_placeholder' => "google_gtagjs\nfacebook-pixel",
         ] : [
             'page_title'        => 'SW Prefetch Settings',
             'saved'             => 'Settings saved!',
             'info_title'        => 'Partytown Integration',
-            'info_body'         => 'Partytown runs third-party scripts (Google Analytics, Meta Pixel, etc.) inside a service worker, moving them off the browser main thread. Viewport prefetch pre-loads product pages automatically.',
+            'info_body'         => 'Partytown runs third-party scripts (Google Analytics, Meta Pixel, etc.) inside a service worker, moving them off the browser main thread. Scripts are offloaded only after consent — the plugin reads marketing-consent cookies from Complianz, Cookiebot, CookieYes, and other common CMPs automatically.',
             'sw_label'          => 'Enable Partytown',
             'sw_desc'           => 'Activate Partytown service worker for third-party script offloading and viewport prefetch.',
             'preload_label'     => 'Viewport Preloading',
@@ -80,11 +80,17 @@ function dc_swp_str( $key ) {
             'benefit_4'         => 'Bots and crawlers never receive Partytown (clean HTML)',
             'benefit_5'         => 'Automatic updates via GitHub Actions workflow',
             'benefit_6'         => 'WP emoji scripts removed — saves a DNS lookup and ~76 KB',
-            'benefit_7'         => 'LCP image preloaded with correct imagesrcset — no double-fetch on mobile',
-            'emoji_label'       => 'Remove WP Emoji',
+            'benefit_7'               => 'Third-party scripts auto-detected and offloaded to Partytown in one click',
+            'benefit_8'               => 'Consent-aware: scripts blocked (text/plain) until marketing consent cookie is set — supports Complianz, Cookiebot, CookieYes, Borlabs, Cookie Notice, WebToffee, Cookie Information & Moove GDPR',
+            'partytown_scripts_label' => 'Partytown Script List',
+            'partytown_scripts_desc'  => 'Enter one URL or pattern per line. Matched against the script <code>src</code> attribute — full URLs and partial patterns (e.g. <code>analytics.ahrefs.com</code>) both work.',
+            'partytown_autodetect_btn'  => '🔍 Auto-Detect Third-Party Scripts',
+            'partytown_autodetect_none' => 'No external scripts found on the homepage.',
+            'partytown_autodetect_add'  => 'Add Selected to List',
+            'partytown_exclude_label'   => 'Exclude Scripts (Blocklist)',
+            'partytown_exclude_desc'    => 'One URL pattern per line. Scripts matching these patterns are never rewritten to Partytown — even if they appear on the include list. Widgets, payment SDKs, and embeds that require direct DOM access should be excluded here. Trustpilot widgets, Stripe, and PayPal are always excluded automatically.',
+            'partytown_exclude_builtin' => 'Always excluded (built-in): widget.trustpilot.com, js.stripe.com, checkout.paypal.com',            'emoji_label'             => 'Remove WP Emoji',
             'emoji_desc'        => 'Removes the WordPress emoji detection script and its CSS (s.w.org fetch). Recommended — modern browsers have native emoji support.',
-            'lcp_label'         => 'WooCommerce LCP Preload',
-            'lcp_desc'          => 'Adds <code>&lt;link rel=&quot;preload&quot; imagesrcset&gt;</code> for the product image on single product and category pages. Matches the mobile browser\'s srcset candidate so the preload is never wasted.',
             'credit_label'      => 'Footer Credit',
             'credit_checkbox'   => 'Show some love and support development by adding a small link in the footer',
             'credit_desc'       => 'Inserts a discreet <a href="https://www.dampcig.dk" target="_blank">Dampcig.dk</a> link in the footer by linking the copyright symbol ©.',
@@ -93,12 +99,6 @@ function dc_swp_str( $key ) {
             'product_base_label'      => 'Product URL slug',
             'product_base_desc'       => 'The URL segment that identifies product pages, e.g. <code>/product/</code> or <code>/shop/</code>. Leave blank to use the auto-detected WooCommerce setting.',
             'product_base_detected'   => 'Auto-detected from WooCommerce',
-            'proxy_label'           => 'Proxy allowlist',
-            'proxy_desc'            => 'One hostname per line. Only HTTPS scripts from these domains are proxied — all others are rejected (prevents open-proxy abuse). Partytown automatically routes third-party scripts through this proxy via <code>resolveUrl</code>.',
-            'proxy_cache_note'      => 'Scripts are cached server-side for 24 h and served to the browser with a 7-day Cache-Control header.',
-            'pt_exclusions_label'   => 'Partytown exclusion list',
-            'pt_exclusions_desc'    => 'One script handle per line. Scripts on this list will <strong>not</strong> be tagged as <code>type="text/partytown"</code> and will run normally on the main thread. Use this for tracking scripts that do not work correctly inside Partytown.',
-            'pt_exclusions_placeholder' => "google_gtagjs\nfacebook-pixel",
         ];
     }
     return $s[ $key ] ?? $key;
@@ -141,9 +141,8 @@ function dc_swp_register_settings() {
     register_setting( 'dc-sw-prefetch-settings', 'dampcig_pwa_product_base',     [ 'sanitize_callback' => 'sanitize_text_field' ] );
     register_setting( 'dc-sw-prefetch-settings', 'dampcig_pwa_footer_credit',    [ 'sanitize_callback' => 'sanitize_text_field' ] );
     register_setting( 'dc-sw-prefetch-settings', 'dc_swp_disable_emoji',         [ 'sanitize_callback' => 'sanitize_text_field' ] );
-    register_setting( 'dc-sw-prefetch-settings', 'dc_swp_lcp_preload',           [ 'sanitize_callback' => 'sanitize_text_field' ] );
-    register_setting( 'dc-sw-prefetch-settings', 'dc_swp_proxy_allowlist',       [ 'sanitize_callback' => 'sanitize_textarea_field' ] );
-    register_setting( 'dc-sw-prefetch-settings', 'dc_swp_pt_exclusions',          [ 'sanitize_callback' => 'sanitize_textarea_field' ] );
+    register_setting( 'dc-sw-prefetch-settings', 'dc_swp_partytown_scripts',     [ 'sanitize_callback' => 'sanitize_textarea_field' ] );
+    register_setting( 'dc-sw-prefetch-settings', 'dc_swp_partytown_exclude',     [ 'sanitize_callback' => 'sanitize_textarea_field' ] );
 }
 
 // Admin page HTML
@@ -157,26 +156,18 @@ function dc_swp_admin_page_html() {
         update_option( 'dampcig_pwa_product_base',     sanitize_text_field( wp_unslash( $_POST['dampcig_pwa_product_base'] ?? '' ) ) );
         update_option( 'dampcig_pwa_footer_credit',    isset( $_POST['dampcig_pwa_footer_credit'] )    ? 'yes' : 'no' );
         update_option( 'dc_swp_disable_emoji',         isset( $_POST['dc_swp_disable_emoji'] )         ? 'yes' : 'no' );
-        update_option( 'dc_swp_lcp_preload',           isset( $_POST['dc_swp_lcp_preload'] )           ? 'yes' : 'no' );
-        update_option( 'dc_swp_proxy_allowlist',       sanitize_textarea_field( wp_unslash( $_POST['dc_swp_proxy_allowlist'] ?? '' ) ) );
-        update_option( 'dc_swp_pt_exclusions',           sanitize_textarea_field( wp_unslash( $_POST['dc_swp_pt_exclusions'] ?? '' ) ) );
+        update_option( 'dc_swp_partytown_scripts',     sanitize_textarea_field( wp_unslash( $_POST['dc_swp_partytown_scripts'] ?? '' ) ) );
+        update_option( 'dc_swp_partytown_exclude',     sanitize_textarea_field( wp_unslash( $_POST['dc_swp_partytown_exclude'] ?? '' ) ) );
         echo '<div class="notice notice-success"><p>' . esc_html( dc_swp_str( 'saved' ) ) . '</p></div>';
     }
 
     $sw_enabled       = get_option( 'dampcig_pwa_sw_enabled',      'yes' ) === 'yes';
     $preload_products = get_option( 'dampcig_pwa_preload_products', 'yes' ) === 'yes';
-    $disable_emoji    = get_option( 'dc_swp_disable_emoji',         'yes' ) === 'yes';
-    $lcp_preload      = get_option( 'dc_swp_lcp_preload',           'yes' ) === 'yes';
+    $disable_emoji      = get_option( 'dc_swp_disable_emoji',         'yes' ) === 'yes';
+    $partytown_scripts  = get_option( 'dc_swp_partytown_scripts',    '' );
+    $partytown_exclude  = get_option( 'dc_swp_partytown_exclude',    '' );
     $product_base_val   = get_option( 'dampcig_pwa_product_base',    '' );
-    $footer_credit      = get_option( 'dampcig_pwa_footer_credit',   'no' ) === 'yes';
-    $pt_exclusions     = get_option( 'dc_swp_pt_exclusions', '' );
-    $proxy_allowlist    = get_option( 'dc_swp_proxy_allowlist', implode( "\n", [
-        'widget.trustpilot.com',
-        'invitejs.trustpilot.com',
-        'analytics.ahrefs.com',
-        'www.googletagmanager.com',
-        'www.google-analytics.com',
-    ] ) );
+    $footer_credit    = get_option( 'dampcig_pwa_footer_credit',   'no' ) === 'yes';
 
     // Auto-detect for placeholder display
     $wc_perma         = get_option( 'woocommerce_permalinks', [] );
@@ -215,6 +206,38 @@ function dc_swp_admin_page_html() {
                     </td>
                 </tr>
                 <tr valign="top">
+                    <th scope="row"><?php echo esc_html( dc_swp_str( 'partytown_scripts_label' ) ); ?></th>
+                    <td>
+                        <textarea name="dc_swp_partytown_scripts" rows="5" class="large-text code"
+                            placeholder="e.g. analytics.ahrefs.com&#10;https://www.googletagmanager.com/gtag/js"
+                        ><?php echo esc_textarea( $partytown_scripts ); ?></textarea>
+                        <p class="description"><?php echo wp_kses_post( dc_swp_str( 'partytown_scripts_desc' ) ); ?></p>
+                        <p style="margin-top:8px;">
+                            <button type="button" id="dc-swp-autodetect-btn" class="button button-secondary">
+                                <?php echo esc_html( dc_swp_str( 'partytown_autodetect_btn' ) ); ?>
+                            </button>
+                            <span id="dc-swp-autodetect-spinner" class="spinner" style="float:none;margin-left:4px;display:none;"></span>
+                        </p>
+                        <div id="dc-swp-autodetect-results" style="display:none;margin-top:8px;padding:10px;background:#f9f9f9;border:1px solid #ddd;border-radius:3px;">
+                            <p style="margin:0 0 8px;"><strong><?php esc_html_e( 'Detected external scripts', 'dc-sw-prefetch' ); ?>:</strong></p>
+                            <div id="dc-swp-autodetect-list" style="margin-bottom:8px;"></div>
+                            <button type="button" id="dc-swp-add-selected" class="button button-primary" style="display:none;">
+                                <?php echo esc_html( dc_swp_str( 'partytown_autodetect_add' ) ); ?>
+                            </button>
+                        </div>
+                    </td>
+                </tr>
+                <tr valign="top">
+                    <th scope="row"><?php echo esc_html( dc_swp_str( 'partytown_exclude_label' ) ); ?></th>
+                    <td>
+                        <textarea name="dc_swp_partytown_exclude" rows="4" class="large-text code"
+                            placeholder="e.g. widget.trustpilot.com&#10;js.stripe.com"
+                        ><?php echo esc_textarea( $partytown_exclude ); ?></textarea>
+                        <p class="description"><?php echo esc_html( dc_swp_str( 'partytown_exclude_desc' ) ); ?></p>
+                        <p class="description" style="color:#888;font-style:italic;"><?php echo esc_html( dc_swp_str( 'partytown_exclude_builtin' ) ); ?></p>
+                    </td>
+                </tr>
+                <tr valign="top">
                     <th scope="row"><?php echo esc_html( dc_swp_str( 'preload_label' ) ); ?></th>
                     <td>
                         <label class="pwa-toggle">
@@ -235,16 +258,6 @@ function dc_swp_admin_page_html() {
                     </td>
                 </tr>
                 <tr valign="top">
-                    <th scope="row"><?php echo esc_html( dc_swp_str( 'lcp_label' ) ); ?></th>
-                    <td>
-                        <label class="pwa-toggle">
-                            <input type="checkbox" name="dc_swp_lcp_preload" value="yes" <?php checked( $lcp_preload, true ); ?>>
-                            <span class="pwa-slider"></span>
-                        </label>
-                        <p class="description"><?php echo wp_kses_post( dc_swp_str( 'lcp_desc' ) ); ?></p>
-                    </td>
-                </tr>
-                <tr valign="top">
                     <th scope="row"><?php echo esc_html( dc_swp_str( 'product_base_label' ) ); ?></th>
                     <td>
                         <input type="text" name="dampcig_pwa_product_base"
@@ -254,26 +267,6 @@ function dc_swp_admin_page_html() {
                                style="font-family: monospace;">
                         <p class="description"><?php echo wp_kses_post( dc_swp_str( 'product_base_desc' ) ); ?></p>
                         <p class="description"><?php echo esc_html( dc_swp_str( 'product_base_detected' ) ); ?>: <code><?php echo esc_html( $wc_base ); ?></code></p>
-                    </td>
-                </tr>
-            </table>
-
-                <tr valign="top">
-                    <th scope="row"><?php echo esc_html( dc_swp_str( 'proxy_label' ) ); ?></th>
-                    <td>
-                        <textarea name="dc_swp_proxy_allowlist" rows="6" class="large-text code"
-                                  style="font-family: monospace; white-space: nowrap;"><?php echo esc_textarea( $proxy_allowlist ); ?></textarea>
-                        <p class="description"><?php echo wp_kses_post( dc_swp_str( 'proxy_desc' ) ); ?></p>
-                        <p class="description"><em><?php echo esc_html( dc_swp_str( 'proxy_cache_note' ) ); ?></em></p>
-                    </td>
-                </tr>
-                <tr valign="top">
-                    <th scope="row"><?php echo esc_html( dc_swp_str( 'pt_exclusions_label' ) ); ?></th>
-                    <td>
-                        <textarea name="dc_swp_pt_exclusions" rows="5" class="large-text code"
-                                  style="font-family: monospace; white-space: nowrap;"
-                                  placeholder="<?php echo esc_attr( dc_swp_str( 'pt_exclusions_placeholder' ) ); ?>"><?php echo esc_textarea( $pt_exclusions ); ?></textarea>
-                        <p class="description"><?php echo wp_kses_post( dc_swp_str( 'pt_exclusions_desc' ) ); ?></p>
                     </td>
                 </tr>
             </table>
@@ -298,7 +291,7 @@ function dc_swp_admin_page_html() {
 
             <h2><?php echo esc_html( dc_swp_str( 'benefits_title' ) ); ?></h2>
             <ul style="list-style: disc; margin-left: 20px;">
-                <?php foreach ( [ 'benefit_1','benefit_2','benefit_3','benefit_4','benefit_5','benefit_6','benefit_7' ] as $b ) : ?>
+                <?php foreach ( [ 'benefit_1','benefit_2','benefit_3','benefit_4','benefit_5','benefit_6','benefit_7','benefit_8' ] as $b ) : ?>
                     <li>✅ <?php echo esc_html( dc_swp_str( $b ) ); ?></li>
                 <?php endforeach; ?>
             </ul>
@@ -365,5 +358,121 @@ function dc_swp_admin_page_html() {
         transform: translateX(26px);
     }
     </style>
+    <script type="text/javascript">
+    jQuery(function($){
+        var nonce        = <?php echo wp_json_encode( wp_create_nonce( 'dc_swp_detect_nonce' ) ); ?>;
+        var noScriptsMsg = <?php echo wp_json_encode( dc_swp_str( 'partytown_autodetect_none' ) ); ?>;
+        $('#dc-swp-autodetect-btn').on('click', function(){
+            var $btn  = $(this),
+                $spin = $('#dc-swp-autodetect-spinner'),
+                $res  = $('#dc-swp-autodetect-results'),
+                $list = $('#dc-swp-autodetect-list');
+            $btn.prop('disabled', true);
+            $spin.css('display','inline-block');
+            $res.hide();
+            $.post(ajaxurl, {action:'dc_swp_detect_scripts', nonce:nonce}, function(r){
+                $btn.prop('disabled', false);
+                $spin.hide();
+                if ( !r.success || !r.data || !r.data.length ) {
+                    $list.html('<em>' + $('<span>').text(noScriptsMsg).html() + '</em>');
+                    $('#dc-swp-add-selected').hide();
+                } else {
+                    var html = '';
+                    $.each(r.data, function(i, url){
+                        var safe = $('<span>').text(url).html();
+                        html += '<label style="display:block;margin:2px 0"><input type="checkbox" value="'+safe+'" checked> <code>'+safe+'</code></label>';
+                    });
+                    $list.html(html);
+                    $('#dc-swp-add-selected').show();
+                }
+                $res.show();
+            }).fail(function(){ $btn.prop('disabled',false); $spin.hide(); });
+        });
+        $('#dc-swp-add-selected').on('click', function(){
+            var $ta       = $('textarea[name="dc_swp_partytown_scripts"]');
+            var $list     = $('#dc-swp-autodetect-list');
+            var existing  = $ta.val().split('\n').map(function(s){ return s.trim(); }).filter(Boolean);
+            var toAdd     = [];
+            $list.find('input[type="checkbox"]:checked').each(function(){
+                var url = $(this).val();
+                if ( existing.indexOf(url) === -1 ) { toAdd.push(url); }
+            });
+            if ( toAdd.length ) {
+                $ta.val( existing.concat(toAdd).join('\n') );
+            }
+            $('#dc-swp-autodetect-results').fadeOut();
+        });
+    });
+    </script>
     <?php 
+}
+
+// ============================================================
+// AJAX — Auto-detect third-party scripts on the homepage
+// ============================================================
+
+add_action( 'wp_ajax_dc_swp_detect_scripts', 'dc_swp_ajax_detect_scripts' );
+// phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedFunctionFound
+function dc_swp_ajax_detect_scripts() {
+    if ( ! current_user_can( 'manage_options' ) ) {
+        wp_send_json_error( 'Unauthorized' );
+    }
+    if ( ! isset( $_POST['nonce'] ) || ! wp_verify_nonce( sanitize_text_field( wp_unslash( $_POST['nonce'] ) ), 'dc_swp_detect_nonce' ) ) {
+        wp_send_json_error( 'Invalid nonce' );
+    }
+
+    $response = wp_remote_get( home_url( '/' ), array(
+        'timeout'    => 15,
+        'sslverify'  => false,
+        'user-agent' => 'Mozilla/5.0 (DCSwPrefetch/1.0; Auto-Detect)',
+    ) );
+    if ( is_wp_error( $response ) ) {
+        wp_send_json_error( $response->get_error_message() );
+    }
+
+    $body      = wp_remote_retrieve_body( $response );
+    $site_host = wp_parse_url( home_url(), PHP_URL_HOST );
+
+    preg_match_all( '/<script[^>]+\bsrc=["\'](https?:[^"\']+|[\/][^"\']+)["\']/i', $body, $matches );
+
+    $external = array();
+    foreach ( (array) $matches[1] as $src ) {
+        if ( str_starts_with( $src, '//' ) ) {
+            $src = 'https:' . $src;
+        }
+        if ( str_starts_with( $src, '/' ) ) {
+            continue; // on-site relative URL
+        }
+        $parsed = wp_parse_url( $src );
+        if ( empty( $parsed['host'] ) || $parsed['host'] === $site_host ) {
+            continue;
+        }
+            // Store only the hostname as the pattern (e.g. "googletagmanager.com")
+        $host = $parsed['host'];
+
+        // Skip hostnames that are in the hardcoded exclusion list
+        // (DOM-dependent widgets that cannot run in a service worker).
+        $builtin_excluded = [
+            'widget.trustpilot.com',
+            'invitejs.trustpilot.com',
+            'js.stripe.com',
+            'js.braintreegateway.com',
+            'checkout.paypal.com',
+            'maps.googleapis.com',
+        ];
+        $skip = false;
+        foreach ( $builtin_excluded as $excl ) {
+            if ( str_contains( $host, $excl ) || str_contains( $excl, $host ) ) {
+                $skip = true;
+                break;
+            }
+        }
+        if ( $skip ) continue;
+
+        $external[] = $host;
+    }
+    $external = array_values( array_unique( $external ) );
+    sort( $external );
+
+    wp_send_json_success( $external );
 }

@@ -4,7 +4,7 @@
  * Plugin Name: DC Service Worker Prefetcher
  * Plugin URI:  https://github.com/dc-plugins/dc-sw-prefetch
  * Description: Partytown service worker with viewport/pagination prefetching for WooCommerce. Offloads third-party scripts via Partytown and pre-fetches visible products & next pages.
- * Version:     1.2.0
+ * Version:     1.3.0
  * Author:      Dampcig
  * Author URI:  https://www.dampcig.dk
  * License:     GPL-2.0+
@@ -73,6 +73,88 @@ endif; // function_exists( 'is_bot_request' )
 
 
 // ============================================================
+// MARKETING CONSENT DETECTION
+// Reads the first-party cookies set by the most common WordPress
+// consent management plugins. Returns true once the visitor has
+// granted marketing / analytics consent, so we can safely load
+// third-party scripts via Partytown.
+//
+// Covers:
+//   Complianz            — cmplz_marketing = "allow"
+//   CookieYes            — cookieyes-consent contains "marketing:yes"
+//   Borlabs Cookie       — borlabs-cookie JSON .consents.marketing = true
+//   Cookie Notice (GDPR) — cookie_notice_accepted = "true"
+//   WebToffee GDPR       — cookie_cat_marketing = "accept"
+//   Cookiebot (Cybot)    — CookieConsent contains "marketing:true"
+//   Cookie Information   — CookieInformationConsent JSON consents_approved[] contains "cookie_cat_marketing"
+//   Moove GDPR           — moove_gdpr_popup JSON .thirdparty = 1
+// ============================================================
+
+/**
+ * Return true if the current visitor has granted marketing consent
+ * according to any of the common CMP cookie conventions.
+ */
+function dc_swp_has_marketing_consent() {
+	// Complianz
+	if ( isset( $_COOKIE['cmplz_marketing'] ) && $_COOKIE['cmplz_marketing'] === 'allow' ) {
+		return true;
+	}
+
+	// CookieYes — cookie value looks like "consent:yes,marketing:yes,analytics:yes,..."
+	if ( isset( $_COOKIE['cookieyes-consent'] ) ) {
+		$cy = sanitize_text_field( wp_unslash( $_COOKIE['cookieyes-consent'] ) );
+		if ( str_contains( $cy, 'marketing:yes' ) ) {
+			return true;
+		}
+	}
+
+	// Borlabs Cookie — JSON-encoded object; .consents.marketing === true
+	if ( isset( $_COOKIE['borlabs-cookie'] ) ) {
+		$raw = json_decode( stripslashes( $_COOKIE['borlabs-cookie'] ), true );
+		if ( ! empty( $raw['consents']['marketing'] ) ) {
+			return true;
+		}
+	}
+
+	// Cookie Notice & Compliance for GDPR — single all-or-nothing cookie
+	if ( isset( $_COOKIE['cookie_notice_accepted'] ) && $_COOKIE['cookie_notice_accepted'] === 'true' ) {
+		return true;
+	}
+
+	// WebToffee GDPR Cookie Consent
+	if ( isset( $_COOKIE['cookie_cat_marketing'] ) && $_COOKIE['cookie_cat_marketing'] === 'accept' ) {
+		return true;
+	}
+
+	// Cookiebot (Cybot) — URL-encoded value contains "marketing:true"
+	if ( isset( $_COOKIE['CookieConsent'] ) ) {
+		$cc = sanitize_text_field( wp_unslash( $_COOKIE['CookieConsent'] ) );
+		if ( str_contains( $cc, 'marketing:true' ) ) {
+			return true;
+		}
+	}
+
+	// Cookie Information (popular in Scandinavia) — JSON; consents_approved[] contains "cookie_cat_marketing"
+	if ( isset( $_COOKIE['CookieInformationConsent'] ) ) {
+		$ci = json_decode( stripslashes( $_COOKIE['CookieInformationConsent'] ), true );
+		if ( ! empty( $ci['consents_approved'] ) && in_array( 'cookie_cat_marketing', $ci['consents_approved'], true ) ) {
+			return true;
+		}
+	}
+
+	// Moove GDPR Cookie Compliance — JSON; .thirdparty === 1
+	if ( isset( $_COOKIE['moove_gdpr_popup'] ) ) {
+		$mg = json_decode( stripslashes( $_COOKIE['moove_gdpr_popup'] ), true );
+		if ( isset( $mg['thirdparty'] ) && (int) $mg['thirdparty'] === 1 ) {
+			return true;
+		}
+	}
+
+	return false;
+}
+
+
+// ============================================================
 // ADMIN INTERFACE
 // ============================================================
 
@@ -87,78 +169,6 @@ require_once plugin_dir_path( __FILE__ ) . 'admin.php';
 // Does nothing if no © is found — no fallback injection.
 // ============================================================
 
-// ============================================================
-// PROXY SCRIPT REWRITER
-// Rewrites third-party <script src="https://..."> URLs to route
-// through the on-site /~pt-proxy/ endpoint, so the browser
-// receives a 7-day Cache-Control header instead of the
-// third-party CDN's short TTL.
-// Applies to all hosts listed in the proxy allowlist.
-// ============================================================
-
-add_action( 'template_redirect', 'dc_swp_proxy_rewrite_start' );
-
-/**
- * Start an output buffer to rewrite third-party script src URLs.
- * Only active when Partytown is enabled and the request is not from a bot.
- */
-// phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedFunctionFound
-function dc_swp_proxy_rewrite_start() {
-	if ( is_admin() ) return;
-	if ( dc_swp_is_bot_request() ) return;
-	if ( get_option( 'dampcig_pwa_sw_enabled', 'yes' ) !== 'yes' ) return;
-	ob_start( 'dc_swp_proxy_rewrite_process' );
-}
-
-/**
- * Output-buffer callback: rewrite any <script src="https://..."> whose host
- * appears in the proxy allowlist to use /~pt-proxy/?url=<encoded-url>.
- *
- * @param string $html Full page HTML.
- * @return string Modified HTML.
- */
-// phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedFunctionFound
-function dc_swp_proxy_rewrite_process( $html ) {
-	$allowlist = dc_swp_get_proxy_allowlist();
-	if ( empty( $allowlist ) ) {
-		return $html;
-	}
-
-	return preg_replace_callback(
-		'/<script\b([^>]*?)>/i',
-		function( $m ) use ( $allowlist ) {
-			$attrs = $m[1];
-			// Partytown handles its own proxying via resolveUrl — skip rewriting.
-			if ( preg_match( '/\btype=["\']text\/partytown["\']/', $attrs ) ) {
-				return $m[0];
-			}
-			if ( ! preg_match( '/\bsrc=["\'](https:\/\/([^"\'\/ \t]+)[^"\']*)["\']/', $attrs, $src_m ) ) {
-				return $m[0];
-			}
-			$script_url = $src_m[1];
-			$host       = strtolower( $src_m[2] );
-			foreach ( $allowlist as $entry ) {
-				$entry = strtolower( trim( $entry ) );
-				if ( '' === $entry ) {
-					continue;
-				}
-				if ( $host === $entry || str_ends_with( $host, '.' . $entry ) ) {
-					$proxy_src = '/~pt-proxy/?url=' . rawurlencode( $script_url );
-					$new_attrs = preg_replace(
-						'/\bsrc=["\']{1}[^"\']*["\']{1}/',
-						'src="' . $proxy_src . '"',
-						$attrs
-					);
-					return '<script' . $new_attrs . '>';
-				}
-			}
-			return $m[0];
-		},
-		$html
-	);
-}
-
-
 define( 'DC_SWP_FOOTER_TRANSIENT', 'dc_swp_footer_strategy' ); // 'copyright' | 'none'
 
 add_action( 'template_redirect', 'dc_swp_footer_credit_start' );
@@ -167,13 +177,14 @@ add_action( 'template_redirect', 'dc_swp_footer_credit_start' );
 function dc_swp_footer_credit_start() {
 	if ( is_admin() ) return;
 	if ( get_option( 'dampcig_pwa_footer_credit', 'no' ) !== 'yes' ) return;
-	// If the PNG→WebP plugin is active AND has its own footer credit enabled, defer to it.
-	if ( class_exists( 'DC_WebP_Converter' ) ) {
-		$webp_settings = method_exists( 'DC_WebP_Converter', 'get_settings' )
-			? DC_WebP_Converter::get_settings()
-			: [];
-		if ( ! empty( $webp_settings['footer_credit_enabled'] ) ) return;
+	// If DC Google Indexing is active, it owns the footer credit — defer to avoid duplicates.
+	if ( function_exists( 'dc_gi_footer_credit_start' )
+		&& ! empty( ( dc_gi_get_settings() )['footer_credit'] ) ) {
+		return;
 	}
+	// If the PNG→WebP plugin is active, it owns the footer credit — always defer
+	// to avoid duplicates, regardless of whether its setting has been saved to DB.
+	if ( class_exists( 'DC_WebP_Converter' ) ) return;
 	ob_start( 'dc_swp_footer_credit_process' );
 }
 
@@ -299,163 +310,6 @@ function dc_swp_fallback_cache_headers() {
 
 
 // ============================================================
-// PARTYTOWN SCRIPT PROXY
-// Server-side proxy for third-party scripts routed through
-// Partytown's resolveUrl. Serves scripts with a 7-day browser
-// Cache-Control header, solving Lighthouse's "efficient cache
-// lifetimes" warning for third-party analytics/widget scripts.
-//
-// Endpoint: GET /~pt-proxy/?url=<pct-encoded-https-url>
-//
-// Security:
-//  • Only HTTPS URLs are proxied.
-//  • Target host must appear in the dc_swp_proxy_allowlist option.
-//  • Server only forwards application/javascript responses.
-//  • No file-system access — URL is fetched over the network.
-// ============================================================
-
-add_action( 'init', 'dc_swp_serve_proxy_scripts', 1 );
-
-/**
- * Intercept /~pt-proxy/ requests and serve the remote script
- * with a 7-day browser Cache-Control header.
- * The body is cached server-side (WordPress transient) for 24 h
- * to avoid hitting the third-party CDN on every unique visitor.
- */
-// phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedFunctionFound
-function dc_swp_serve_proxy_scripts() {
-	$request_uri = isset( $_SERVER['REQUEST_URI'] )
-		? wp_parse_url( wp_unslash( $_SERVER['REQUEST_URI'] ), PHP_URL_PATH ) // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized
-		: '';
-
-	if ( strncmp( $request_uri, '/~pt-proxy/', 11 ) !== 0 ) {
-		return;
-	}
-
-	// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- public cacheable endpoint; nonce not appropriate.
-	$raw_url = isset( $_GET['url'] ) ? esc_url_raw( wp_unslash( $_GET['url'] ) ) : '';
-	if ( '' === $raw_url ) {
-		status_header( 400 );
-		exit();
-	}
-
-	$parsed = wp_parse_url( $raw_url );
-	if ( ! $parsed || empty( $parsed['host'] ) || empty( $parsed['scheme'] ) ) {
-		status_header( 400 );
-		exit();
-	}
-
-	// Only proxy HTTPS to prevent plaintext credential leakage.
-	if ( 'https' !== strtolower( $parsed['scheme'] ) ) {
-		status_header( 400 );
-		exit();
-	}
-
-	// Validate against the configured allowlist — prevents open-proxy abuse (SSRF).
-	$host    = strtolower( $parsed['host'] );
-	$allowed = false;
-	foreach ( dc_swp_get_proxy_allowlist() as $entry ) {
-		$entry = strtolower( trim( $entry ) );
-		if ( '' === $entry ) {
-			continue;
-		}
-		// Accept exact hostname or any subdomain of the listed host.
-		if ( $host === $entry || str_ends_with( $host, '.' . $entry ) ) {
-			$allowed = true;
-			break;
-		}
-	}
-
-	if ( ! $allowed ) {
-		status_header( 403 );
-		exit();
-	}
-
-	// Serve from transient cache (24 h server-side refresh).
-	$cache_key = 'dc_swp_prx_' . md5( $raw_url );
-	$cached    = get_transient( $cache_key );
-	if ( false !== $cached ) {
-		dc_swp_emit_proxied_script( $cached, 'HIT' );
-	}
-
-	// Fetch from the third-party origin.
-	$response = wp_remote_get(
-		$raw_url,
-		[
-			'timeout'    => 10,
-			'user-agent' => 'Mozilla/5.0 (compatible; DC-SW-Prefetch-Proxy/1.0)',
-			'sslverify'  => true,
-		]
-	);
-
-	if ( is_wp_error( $response ) ) {
-		status_header( 502 );
-		exit();
-	}
-
-	$code = (int) wp_remote_retrieve_response_code( $response );
-	if ( $code < 200 || $code >= 300 ) {
-		status_header( $code ?: 502 );
-		exit();
-	}
-
-	// Guard: only forward JavaScript — reject HTML error pages etc.
-	$ct = wp_remote_retrieve_header( $response, 'content-type' );
-	if ( $ct && ! preg_match( '#(application|text)/(x-)?javascript#i', $ct ) ) {
-		status_header( 415 );
-		exit();
-	}
-
-	$body = wp_remote_retrieve_body( $response );
-
-	// Cache the raw body server-side for 24 hours.
-	set_transient( $cache_key, $body, DAY_IN_SECONDS );
-
-	dc_swp_emit_proxied_script( $body, 'MISS' );
-}
-
-/**
- * Send correct headers + body for a proxied script, then exit.
- *
- * @param string $body JavaScript source.
- * @param string $hit  'HIT' or 'MISS' for the X-DC-Proxy debug header.
- */
-// phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedFunctionFound
-function dc_swp_emit_proxied_script( $body, $hit ) {
-	status_header( 200 );
-	header( 'Content-Type: application/javascript; charset=utf-8' );
-	// 7-day browser cache; stale-while-revalidate allows background refresh.
-	header( 'Cache-Control: public, max-age=604800, stale-while-revalidate=3600' );
-	header( 'X-Robots-Tag: none' );
-	header( 'X-DC-Proxy: ' . $hit );
-	// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- streaming proxied JS
-	echo $body;
-	exit();
-}
-
-/**
- * Return the list of allowed proxy hosts (one hostname per line).
- * Defaults cover the scripts currently offloaded via Partytown.
- *
- * @return string[]
- */
-// phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedFunctionFound
-function dc_swp_get_proxy_allowlist() {
-	$defaults = implode(
-		"\n",
-		[
-			'widget.trustpilot.com',
-			'invitejs.trustpilot.com',
-			'www.googletagmanager.com',
-			'www.google-analytics.com',
-		]
-	);
-	$raw = get_option( 'dc_swp_proxy_allowlist', $defaults );
-	return array_filter( array_map( 'trim', explode( "\n", $raw ) ) );
-}
-
-
-// ============================================================
 // PARTYTOWN — serve ~partytown/ lib files from the plugin
 // ============================================================
 
@@ -492,7 +346,8 @@ function dc_swp_serve_partytown_files() {
 	$file      = realpath( $real_base . '/' . $relative );
 
 	// Security: must resolve inside the partytown assets directory.
-	if ( $file === false || strncmp( $file, $real_base, strlen( $real_base ) ) !== 0 ) {
+	// Append directory separator to prevent matching sibling dirs like assets/partytown_other/.
+	if ( $file === false || strncmp( $file, $real_base . DIRECTORY_SEPARATOR, strlen( $real_base ) + 1 ) !== 0 ) {
 		status_header( 404 );
 		exit();
 	}
@@ -559,51 +414,6 @@ function dc_swp_get_product_base() {
 
 
 // ============================================================
-// PARTYTOWN SCRIPT EXCLUSION LIST
-// Allows admins to prevent specific WP script handles from being
-// tagged as type="text/partytown". Hooks into wp_script_attributes
-// at priority 99 so it runs after any theme/plugin that sets the type.
-// ============================================================
-
-add_filter( 'wp_script_attributes', 'dc_swp_exclude_partytown_scripts', 99 );
-
-/**
- * Strip type="text/partytown" from script handles on the exclusion list.
- *
- * @param array $attributes Script tag attributes.
- * @return array Modified attributes.
- */
-// phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedFunctionFound
-function dc_swp_exclude_partytown_scripts( $attributes ) {
-	if ( empty( $attributes['type'] ) || 'text/partytown' !== $attributes['type'] ) {
-		return $attributes;
-	}
-	if ( empty( $attributes['id'] ) ) {
-		return $attributes;
-	}
-	if ( in_array( $attributes['id'], dc_swp_get_pt_exclusions(), true ) ) {
-		unset( $attributes['type'] );
-	}
-	return $attributes;
-}
-
-/**
- * Return the list of script handles excluded from Partytown.
- *
- * @return string[]
- */
-// phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedFunctionFound
-function dc_swp_get_pt_exclusions() {
-	static $exclusions = null;
-	if ( null === $exclusions ) {
-		$raw        = get_option( 'dc_swp_pt_exclusions', '' );
-		$exclusions = array_values( array_filter( array_map( 'trim', explode( "\n", $raw ) ) ) );
-	}
-	return $exclusions;
-}
-
-
-// ============================================================
 // PARTYTOWN SNIPPET + VIEWPORT/PAGINATION PREFETCHER IN FOOTER
 // ============================================================
 
@@ -627,24 +437,8 @@ function dc_swp_partytown_config() {
 
 	$snippet = file_get_contents( $snippet_file ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents
 
-	// Inject window.partytown config before the snippet runs.
-	$config_script = <<<'JS'
-<script>
-window.partytown = {
-    lib: '/~partytown/',
-    debug: false,
-    forward: ['dataLayer.push', 'gtag', 'fbq', 'lintrk', 'twq'],
-    resolveUrl: function(url, location, type) {
-        if (type === 'script' && url.hostname !== location.hostname) {
-            var proxy = new URL(location.origin + '/~pt-proxy/');
-            proxy.searchParams.set('url', url.href);
-            return proxy;
-        }
-        return url;
-    }
-};
-</script>
-JS;
+	// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
+	$config_script = "<script>\nwindow.partytown = {\n    lib: '/~partytown/',\n    debug: false,\n    forward: ['dataLayer.push', 'gtag', 'fbq', 'lintrk', 'twq']\n};\n</script>\n";
 
 	echo $config_script; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
 	echo '<script>' . $snippet . '</script>' . "\n"; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
@@ -799,110 +593,231 @@ function dc_swp_maybe_remove_emoji() {
 
 
 // ============================================================
-// WooCommerce LCP IMAGE OPTIMISATION
-// Emits <link rel="preload" as="image" imagesrcset imagesizes>
-// in <head> for the LCP product image so the browser starts
-// fetching it immediately — before the parser reaches <body>.
-// Also sets fetchpriority="high" + loading="eager" on the <img>
-// so the browser knows it is the most important image on the page.
+// PARTYTOWN SCRIPT OFFLOADING
+// Reads the admin-configured list of URL patterns and marks
+// matching <script src="..."> tags as type="text/partytown" at
+// runtime via the wp_script_attributes filter — no manual code
+// edits needed for each third-party tool.
 //
-// Works on:
-//   • Single product pages  → woocommerce_single size
-//   • Category / shop pages → woocommerce_thumbnail of first product
-//
-// The imagesrcset attribute matches what WooCommerce outputs in the
-// <img srcset>, so the preloaded resource is never discarded as
-// unused (the PSI mobile viewport picks the 300w candidate).
+// Patterns (one per line, e.g. "analytics.ahrefs.com" or a full
+// URL) are cached in the WP object cache so there is at most one
+// DB read per cache-miss (zero reads on persistent-cache installs).
 // ============================================================
 
-add_action( 'wp', 'dc_swp_setup_lcp_image' );
+/**
+ * Return admin-configured Partytown patterns, object-cache memoised.
+ *
+ * @return string[]
+ */
+function dc_swp_get_partytown_patterns() {
+	static $patterns = null;
+	if ( null !== $patterns ) {
+		return $patterns;
+	}
+	$cached = wp_cache_get( 'patterns', 'dc_swp' );
+	if ( false !== $cached ) {
+		$patterns = $cached;
+		return $patterns;
+	}
+	$raw      = (string) get_option( 'dc_swp_partytown_scripts', '' );
+	$patterns = array_values( array_filter(
+		array_map( 'trim', explode( "\n", $raw ) ),
+		static fn( $line ) => $line !== ''
+	) );
+	wp_cache_set( 'patterns', $patterns, 'dc_swp', HOUR_IN_SECONDS );
+	return $patterns;
+}
 
+add_filter( 'wp_script_attributes', 'dc_swp_partytown_script_attrs', 5 );
+
+/**
+ * Mark any registered <script src> whose URL matches a configured
+ * pattern as type="text/partytown", moving it off the main thread.
+ * Priority 5 fires before per-script filters (default priority 10).
+ */
 // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedFunctionFound
-function dc_swp_setup_lcp_image() {
-	if ( dc_swp_is_bot_request() ) return;
-	if ( ! function_exists( 'is_product' ) ) return; // WooCommerce not active
-	if ( get_option( 'dc_swp_lcp_preload', 'yes' ) !== 'yes' ) return;
+function dc_swp_partytown_script_attrs( $attributes ) {
+	if ( dc_swp_is_bot_request() ) {
+		return $attributes;
+	}
+	if ( get_option( 'dampcig_pwa_sw_enabled', 'yes' ) !== 'yes' ) {
+		return $attributes;
+	}
+	$src = $attributes['src'] ?? '';
+	if ( ! $src ) {
+		return $attributes;
+	}
+	// Never mark excluded scripts as text/partytown.
+	foreach ( dc_swp_get_partytown_exclude_patterns() as $excl ) {
+		if ( $excl !== '' && str_contains( $src, $excl ) ) {
+			return $attributes;
+		}
+	}
+	// GDPR guard: if an upstream filter (rare at priority 5 but possible) has already
+	// set a non-standard type, leave it alone so the CMP's blocking is not disturbed.
+	$current_type = strtolower( $attributes['type'] ?? '' );
+	if ( $current_type !== '' && $current_type !== 'text/javascript' ) {
+		return $attributes;
+	}
+	foreach ( dc_swp_get_partytown_patterns() as $pattern ) {
+		if ( $pattern !== '' && str_contains( $src, $pattern ) ) {
+			// Consent granted → off-load via Partytown; no consent → block silently.
+			$attributes['type'] = dc_swp_has_marketing_consent() ? 'text/partytown' : 'text/plain';
+			unset( $attributes['async'] );
+			break;
+		}
+	}
+	return $attributes;
+}
 
-	// ── Single product page ──────────────────────────────────────────────
-	if ( is_singular( 'product' ) ) {
-		$product_id   = get_queried_object_id();
-		$thumbnail_id = get_post_thumbnail_id( $product_id );
-		if ( ! $thumbnail_id ) return;
+// Bust the in-request static cache, object cache, and W3TC page cache when settings change.
+add_action( 'update_option_dc_swp_partytown_scripts', 'dc_swp_bust_page_cache' );
+add_action( 'update_option_dc_swp_partytown_exclude', 'dc_swp_bust_page_cache' );
 
-		add_action( 'wp_head', function() use ( $thumbnail_id ) {
-			// Use wp_get_attachment_image() — same code path as WooCommerce —
-			// so srcset/sizes match the rendered <img> exactly and the browser
-			// never discards the preloaded resource as unused.
-			$img_html = wp_get_attachment_image( $thumbnail_id, 'woocommerce_single' );
-			if ( ! $img_html ) return;
-			$href = $srcset = $sizes = '';
-			if ( preg_match( '/\ssrc=["\']([^"\']+)["\']/', $img_html, $m ) )    { $href   = $m[1]; }
-			if ( preg_match( '/\ssrcset=["\']([^"\']+)["\']/', $img_html, $m ) ) { $srcset = $m[1]; }
-			if ( preg_match( '/\ssizes=["\']([^"\']+)["\']/', $img_html, $m ) )  { $sizes  = $m[1]; }
-			if ( ! $href ) return;
-			echo '<link rel="preload" as="image" fetchpriority="high" href="' . esc_url( $href ) . '"'
-				. ( $srcset ? ' imagesrcset="' . esc_attr( $srcset ) . '"' : '' )
-				. ( $sizes  ? ' imagesizes="'  . esc_attr( $sizes )  . '"' : '' )
-				. ">\n";
-		}, 1 );
+/**
+ * Delete all object-cache pattern keys and flush W3TC page cache (if active),
+ * so stale cached HTML with old type attributes is never served.
+ */
+function dc_swp_bust_page_cache() {
+	wp_cache_delete( 'patterns', 'dc_swp' );
+	wp_cache_delete( 'exclude_patterns', 'dc_swp' );
+	// W3TC page cache flush
+	if ( function_exists( 'w3tc_pgcache_flush' ) ) {
+		w3tc_pgcache_flush();
+	}
+}
 
-		add_filter( 'wp_get_attachment_image_attributes', function( $attr, $attachment ) use ( $thumbnail_id ) {
-			if ( (int) $attachment->ID === (int) $thumbnail_id ) {
-				$attr['fetchpriority'] = 'high';
-				$attr['loading']       = 'eager';
-				unset( $attr['decoding'] );
-			}
-			return $attr;
-		}, 20, 2 );
+/**
+ * Return admin-configured Partytown EXCLUSION patterns, object-cache memoised.
+ * Scripts whose src matches any of these are never rewritten to text/partytown.
+ *
+ * @return string[]
+ */
+function dc_swp_get_partytown_exclude_patterns() {
+	static $exclude = null;
+	if ( null !== $exclude ) {
+		return $exclude;
+	}
+	$cached = wp_cache_get( 'exclude_patterns', 'dc_swp' );
+	if ( false !== $cached ) {
+		$exclude = $cached;
+		return $exclude;
+	}
+	// Hardcoded built-in blocklist: scripts known to be incompatible with Partytown
+	// (require direct DOM access, use synchronous XHR, or rely on iframe embeds).
+	$builtin = [
+		'widget.trustpilot.com',
+		'invitejs.trustpilot.com',
+		'tp.widget.bootstrap',
+		'cdn.reamaze.com',
+		'js.stripe.com',
+		'js.braintreegateway.com',
+		'checkout.paypal.com',
+		'maps.googleapis.com',
+		'connect.facebook.net/en_US/sdk',
+	];
+	$raw  = (string) get_option( 'dc_swp_partytown_exclude', '' );
+	$user = array_values( array_filter(
+		array_map( 'trim', explode( "\n", $raw ) ),
+		static fn( $line ) => $line !== ''
+	) );
+	$exclude = array_values( array_unique( array_merge( $builtin, $user ) ) );
+	wp_cache_set( 'exclude_patterns', $exclude, 'dc_swp', HOUR_IN_SECONDS );
+	return $exclude;
+}
+
+
+// ============================================================
+// OUTPUT BUFFER — PARTYTOWN SCRIPT REWRITER
+// Rewrites <script src> tags in the final HTML: when the src
+// matches a configured pattern, sets type to text/partytown
+// (marketing consent cookie present) or text/plain (no consent).
+// Catches scripts injected via direct echo that bypass
+// wp_script_attributes — e.g. Ahrefs in functions.php.
+// ============================================================
+
+add_action( 'template_redirect', 'dc_swp_partytown_buffer_start', 2 );
+
+/**
+ * Start output buffering so dc_swp_partytown_buffer_rewrite()
+ * can rewrite the full HTML response before it is sent.
+ */
+// phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedFunctionFound
+function dc_swp_partytown_buffer_start() {
+	if ( is_admin() ) {
 		return;
 	}
-
-	// ── Category / shop page ─────────────────────────────────────────────
-	if ( is_product_category() || is_shop() ) {
-		$args = [
-			'post_type'      => 'product',
-			'posts_per_page' => 1,
-			'post_status'    => 'publish',
-			'fields'         => 'ids',
-		];
-		if ( is_product_category() ) {
-			$term = get_queried_object();
-			if ( $term ) {
-				$args['tax_query'] = [[ // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_tax_query
-					'taxonomy' => 'product_cat',
-					'field'    => 'term_id',
-					'terms'    => $term->term_id,
-				]];
-			}
-		}
-		$products     = get_posts( $args );
-		if ( empty( $products ) ) return;
-		$thumbnail_id = get_post_thumbnail_id( $products[0] );
-		if ( ! $thumbnail_id ) return;
-
-		add_action( 'wp_head', function() use ( $thumbnail_id ) {
-			$img_html = wp_get_attachment_image( $thumbnail_id, 'woocommerce_thumbnail' );
-			if ( ! $img_html ) return;
-			$href = $srcset = $sizes = '';
-			if ( preg_match( '/\ssrc=["\']([^"\']+)["\']/', $img_html, $m ) )    { $href   = $m[1]; }
-			if ( preg_match( '/\ssrcset=["\']([^"\']+)["\']/', $img_html, $m ) ) { $srcset = $m[1]; }
-			if ( preg_match( '/\ssizes=["\']([^"\']+)["\']/', $img_html, $m ) )  { $sizes  = $m[1]; }
-			if ( ! $href ) return;
-			echo '<link rel="preload" as="image" fetchpriority="high" href="' . esc_url( $href ) . '"'
-				. ( $srcset ? ' imagesrcset="' . esc_attr( $srcset ) . '"' : '' )
-				. ( $sizes  ? ' imagesizes="'  . esc_attr( $sizes )  . '"' : '' )
-				. ">\n";
-		}, 1 );
-
-		add_filter( 'wp_get_attachment_image_attributes', function( $attr, $attachment ) use ( $thumbnail_id ) {
-			if ( (int) $attachment->ID === (int) $thumbnail_id ) {
-				$attr['fetchpriority'] = 'high';
-				$attr['loading']       = 'eager';
-				unset( $attr['decoding'] );
-			}
-			return $attr;
-		}, 20, 2 );
+	if ( dc_swp_is_bot_request() ) {
+		return;
 	}
+	if ( get_option( 'dampcig_pwa_sw_enabled', 'yes' ) !== 'yes' ) {
+		return;
+	}
+	if ( empty( dc_swp_get_partytown_patterns() ) ) {
+		return;
+	}
+	ob_start( 'dc_swp_partytown_buffer_rewrite' );
+}
+
+/**
+ * Output-buffer callback: walk every <script ...> opening tag and,
+ * when its src= URL matches a configured pattern, swap the type
+ * attribute to text/plain, add data-cmplz-category="marketing",
+ * and strip async.
+ *
+ * @param string $html Full page HTML.
+ * @return string Modified HTML.
+ */
+// phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedFunctionFound
+function dc_swp_partytown_buffer_rewrite( $html ) {
+	$patterns = dc_swp_get_partytown_patterns();
+	if ( empty( $patterns ) ) {
+		return $html;
+	}
+	return preg_replace_callback(
+		'/<script\b([^>]*)>/i',
+		static function ( $matches ) use ( $patterns ) {
+			$tag_inner = $matches[1];
+			// Skip inline scripts (no src=)
+			if ( ! preg_match( '/\bsrc=(["\'])([^"\']+)\1/i', $tag_inner, $src_match ) ) {
+				return $matches[0];
+			}
+			$src = $src_match[2];
+			// Check exclusion list first (hardcoded + user-defined)
+			foreach ( dc_swp_get_partytown_exclude_patterns() as $excl ) {
+				if ( $excl !== '' && str_contains( $src, $excl ) ) {
+					return $matches[0]; // excluded — leave untouched
+				}
+			}
+			foreach ( $patterns as $pattern ) {
+				if ( $pattern !== '' && str_contains( $src, $pattern ) ) {
+					// GDPR guard: if a CMP has already changed this script's type to a
+					// consent-blocking value (text/cmplz-script, text/plain, etc.), leave
+					// it untouched — consent has not been granted for this script yet.
+					if ( preg_match( '/\btype=(["\'])([^"\']+)\1/i', $tag_inner, $type_match ) ) {
+						$existing_type = strtolower( $type_match[2] );
+						if ( $existing_type !== 'text/javascript' ) {
+							// CMP-blocked — leave untouched.
+							return $matches[0];
+						}
+					}
+					// Consent granted → Partytown runs it off-thread; no consent → block silently.
+					$new_type = dc_swp_has_marketing_consent() ? 'text/partytown' : 'text/plain';
+					// Replace existing type="text/javascript" or prepend if no type attribute.
+					if ( preg_match( '/\btype=["\'][^"\']*["\']/i', $tag_inner ) ) {
+						$tag_inner = preg_replace( '/\btype=["\'][^"\']*["\']/i', 'type="' . $new_type . '"', $tag_inner );
+					} else {
+						$tag_inner = ' type="' . $new_type . '"' . $tag_inner;
+					}
+					// Strip async (boolean form or assigned form)
+					$tag_inner = preg_replace( '/\s+async(?:=["\'][^"\']*["\'])?/i', '', $tag_inner );
+					return '<script' . $tag_inner . '>';
+				}
+			}
+			return $matches[0];
+		},
+		$html
+	);
 }
 
 

@@ -21,7 +21,8 @@ function dc_swp_uninstall() {
 		'dampcig_pwa_product_base',
 		'dampcig_pwa_footer_credit',
 		'dc_swp_disable_emoji',
-		'dc_swp_lcp_preload',
+		'dc_swp_partytown_scripts',
+		'dc_swp_partytown_exclude',
 	] as $dc_swp_opt ) {
 		delete_option( $dc_swp_opt );
 	}
@@ -32,16 +33,9 @@ function dc_swp_uninstall() {
 		wp_cache_flush_group( 'dc_swp' );
 	} else {
 		wp_cache_delete( 'dc_swp_footer_strategy', 'dc_swp' );
+		wp_cache_delete( 'patterns', 'dc_swp' );
+		wp_cache_delete( 'exclude_patterns', 'dc_swp' );
 	}
 }
 
 dc_swp_uninstall();
-
-// Remove transient and object cache entry
-delete_transient( 'dc_swp_footer_strategy' );
-
-if ( function_exists( 'wp_cache_flush_group' ) ) {
-	wp_cache_flush_group( 'dc_swp' );
-} else {
-	wp_cache_delete( 'dc_swp_footer_strategy', 'dc_swp' );
-}

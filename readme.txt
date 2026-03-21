@@ -5,7 +5,7 @@ Requires at least: 6.8
 Tested up to: 6.9
 Requires PHP: 8.0
 WC tested up to: 10.4.3
-Stable tag: 1.2.0
+Stable tag: 1.3.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -19,13 +19,17 @@ On top of Partytown, the plugin ships its own viewport/pagination prefetcher: pr
 
 = Key features =
 
-* **Partytown service worker** — third-party scripts tagged `type="text/partytown"` run off the main thread.
+* **Partytown service worker** — third-party scripts run off the browser main thread via a dedicated service worker.
+* **Consent-aware loading** — reads marketing-consent cookies from 8 common WordPress CMPs (Complianz, Cookiebot, CookieYes, Borlabs, Cookie Notice, WebToffee, Cookie Information, Moove GDPR). Scripts get `type="text/partytown"` only after consent is granted; blocked with `type="text/plain"` until then.
+* **Configured via URL patterns** — enter one URL pattern per line in the admin. Any `<script src>` whose src matches is automatically managed for consent + Partytown offloading. No manual code edits.
+* **Auto-detect** — one-click scan of the homepage discovers all external scripts and lets you add them to the list.
+* **Exclusion list** — built-in exclusions for Trustpilot widgets, Stripe, and PayPal; add your own patterns as needed.
 * **Vendored lib** — Partytown's `lib/` files are bundled in `assets/partytown/`; no npm or build step needed on the server.
-* **Automatic updates** — a weekly GitHub Actions workflow detects new Partytown releases and opens a PR with the updated vendor files.
+* **Automatic Partytown updates** — a weekly GitHub Actions workflow detects new Partytown releases and opens a PR with the updated vendor files.
 * **Viewport prefetching** — IntersectionObserver watches visible products and issues `<link rel="prefetch">` before the user clicks.
 * **Pagination prefetch** — next-page link is prefetched 2 s after page load.
 * **WP emoji removal** — dequeues the emoji detection script and CSS (76 KB round-trip to s.w.org eliminated).
-* **WooCommerce LCP preload** — emits `<link rel="preload" imagesrcset>` for the LCP product image on product and category pages, ensuring the preload matches the mobile browser's srcset candidate.
+* **WooCommerce LCP preload** — emits `<link rel="preload" imagesrcset>` for the LCP product image on product and category pages.
 * **Bot detection** — bots never receive Partytown or prefetch JS, keeping crawl budget clean.
 * **W3TC compatible** — HTML pages are cached by W3TC; Partytown handles only script execution.
 * **Standalone mode** — when W3TC is absent, PHP fallback cache headers keep browsers and CDNs caching correctly.
@@ -50,11 +54,29 @@ On top of Partytown, the plugin ships its own viewport/pagination prefetcher: pr
 
 = Using Partytown with third-party scripts =
 
-Change the `type` attribute of any script you want to offload:
+The easiest way is the **Partytown Script List** in the admin settings. Enter one URL pattern per line (e.g. `analytics.ahrefs.com` or the full GTM URL). The plugin then:
+1. Checks for marketing-consent cookies on every page request.
+2. Sets `type="text/partytown"` when consent is present — Partytown runs the script off the main thread.
+3. Sets `type="text/plain"` when consent is absent — the script is silently blocked.
+
+Alternatively, you can manually tag a script:
 
     <script type="text/partytown" src="https://www.googletagmanager.com/gtag/js?id=G-XXXX"></script>
 
 The `window.partytown.forward` array (configured by the plugin) already forwards `dataLayer.push`, `gtag`, `fbq`, `lintrk`, and `twq`.
+
+= Supported consent plugins =
+
+| Plugin | Cookie detected |
+|---|---|
+| Complianz | `cmplz_marketing = allow` |
+| Cookiebot (Cybot) | `CookieConsent` contains `marketing:true` |
+| CookieYes | `cookieyes-consent` contains `marketing:yes` |
+| Borlabs Cookie | `borlabs-cookie` JSON `.consents.marketing` |
+| Cookie Notice (dFactory) | `cookie_notice_accepted = true` |
+| WebToffee GDPR | `cookie_cat_marketing = accept` |
+| Cookie Information | `CookieInformationConsent` JSON consents array |
+| Moove GDPR | `moove_gdpr_popup` JSON `.thirdparty = 1` |
 
 == Installation ==
 
@@ -70,6 +92,12 @@ No. Partytown and the prefetcher are completely disabled on cart, checkout, and 
 
 = Does it work without W3 Total Cache? =
 Yes. PHP fallback cache headers are emitted for public pages when W3TC is not active.
+
+= Will scripts load before the user gives consent? =
+No. The plugin reads marketing-consent cookies server-side on every request. Scripts are output as `type="text/plain"` (browser-blocked) until a supported CMP cookie indicates consent, at which point they become `type="text/partytown"`.
+
+= Which consent plugins are supported? =
+Complianz, Cookiebot, CookieYes, Borlabs Cookie, Cookie Notice (dFactory), WebToffee GDPR, Cookie Information, and Moove GDPR. See the full cookie details in the Description section.
 
 = How do I verify Partytown is running? =
 Open DevTools → Application → Service Workers. You should see `partytown-sw.js` registered under `/~partytown/`. In the Console you should see no third-party scripts on the main thread.
@@ -87,6 +115,12 @@ Either let the weekly GitHub Action open a PR automatically, or run `bash script
 3. DevTools showing Partytown service worker registered at `/~partytown/`.
 
 == Changelog ==
+
+= 1.3.0 =
+* **New:** Consent-aware script loading — reads marketing-consent cookies from 8 common WordPress CMPs (Complianz, Cookiebot, CookieYes, Borlabs, Cookie Notice, WebToffee, Cookie Information, Moove GDPR).
+* Scripts in the Partytown list now output `type="text/partytown"` when consent is granted and `type="text/plain"` when it is not — no CMP hooks or DOM patching required.
+* Removed the `dc_swp_cmp_intercept_script` Node.prototype hook introduced in 1.2.x (approach replaced by server-side consent detection).
+* Version bump: 1.2.0 → 1.3.0.
 
 = 1.2.0 =
 * **New:** WP emoji removal — dequeues `print_emoji_detection_script` and `print_emoji_styles` saving ~76 KB and one s.w.org DNS lookup per page. Toggle in admin (default: on).
