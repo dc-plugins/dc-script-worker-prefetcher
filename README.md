@@ -137,3 +137,7 @@ languages/           — .pot translation template
 ## License
 
 GPL-2.0-or-later — see [LICENSE](https://www.gnu.org/licenses/gpl-2.0.html)
+
+---
+
+**Author:** [lennilg](https://github.com/lennilg) — manager@dampcig.dk

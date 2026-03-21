@@ -1,5 +1,5 @@
 === DC Service Worker Prefetcher ===
-Contributors: dampcig
+Contributors: lennilg
 Tags: service worker, prefetch, partytown, performance, woocommerce
 Requires at least: 6.8
 Tested up to: 6.9

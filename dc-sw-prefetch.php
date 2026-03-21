@@ -5,8 +5,8 @@
  * Plugin URI:  https://github.com/dc-plugins/dc-sw-prefetch
  * Description: Partytown service worker with viewport/pagination prefetching for WooCommerce. Offloads third-party scripts via Partytown and pre-fetches visible products & next pages.
  * Version:     1.3.0
- * Author:      Dampcig
- * Author URI:  https://www.dampcig.dk
+ * Author:      lennilg
+ * Author URI:  https://github.com/lennilg
  * License:     GPL-2.0+
  * License URI: https://www.gnu.org/licenses/gpl-2.0.html
  * Text Domain: dc-sw-prefetch
