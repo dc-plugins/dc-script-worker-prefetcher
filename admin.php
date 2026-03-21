@@ -46,8 +46,8 @@ function dc_swp_str( $key ) {
             'partytown_autodetect_none' => 'Ingen eksterne scripts fundet på forsiden.',
             'partytown_autodetect_add'  => 'Tilføj Valgte til Liste',
             'partytown_exclude_label'   => 'Udelad Scripts (Ekskluderingsliste)',
-            'partytown_exclude_desc'    => 'Én URL-mønster per linje. Scripts der matcher udelades fra Partytown-omskrivning — selv om de er på inkluderingslisten. Widgets, betalings-SDKs og embed-scripts der kræver direkte DOM-adgang bør udelades. Trustpilot-widgets, Stripe og PayPal er altid udeladt automatisk.',
-            'partytown_exclude_builtin' => 'Altid udelukkede (indbygget): widget.trustpilot.com, js.stripe.com, checkout.paypal.com',            'emoji_label'             => 'Fjern WP Emoji',
+            'partytown_exclude_desc'    => 'Én URL-mønster per linje. Scripts der matcher udelades fra Partytown-omskrivning — selv om de er på inkluderingslisten. Listen er forhåndsudfyldt med kendte inkompatible scripts. Rediger frit — fjern mønstre du ikke har brug for.',
+            'emoji_label'             => 'Fjern WP Emoji',
             'emoji_desc'        => 'Fjerner WordPress emoji-detection script og tilhørende CSS (s.w.org fetch). Anbefalet — moderne browsere har native emoji.',
             'credit_label'      => 'Footer Kredit',
             'credit_checkbox'   => 'Vis kærlighed og støt udviklingen ved at tilføje et lille link i footeren',
@@ -88,8 +88,8 @@ function dc_swp_str( $key ) {
             'partytown_autodetect_none' => 'No external scripts found on the homepage.',
             'partytown_autodetect_add'  => 'Add Selected to List',
             'partytown_exclude_label'   => 'Exclude Scripts (Blocklist)',
-            'partytown_exclude_desc'    => 'One URL pattern per line. Scripts matching these patterns are never rewritten to Partytown — even if they appear on the include list. Widgets, payment SDKs, and embeds that require direct DOM access should be excluded here. Trustpilot widgets, Stripe, and PayPal are always excluded automatically.',
-            'partytown_exclude_builtin' => 'Always excluded (built-in): widget.trustpilot.com, js.stripe.com, checkout.paypal.com',            'emoji_label'             => 'Remove WP Emoji',
+            'partytown_exclude_desc'    => 'One URL pattern per line. Scripts matching these patterns are never rewritten to Partytown — even if they appear on the include list. Pre-filled with known incompatible scripts. Edit freely — remove patterns you do not need.',
+            'emoji_label'             => 'Remove WP Emoji',
             'emoji_desc'        => 'Removes the WordPress emoji detection script and its CSS (s.w.org fetch). Recommended — modern browsers have native emoji support.',
             'credit_label'      => 'Footer Credit',
             'credit_checkbox'   => 'Show some love and support development by adding a small link in the footer',
@@ -165,7 +165,7 @@ function dc_swp_admin_page_html() {
     $preload_products = get_option( 'dampcig_pwa_preload_products', 'yes' ) === 'yes';
     $disable_emoji      = get_option( 'dc_swp_disable_emoji',         'yes' ) === 'yes';
     $partytown_scripts  = get_option( 'dc_swp_partytown_scripts',    '' );
-    $partytown_exclude  = get_option( 'dc_swp_partytown_exclude',    '' );
+    $partytown_exclude  = get_option( 'dc_swp_partytown_exclude',    '' ) ?: dc_swp_default_exclude_list();
     $product_base_val   = get_option( 'dampcig_pwa_product_base',    '' );
     $footer_credit    = get_option( 'dampcig_pwa_footer_credit',   'no' ) === 'yes';
 
@@ -234,7 +234,6 @@ function dc_swp_admin_page_html() {
                             placeholder="e.g. widget.trustpilot.com&#10;js.stripe.com"
                         ><?php echo esc_textarea( $partytown_exclude ); ?></textarea>
                         <p class="description"><?php echo esc_html( dc_swp_str( 'partytown_exclude_desc' ) ); ?></p>
-                        <p class="description" style="color:#888;font-style:italic;"><?php echo esc_html( dc_swp_str( 'partytown_exclude_builtin' ) ); ?></p>
                     </td>
                 </tr>
                 <tr valign="top">

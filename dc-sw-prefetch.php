@@ -693,6 +693,26 @@ function dc_swp_bust_page_cache() {
  *
  * @return string[]
  */
+/**
+ * Default exclude list: scripts known to be incompatible with Partytown.
+ * Pre-populated into the admin textarea on first use (when option is empty).
+ * Users can edit the list freely — remove patterns they do not need.
+ */
+function dc_swp_default_exclude_list() {
+	return implode( "\n", [
+		'widget.trustpilot.com',
+		'invitejs.trustpilot.com',
+		'tp.widget.bootstrap',
+		'cdn.reamaze.com',
+		'js.stripe.com',
+		'js.braintreegateway.com',
+		'checkout.paypal.com',
+		'maps.googleapis.com',
+		'connect.facebook.net/en_US/sdk',
+		'analytics.ahrefs.com',
+	] );
+}
+
 function dc_swp_get_partytown_exclude_patterns() {
 	static $exclude = null;
 	if ( null !== $exclude ) {
@@ -703,25 +723,15 @@ function dc_swp_get_partytown_exclude_patterns() {
 		$exclude = $cached;
 		return $exclude;
 	}
-	// Hardcoded built-in blocklist: scripts known to be incompatible with Partytown
-	// (require direct DOM access, use synchronous XHR, or rely on iframe embeds).
-	$builtin = [
-		'widget.trustpilot.com',
-		'invitejs.trustpilot.com',
-		'tp.widget.bootstrap',
-		'cdn.reamaze.com',
-		'js.stripe.com',
-		'js.braintreegateway.com',
-		'checkout.paypal.com',
-		'maps.googleapis.com',
-		'connect.facebook.net/en_US/sdk',
-	];
-	$raw  = (string) get_option( 'dc_swp_partytown_exclude', '' );
-	$user = array_values( array_filter(
+	$raw = (string) get_option( 'dc_swp_partytown_exclude', '' );
+	// Fall back to defaults when the option has never been configured.
+	if ( $raw === '' ) {
+		$raw = dc_swp_default_exclude_list();
+	}
+	$exclude = array_values( array_filter(
 		array_map( 'trim', explode( "\n", $raw ) ),
 		static fn( $line ) => $line !== ''
 	) );
-	$exclude = array_values( array_unique( array_merge( $builtin, $user ) ) );
 	wp_cache_set( 'exclude_patterns', $exclude, 'dc_swp', HOUR_IN_SECONDS );
 	return $exclude;
 }
