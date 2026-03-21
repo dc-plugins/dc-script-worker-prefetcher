@@ -16,7 +16,7 @@ Partytown service worker + consent-aware third-party script management + viewpor
 
 2. **Viewport/pagination prefetching** — `IntersectionObserver` watches visible WooCommerce products and issues `<link rel="prefetch">` before the user clicks. The next-page link is also prefetched 2 s after page load.
 
-3. **Bonus performance** — WP emoji removal (saves ~76 KB + one DNS lookup), WooCommerce LCP image preload (`<link rel="preload" imagesrcset>`), PHP fallback cache headers when W3 Total Cache is absent.
+3. **Bonus performance** — WP emoji removal (saves ~76 KB + one DNS lookup), PHP fallback cache headers when W3 Total Cache is absent.
 
 ---
 
@@ -122,7 +122,6 @@ languages/           — .pot translation template
 
 ### 1.2.0
 - **New:** WP emoji removal — dequeues `print_emoji_detection_script` and `print_emoji_styles` saving ~76 KB.
-- **New:** WooCommerce LCP image preload — `<link rel="preload" as="image" imagesrcset imagesizes>` for featured product image on product and category pages.
 
 ### 1.1.0
 - Replaced custom `dc-sw.js` service worker with vendored Partytown 0.10.3.
