@@ -612,14 +612,28 @@ function dc_swp_partytown_config() {
 
 	// Feature 4: loadScriptsOnMainThread — scripts dynamically injected inside the
 	// worker that match a pattern are loaded on the main thread instead.
-	// Used only for user-defined exclude patterns (admin "Exclude Scripts" field).
-	// connect.facebook.net is NOT listed here — it runs in the worker via resolveUrl
-	// CORS proxy below, keeping the full Meta Pixel off the main thread.
+	//
+	// connect.facebook.net (entire domain) is hardcoded here. This is the
+	// official Partytown-recommended approach for Meta Pixel. fbevents.js
+	// dynamically injects 10–50+ sub-scripts (signals config, A/B modules, etc.)
+	// all from the same domain. Running them in the worker via a CORS proxy causes
+	// a recursive cascade (1000+ requests). Putting the whole domain on the main
+	// thread is the only bounded solution.
+	//
+	// Partytown benefit is preserved: the inline fbq() bootstrap shim still
+	// executes in the worker, and all fbq('track', ...) calls throughout the page
+	// session are forwarded worker→main thread without blocking the main thread.
+	// Only the one-time SDK load happens on main thread (async, non-blocking).
+	//
+	// User exclude list is merged in for any other scripts the admin wants to
+	// explicitly keep off the worker.
 	// NOTE: Partytown expects a plain string[], NOT tuples.
 	$exclude = dc_swp_get_partytown_exclude_patterns();
-	if ( ! empty( $exclude ) ) {
-		$config['loadScriptsOnMainThread'] = array_values( array_unique( $exclude ) );
-	}
+	$load_on_main = array_values( array_unique( array_merge(
+		[ 'connect.facebook.net' ],
+		$exclude
+	) ) );
+	$config['loadScriptsOnMainThread'] = $load_on_main;
 
 	// Feature 2: Pass a per-request CSP nonce into the Partytown config.
 	// Partytown will stamp this nonce on every <script> element it creates,
@@ -632,20 +646,8 @@ function dc_swp_partytown_config() {
 	$nonce_attr  = $nonce !== '' ? ' nonce="' . esc_attr( $nonce ) . '"' : '';
 	$config_json = wp_json_encode( $config, JSON_UNESCAPED_SLASHES );
 
-	// resolveUrl — targeted CORS proxy for connect.facebook.net only.
-	// Facebook's CDN does not return CORS headers, so Partytown's worker cannot
-	// fetch fbevents.js directly. We route it through the local PHP proxy which
-	// re-serves the response with Access-Control-Allow-Origin: *.
-	//
-	// Targeting is intentionally narrow (hostname === 'connect.facebook.net') to
-	// prevent the cascade that occurred when all cross-origin scripts were proxied.
-	// Any other CDN scripts fbevents injects from non-Facebook domains will follow
-	// Partytown's normal flow (or the user's loadScriptsOnMainThread patterns).
-	// resolveUrl is a JS function — output raw after the JSON-encoded config.
-	$resolve_url_js = "function(url,l){if(url.protocol==='https:'&&url.hostname==='connect.facebook.net'){var p=new URL(l.origin+'/~partytown-proxy');p.searchParams.append('url',url.href);return p;}return url;}";
-
 	// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
-	echo '<script' . $nonce_attr . '>window.partytown=' . $config_json . ';window.partytown.resolveUrl=' . $resolve_url_js . ";</script>\n";
+	echo '<script' . $nonce_attr . '>window.partytown=' . $config_json . ";</script>\n";
 	// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
 	echo '<script' . $nonce_attr . '>' . $snippet . "</script>\n";
 }
