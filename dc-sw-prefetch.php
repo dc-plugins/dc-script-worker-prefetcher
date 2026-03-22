@@ -610,16 +610,25 @@ function dc_swp_partytown_config() {
 		],
 	];
 
-	// Feature 4: Mirror the admin exclude list to loadScriptsOnMainThread so
-	// scripts that are dynamically injected inside the worker and match an
-	// excluded pattern are automatically routed back to the main thread.
+	// Feature 4: loadScriptsOnMainThread — scripts dynamically injected inside the
+	// worker that match a pattern are loaded on the main thread instead, avoiding
+	// CORS issues and incompatibility with the worker sandbox.
+	//
+	// Hardcoded: connect.facebook.net/en_US/fbevents.js — the Meta Pixel bootstrap
+	// dynamically injects this when running in the worker. It must load on main thread
+	// because (1) it has no CORS headers so worker fetch fails, and (2) it injects
+	// many sub-scripts internally which would cascade into thousands of proxy requests.
+	// The fbq forward list handles worker↔main-thread communication correctly.
+	//
+	// User exclude list merged in: scripts that should never run in the worker.
+	// NOTE: Partytown expects a plain string[], NOT tuples — plain substrings matched
+	// against the dynamic script URL.
 	$exclude = dc_swp_get_partytown_exclude_patterns();
-	if ( ! empty( $exclude ) ) {
-		$config['loadScriptsOnMainThread'] = array_map(
-			static fn( $p ) => [ 'string', $p ],
-			$exclude
-		);
-	}
+	$load_on_main = array_values( array_unique( array_merge(
+		[ 'connect.facebook.net/en_US/fbevents.js' ],
+		$exclude
+	) ) );
+	$config['loadScriptsOnMainThread'] = $load_on_main;
 
 	// Feature 2: Pass a per-request CSP nonce into the Partytown config.
 	// Partytown will stamp this nonce on every <script> element it creates,
@@ -632,22 +641,8 @@ function dc_swp_partytown_config() {
 	$nonce_attr  = $nonce !== '' ? ' nonce="' . esc_attr( $nonce ) . '"' : '';
 	$config_json = wp_json_encode( $config, JSON_UNESCAPED_SLASHES );
 
-	// Emit config + resolveUrl proxy hook in one <script> tag.
-	// resolveUrl routes cross-origin HTTPS script fetches through /~partytown-proxy.
-	// Guards:
-	//  1. t==="script"  — only proxy script fetches, not other resource types.
-	//  2. u.protocol==="https:"  — skip blob:, data:, and other non-http URLs whose
-	//     hostname is "" (empty), which would otherwise pass the cross-origin check
-	//     and be incorrectly sent to the proxy, causing Partytown init to fail.
-	//  3. l && u.hostname!==l.hostname  — skip same-origin URLs (already proxied
-	//     responses) to prevent the double-encoding loop that causes 403.
-	//     Uses the `l` parameter (Partytown's explicit current-page URL object)
-	//     rather than the global `location` to avoid scope issues in worker contexts.
 	// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
-	echo '<script' . $nonce_attr . '>window.partytown=' . $config_json . ';'
-		. 'window.partytown.resolveUrl=function(u,l,t){'
-		. 'if(t==="script"&&u.protocol==="https:"&&l&&u.hostname!==l.hostname){var p=new URL("/~partytown-proxy",l.href);p.searchParams.append("url",u.href);return p;}'
-		. "return u;};</script>\n";
+	echo '<script' . $nonce_attr . '>window.partytown=' . $config_json . ";</script>\n";
 	// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
 	echo '<script' . $nonce_attr . '>' . $snippet . "</script>\n";
 }
