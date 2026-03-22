@@ -789,7 +789,6 @@ function dc_swp_default_exclude_list() {
 		'checkout.paypal.com',
 		'maps.googleapis.com',
 		'connect.facebook.net/en_US/sdk',
-		'analytics.ahrefs.com',
 	] );
 }
 
