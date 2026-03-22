@@ -359,9 +359,8 @@ function dc_swp_admin_page_html() {
     </style>
     <script type="text/javascript">
     jQuery(function($){
-        var nonce             = <?php echo wp_json_encode( wp_create_nonce( 'dc_swp_detect_nonce' ) ); ?>;
-        var noScriptsMsg      = <?php echo wp_json_encode( dc_swp_str( 'partytown_autodetect_none' ) ); ?>;
-        var knownIncompatible = <?php echo wp_json_encode( array_values( array_filter( array_map( 'trim', explode( "\n", dc_swp_default_exclude_list() ) ), static fn( $l ) => $l !== '' ) ) ); ?>;
+        var nonce        = <?php echo wp_json_encode( wp_create_nonce( 'dc_swp_detect_nonce' ) ); ?>;
+        var noScriptsMsg = <?php echo wp_json_encode( dc_swp_str( 'partytown_autodetect_none' ) ); ?>;
         $('#dc-swp-autodetect-btn').on('click', function(){
             var $btn  = $(this),
                 $spin = $('#dc-swp-autodetect-spinner'),
@@ -373,24 +372,29 @@ function dc_swp_admin_page_html() {
             $.post(ajaxurl, {action:'dc_swp_detect_scripts', nonce:nonce}, function(r){
                 $btn.prop('disabled', false);
                 $spin.hide();
-                if ( !r.success || !r.data || !r.data.length ) {
+                var compatible   = (r.success && r.data && r.data.compatible)   ? r.data.compatible   : [];
+                var incompatible = (r.success && r.data && r.data.incompatible) ? r.data.incompatible : [];
+                // Auto-merge only the incompatible scripts that were actually found on the site.
+                if ( incompatible.length ) {
+                    var $excl      = $('textarea[name="dc_swp_partytown_exclude"]');
+                    var existingEx = $excl.val().split('\n').map(function(s){ return s.trim(); }).filter(Boolean);
+                    var toExclude  = incompatible.filter(function(p){ return existingEx.indexOf(p) === -1; });
+                    if ( toExclude.length ) {
+                        $excl.val( existingEx.concat(toExclude).join('\n') );
+                    }
+                }
+                // Show compatible scripts as checkboxes for the include list.
+                if ( !compatible.length ) {
                     $list.html('<em>' + $('<span>').text(noScriptsMsg).html() + '</em>');
                     $('#dc-swp-add-selected').hide();
                 } else {
                     var html = '';
-                    $.each(r.data, function(i, url){
+                    $.each(compatible, function(i, url){
                         var safe = $('<span>').text(url).html();
                         html += '<label style="display:block;margin:2px 0"><input type="checkbox" value="'+safe+'" checked> <code>'+safe+'</code></label>';
                     });
                     $list.html(html);
                     $('#dc-swp-add-selected').show();
-                }
-                // Auto-merge known incompatible scripts into the exclude textarea.
-                var $excl      = $('textarea[name="dc_swp_partytown_exclude"]');
-                var existingEx = $excl.val().split('\n').map(function(s){ return s.trim(); }).filter(Boolean);
-                var toExclude  = knownIncompatible.filter(function(p){ return existingEx.indexOf(p) === -1; });
-                if ( toExclude.length ) {
-                    $excl.val( existingEx.concat(toExclude).join('\n') );
                 }
                 $res.show();
             }).fail(function(){ $btn.prop('disabled',false); $spin.hide(); });
@@ -442,7 +446,9 @@ function dc_swp_ajax_detect_scripts() {
 
     preg_match_all( '/<script[^>]+\bsrc=["\'](https?:[^"\']+|[\/][^"\']+)["\']/i', $body, $matches );
 
-    $external = array();
+    $compatible   = array();
+    $incompatible = array();
+    $incompatible_patterns = array_filter( array_map( 'trim', explode( "\n", dc_swp_default_exclude_list() ) ), static fn( $l ) => $l !== '' );
     foreach ( (array) $matches[1] as $src ) {
         if ( str_starts_with( $src, '//' ) ) {
             $src = 'https:' . $src;
@@ -457,22 +463,23 @@ function dc_swp_ajax_detect_scripts() {
             // Store only the hostname as the pattern (e.g. "googletagmanager.com")
         $host = $parsed['host'];
 
-        // Skip hostnames that are in the hardcoded exclusion list
-        // (DOM-dependent widgets that cannot run in a service worker).
-        $builtin_excluded = array_filter( array_map( 'trim', explode( "\n", dc_swp_default_exclude_list() ) ), static fn( $l ) => $l !== '' );
-        $skip = false;
-        foreach ( $builtin_excluded as $excl ) {
+        $is_incompatible = false;
+        foreach ( $incompatible_patterns as $excl ) {
             if ( str_contains( $host, $excl ) || str_contains( $excl, $host ) ) {
-                $skip = true;
+                $is_incompatible = true;
                 break;
             }
         }
-        if ( $skip ) continue;
 
-        $external[] = $host;
+        if ( $is_incompatible ) {
+            $incompatible[] = $host;
+        } else {
+            $compatible[] = $host;
+        }
     }
-    $external = array_values( array_unique( $external ) );
-    sort( $external );
 
-    wp_send_json_success( $external );
+    wp_send_json_success( [
+        'compatible'   => array_values( array_unique( $compatible ) ),
+        'incompatible' => array_values( array_unique( $incompatible ) ),
+    ] );
 }
