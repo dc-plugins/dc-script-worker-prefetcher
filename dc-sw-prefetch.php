@@ -633,14 +633,20 @@ function dc_swp_partytown_config() {
 	$config_json = wp_json_encode( $config, JSON_UNESCAPED_SLASHES );
 
 	// Emit config + resolveUrl proxy hook in one <script> tag.
-	// resolveUrl routes cross-origin script fetches through /~partytown-proxy so
-	// CDNs without CORS headers (e.g. connect.facebook.net) are served same-origin.
-	// Guard: skip same-origin URLs — proxy URLs are already on our host and must
-	// not be wrapped again (prevents the double-encoding loop that causes 403).
+	// resolveUrl routes cross-origin HTTPS script fetches through /~partytown-proxy.
+	// Guards:
+	//  1. t==="script"  — only proxy script fetches, not other resource types.
+	//  2. u.protocol==="https:"  — skip blob:, data:, and other non-http URLs whose
+	//     hostname is "" (empty), which would otherwise pass the cross-origin check
+	//     and be incorrectly sent to the proxy, causing Partytown init to fail.
+	//  3. l && u.hostname!==l.hostname  — skip same-origin URLs (already proxied
+	//     responses) to prevent the double-encoding loop that causes 403.
+	//     Uses the `l` parameter (Partytown's explicit current-page URL object)
+	//     rather than the global `location` to avoid scope issues in worker contexts.
 	// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
 	echo '<script' . $nonce_attr . '>window.partytown=' . $config_json . ';'
 		. 'window.partytown.resolveUrl=function(u,l,t){'
-		. 'if(t==="script"&&u.hostname!==location.hostname){var p=new URL("/~partytown-proxy",location.href);p.searchParams.append("url",u.href);return p;}'
+		. 'if(t==="script"&&u.protocol==="https:"&&l&&u.hostname!==l.hostname){var p=new URL("/~partytown-proxy",l.href);p.searchParams.append("url",u.href);return p;}'
 		. "return u;};</script>\n";
 	// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
 	echo '<script' . $nonce_attr . '>' . $snippet . "</script>\n";
