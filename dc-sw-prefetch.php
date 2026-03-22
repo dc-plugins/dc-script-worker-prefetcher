@@ -379,6 +379,120 @@ function dc_swp_serve_partytown_files() {
 
 
 // ============================================================
+// PARTYTOWN CORS PROXY
+// Partytown's sandbox iframe fetches external scripts via fetch()
+// from the site's own origin. CDNs like connect.facebook.net do
+// not send Access-Control-Allow-Origin headers, so the browser
+// blocks those fetches. This proxy endpoint fetches the script
+// server-side (where CORS doesn't apply) and re-serves it with
+// the necessary CORS header. Only an explicit allowlist of CDN
+// hostnames is accepted to prevent SSRF.
+// ============================================================
+
+add_action( 'init', 'dc_swp_serve_partytown_proxy', 1 );
+
+/**
+ * Proxy an external CDN script through WordPress for CORS-free delivery
+ * to Partytown's sandbox iframe.
+ *
+ * Route: GET /~partytown-proxy?url=<encoded-https-url>
+ *
+ * Security measures:
+ *  - Only HTTPS scheme accepted.
+ *  - Allowlist-only: only CDN hostnames of Partytown-tested services.
+ *  - URL is reconstructed from parsed components (no raw passthrough).
+ *  - No redirect following (redirection=0) to prevent SSRF via redirect.
+ *  - SSL verification enabled.
+ */
+function dc_swp_serve_partytown_proxy() {
+	$request_uri = isset( $_SERVER['REQUEST_URI'] )
+		? wp_parse_url( wp_unslash( $_SERVER['REQUEST_URI'] ), PHP_URL_PATH ) // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized
+		: '';
+
+	if ( $request_uri !== '/~partytown-proxy' ) {
+		return;
+	}
+
+	// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- read-only proxy, no state change
+	$raw_url = isset( $_GET['url'] ) ? wp_unslash( $_GET['url'] ) : '';
+	if ( $raw_url === '' ) {
+		status_header( 400 );
+		exit();
+	}
+
+	// Must be HTTPS.
+	$parsed = wp_parse_url( $raw_url );
+	if ( empty( $parsed['scheme'] ) || $parsed['scheme'] !== 'https' ) {
+		status_header( 403 );
+		exit();
+	}
+
+	$host = strtolower( $parsed['host'] ?? '' );
+
+	// Allowlist: CDN hostnames of officially tested Partytown-compatible services only.
+	// Extend this list when adding new services to the Partytown forward list.
+	$allowed_hosts = [
+		'connect.facebook.net',          // Meta Pixel
+		'www.googletagmanager.com',      // Google Tag Manager
+		'www.google-analytics.com',      // Google Analytics
+		'region1.google-analytics.com',  // GA4 EU region
+		'region1.analytics.google.com',
+		'js.hs-analytics.net',           // HubSpot
+		'js.hsforms.net',
+		'js.hubspot.com',
+		'js.hs-banner.com',
+		'js.usemessages.com',
+		'js.hs-scripts.com',
+		'js.intercomcdn.com',            // Intercom
+		'widget.intercom.io',
+		'static.klaviyo.com',            // Klaviyo
+		'analytics.tiktok.com',          // TikTok Pixel
+		'cdn.mxpnl.com',                 // Mixpanel
+		'analytics.ahrefs.com',          // Ahrefs Analytics
+	];
+
+	if ( ! in_array( $host, $allowed_hosts, true ) ) {
+		status_header( 403 );
+		exit();
+	}
+
+	// Reconstruct a clean URL from parsed components to prevent header injection.
+	$clean_url = 'https://' . $host . ( $parsed['path'] ?? '/' );
+	if ( ! empty( $parsed['query'] ) ) {
+		$clean_url .= '?' . $parsed['query'];
+	}
+
+	$response = wp_remote_get(
+		$clean_url,
+		[
+			'timeout'     => 10,
+			'redirection' => 0, // no redirects — prevents SSRF via open redirect
+			'sslverify'   => true,
+			'user-agent'  => 'WordPress/' . get_bloginfo( 'version' ) . '; ' . get_bloginfo( 'url' ),
+		]
+	);
+
+	if ( is_wp_error( $response ) || wp_remote_retrieve_response_code( $response ) !== 200 ) {
+		status_header( 502 );
+		exit();
+	}
+
+	$body = wp_remote_retrieve_body( $response );
+
+	status_header( 200 );
+	header( 'Content-Type: application/javascript; charset=utf-8' );
+	header( 'Access-Control-Allow-Origin: *' );
+	header( 'X-Robots-Tag: none' );
+	// Cache for 1 hour — CDN script content rarely changes.
+	header( 'Cache-Control: public, max-age=3600, stale-while-revalidate=300' );
+
+	// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- proxied JS body from allowlisted CDN
+	echo $body;
+	exit();
+}
+
+
+// ============================================================
 // PRODUCT BASE HELPER
 // Auto-detects WooCommerce product permalink slug and allows
 // manual override via the admin setting.
@@ -518,8 +632,14 @@ function dc_swp_partytown_config() {
 	$nonce_attr  = $nonce !== '' ? ' nonce="' . esc_attr( $nonce ) . '"' : '';
 	$config_json = wp_json_encode( $config, JSON_UNESCAPED_SLASHES );
 
+	// Emit config + resolveUrl proxy hook in one <script> tag.
+	// resolveUrl routes all Partytown script fetches through /~partytown-proxy so
+	// CDNs without CORS headers (e.g. connect.facebook.net) are served same-origin.
 	// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
-	echo '<script' . $nonce_attr . '>window.partytown=' . $config_json . ";</script>\n";
+	echo '<script' . $nonce_attr . '>window.partytown=' . $config_json . ';'
+		. 'window.partytown.resolveUrl=function(u,l,t){'
+		. 'if(t==="script"){var p=new URL("/~partytown-proxy",l.href);p.searchParams.append("url",u.href);return p;}'
+		. "return u;};</script>\n";
 	// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
 	echo '<script' . $nonce_attr . '>' . $snippet . "</script>\n";
 }
