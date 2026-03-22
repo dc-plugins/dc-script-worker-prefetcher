@@ -633,12 +633,14 @@ function dc_swp_partytown_config() {
 	$config_json = wp_json_encode( $config, JSON_UNESCAPED_SLASHES );
 
 	// Emit config + resolveUrl proxy hook in one <script> tag.
-	// resolveUrl routes all Partytown script fetches through /~partytown-proxy so
+	// resolveUrl routes cross-origin script fetches through /~partytown-proxy so
 	// CDNs without CORS headers (e.g. connect.facebook.net) are served same-origin.
+	// Guard: skip same-origin URLs — proxy URLs are already on our host and must
+	// not be wrapped again (prevents the double-encoding loop that causes 403).
 	// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
 	echo '<script' . $nonce_attr . '>window.partytown=' . $config_json . ';'
 		. 'window.partytown.resolveUrl=function(u,l,t){'
-		. 'if(t==="script"){var p=new URL("/~partytown-proxy",l.href);p.searchParams.append("url",u.href);return p;}'
+		. 'if(t==="script"&&u.hostname!==location.hostname){var p=new URL("/~partytown-proxy",location.href);p.searchParams.append("url",u.href);return p;}'
 		. "return u;};</script>\n";
 	// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
 	echo '<script' . $nonce_attr . '>' . $snippet . "</script>\n";
