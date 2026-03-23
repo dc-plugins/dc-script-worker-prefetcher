@@ -1085,7 +1085,26 @@ function dc_swp_output_inline_scripts() {
 		return;
 	}
 
-	$raw = (string) get_option( 'dc_swp_inline_scripts', '' );
+	$raw_stored = (string) get_option( 'dc_swp_inline_scripts', '' );
+	if ( $raw_stored === '' ) {
+		return;
+	}
+
+	// JSON array format (new): combine only enabled blocks.
+	// Legacy plain-text format (old): use as-is for backward compatibility.
+	$decoded_stored = json_decode( $raw_stored, true );
+	if ( is_array( $decoded_stored ) ) {
+		$enabled_parts = [];
+		foreach ( $decoded_stored as $blk ) {
+			if ( ! empty( $blk['enabled'] ) && '' !== trim( (string) ( $blk['code'] ?? '' ) ) ) {
+				$enabled_parts[] = $blk['code'];
+			}
+		}
+		$raw = implode( "\n", $enabled_parts );
+	} else {
+		$raw = $raw_stored; // legacy plain-text
+	}
+
 	if ( $raw === '' ) {
 		return;
 	}
