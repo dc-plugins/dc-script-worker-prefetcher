@@ -513,7 +513,7 @@ function dc_swp_admin_page_html() {
     });
 
     // ── Inline script blocks accordion ────────────────────────────────────
-    (function(){
+    (function($){
         var blocks      = <?php echo wp_json_encode( $inline_script_blocks ); ?>;
         var noBlocksMsg = <?php echo wp_json_encode( dc_swp_str( 'inline_scripts_empty' ) ); ?>;
         var delMsg      = <?php echo wp_json_encode( dc_swp_str( 'inline_scripts_del_confirm' ) ); ?>;
@@ -626,7 +626,7 @@ function dc_swp_admin_page_html() {
             });
             $('#dc_swp_inline_scripts_json').val(JSON.stringify(blocks));
         });
-    }());
+    }(jQuery));
     </script>
     <?php 
 }
