@@ -646,7 +646,7 @@ function dc_swp_partytown_config() {
 	// explicit allowlist of CDN hostnames, preventing SSRF.
 	$proxy_url_json = wp_json_encode( home_url( '/~partytown-proxy' ), JSON_UNESCAPED_SLASHES );
 	$resolve_url_fn = 'window.partytown.resolveUrl=function(url,location,type){'
-		. 'if(type==="script"){'
+		. 'if(type==="script"&&url.hostname!==location.hostname){'
 		. 'var p=new URL(' . $proxy_url_json . ');'
 		. 'p.searchParams.append("url",url.href);'
 		. 'return p;'
