@@ -990,10 +990,17 @@ function dc_swp_partytown_buffer_start() {
 }
 
 /**
- * Output-buffer callback: walk every <script ...> opening tag and,
- * when its src= URL matches a configured pattern, swap the type
- * attribute to text/plain, add data-cmplz-category="marketing",
- * and strip async.
+ * Output-buffer callback: walk every <script> element and, when its src= URL
+ * matches a configured pattern, swap the type attribute to text/partytown
+ * (consent granted) or text/plain (no consent) and strip async.
+ *
+ * Inline companion scripts are also rewritten: when a src= script is
+ * rewritten, the immediately following inline <script> (no src=) is given
+ * the same type so both run in the same Partytown context. This fixes the
+ * pattern emitted by GTM / Google Site Kit where the external loader is
+ * followed by an inline gtag() initializer — without this, only the loader
+ * runs in the worker while gtag() stays on the main thread, causing GTM to
+ * receive no data.
  *
  * @param string $html Full page HTML.
  * @return string Modified HTML.
@@ -1004,46 +1011,104 @@ function dc_swp_partytown_buffer_rewrite( $html ) {
 	if ( empty( $patterns ) ) {
 		return $html;
 	}
+
+	// Tracks the type last applied to a pattern-matched src= script so the
+	// immediately following inline companion can receive the same treatment.
+	// null  = previous script was not rewritten.
+	// 'text/partytown' | 'text/plain' = previous was rewritten to this type.
+	$prev_rewritten_type = null;
+
 	return preg_replace_callback(
-		'/<script\b([^>]*)>/i',
-		static function ( $matches ) use ( $patterns ) {
+		'/<script\b([^>]*)>(.*?)<\/script>/is',
+		static function ( $matches ) use ( $patterns, &$prev_rewritten_type ) {
 			$tag_inner = $matches[1];
-			// Skip inline scripts (no src=)
+			$body      = $matches[2];
+
+			// ── Inline script (no src=) ──────────────────────────────────────
 			if ( ! preg_match( '/\bsrc=(["\'])([^"\']+)\1/i', $tag_inner, $src_match ) ) {
-				return $matches[0];
-			}
-			$src = $src_match[2];
-			// Check exclusion list first (hardcoded + user-defined)
-			foreach ( dc_swp_get_partytown_exclude_patterns() as $excl ) {
-				if ( $excl !== '' && str_contains( $src, $excl ) ) {
-					return $matches[0]; // excluded — leave untouched
-				}
-			}
-			foreach ( $patterns as $pattern ) {
-				if ( $pattern !== '' && str_contains( $src, $pattern ) ) {
-					// GDPR guard: if a CMP has already changed this script's type to a
-					// consent-blocking value (text/cmplz-script, text/plain, etc.), leave
-					// it untouched — consent has not been granted for this script yet.
+				// If the immediately preceding script was rewritten, apply the same
+				// type to this inline companion (e.g. GTM gtag() initializer).
+				if ( null !== $prev_rewritten_type ) {
+					$carry_type          = $prev_rewritten_type;
+					$prev_rewritten_type = null; // consume — only one inline companion per src= script
+
+					// GDPR guard: if a CMP has already set a non-standard blocking type,
+					// leave the inline script untouched.
 					if ( preg_match( '/\btype=(["\'])([^"\']+)\1/i', $tag_inner, $type_match ) ) {
 						$existing_type = strtolower( $type_match[2] );
 						if ( $existing_type !== 'text/javascript' ) {
-							// CMP-blocked — leave untouched.
-							return $matches[0];
+							return $matches[0]; // CMP-blocked — leave untouched
 						}
 					}
+
+					if ( preg_match( '/\btype=["\'][^"\']*["\']/i', $tag_inner ) ) {
+						$tag_inner = preg_replace( '/\btype=["\'][^"\']*["\']/i', 'type="' . $carry_type . '"', $tag_inner );
+					} else {
+						$tag_inner = ' type="' . $carry_type . '"' . $tag_inner;
+					}
+					return '<script' . $tag_inner . '>' . $body . '</script>';
+				}
+
+				// Unrelated inline script — reset state and leave untouched.
+				$prev_rewritten_type = null;
+				return $matches[0];
+			}
+
+			// ── External (src=) script ───────────────────────────────────────
+			$src = $src_match[2];
+
+			// Check exclusion list first (hardcoded + user-defined).
+			foreach ( dc_swp_get_partytown_exclude_patterns() as $excl ) {
+				if ( $excl !== '' && str_contains( $src, $excl ) ) {
+					$prev_rewritten_type = null;
+					return $matches[0]; // excluded — leave untouched
+				}
+			}
+
+			foreach ( $patterns as $pattern ) {
+				if ( $pattern !== '' && str_contains( $src, $pattern ) ) {
+					$existing_type_val = '';
+					if ( preg_match( '/\btype=(["\'])([^"\']+)\1/i', $tag_inner, $type_match ) ) {
+						$existing_type_val = strtolower( $type_match[2] );
+					}
+
+					// Already set to text/partytown by wp_script_attributes — just
+					// propagate state so the inline companion is handled below.
+					if ( $existing_type_val === 'text/partytown' ) {
+						$prev_rewritten_type = 'text/partytown';
+						return $matches[0];
+					}
+
+					// GDPR guard: if a CMP has already changed this script's type to a
+					// consent-blocking value (text/cmplz-script, text/plain, etc.), leave
+					// it untouched — consent has not been granted for this script yet.
+					if ( $existing_type_val !== '' && $existing_type_val !== 'text/javascript' ) {
+						$prev_rewritten_type = null;
+						return $matches[0]; // CMP-blocked — leave untouched
+					}
+
 					// Consent granted → Partytown runs it off-thread; no consent → block silently.
 					$new_type = dc_swp_has_marketing_consent() ? 'text/partytown' : 'text/plain';
+
 					// Replace existing type="text/javascript" or prepend if no type attribute.
 					if ( preg_match( '/\btype=["\'][^"\']*["\']/i', $tag_inner ) ) {
 						$tag_inner = preg_replace( '/\btype=["\'][^"\']*["\']/i', 'type="' . $new_type . '"', $tag_inner );
 					} else {
 						$tag_inner = ' type="' . $new_type . '"' . $tag_inner;
 					}
-					// Strip async (boolean form or assigned form)
+					// Strip async (boolean form or assigned form).
 					$tag_inner = preg_replace( '/\s+async(?:=["\'][^"\']*["\'])?/i', '', $tag_inner );
-					return '<script' . $tag_inner . '>';
+
+					// Remember this type so the next inline companion (if any) gets
+					// the same treatment and runs in the same Partytown context.
+					$prev_rewritten_type = $new_type;
+
+					return '<script' . $tag_inner . '>' . $body . '</script>';
 				}
 			}
+
+			// No pattern matched — reset state.
+			$prev_rewritten_type = null;
 			return $matches[0];
 		},
 		$html
