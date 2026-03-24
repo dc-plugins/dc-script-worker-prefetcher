@@ -1444,6 +1444,61 @@ function dc_swp_partytown_buffer_rewrite( $html ) { // phpcs:ignore WordPress.Na
 			},
 			$html
 		);
+
+		// ── Cross-origin scripts: inject `crossorigin="anonymous"` ───────
+		// COEP: credentialless exempts no-cors subresources from needing a
+		// CORP header only when the CDN sends no CORP at all. A CDN that
+		// explicitly sends `Cross-Origin-Resource-Policy: same-origin`
+		// (e.g. Trustpilot's widget CDN for tp.widget.bootstrap.js) will
+		// still be blocked even in credentialless mode because CORP: same-origin
+		// is an explicit restriction.
+		//
+		// Adding crossorigin="anonymous" converts the load to a CORS request.
+		// If the CDN responds with Access-Control-Allow-Origin: * (Trustpilot's
+		// CDN does), the CORS response satisfies COEP regardless of CORP.
+		//
+		// Only applied to patterns listed in the filter — keeps the change
+		// conservative so scripts without CORS support are never broken.
+		//
+		// Usage: add_filter( 'dc_swp_coi_crossorigin_patterns', function( $p ) {
+		//            $p[] = 'cdn.example.com'; return $p;
+		//        } );
+		$crossorigin_patterns = (array) apply_filters( 'dc_swp_coi_crossorigin_patterns', [
+			'widget.trustpilot.com',
+		] );
+		if ( ! empty( $crossorigin_patterns ) ) {
+			$html = preg_replace_callback(
+				'/<script\b([^>]*)>/i',
+				static function ( $s_match ) use ( $site_host, $crossorigin_patterns ) {
+					$tag_inner = $s_match[1];
+					// Need a cross-origin src=.
+					if ( ! preg_match( '/\bsrc=(["\'])([^"\']+)\1/i', $tag_inner, $src_m ) ) {
+						return $s_match[0];
+					}
+					$script_host = (string) wp_parse_url( $src_m[2], PHP_URL_HOST );
+					if ( $script_host === '' || $script_host === $site_host ) {
+						return $s_match[0];
+					}
+					// Already has crossorigin — leave untouched.
+					if ( preg_match( '/\bcrossorigin\b/i', $tag_inner ) ) {
+						return $s_match[0];
+					}
+					// Check against the allow-list.
+					$matched = false;
+					foreach ( $crossorigin_patterns as $pat ) {
+						if ( $pat !== '' && str_contains( $script_host, $pat ) ) {
+							$matched = true;
+							break;
+						}
+					}
+					if ( ! $matched ) {
+						return $s_match[0];
+					}
+					return '<script' . $tag_inner . ' crossorigin="anonymous">';
+				},
+				$html
+			);
+		}
 	}
 
 	return $html;
