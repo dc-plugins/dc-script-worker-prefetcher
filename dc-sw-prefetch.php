@@ -1002,6 +1002,12 @@ function dc_swp_partytown_buffer_start() {
  * runs in the worker while gtag() stays on the main thread, causing GTM to
  * receive no data.
  *
+ * Only services that are documented to use the src= loader + inline
+ * initializer pattern are eligible for companion rewriting. Each entry in
+ * the companion map carries a content validator regex so that a random
+ * inline script that happens to appear after a matched src= script is
+ * never incorrectly moved into the worker.
+ *
  * @param string $html Full page HTML.
  * @return string Modified HTML.
  */
@@ -1012,35 +1018,60 @@ function dc_swp_partytown_buffer_rewrite( $html ) {
 		return $html;
 	}
 
-	// Tracks the type last applied to a pattern-matched src= script so the
-	// immediately following inline companion can receive the same treatment.
-	// null  = previous script was not rewritten.
-	// 'text/partytown' | 'text/plain' = previous was rewritten to this type.
-	$prev_rewritten_type = null;
+	/**
+	 * Maps a src= URL substring to a regex that the following inline script's
+	 * body must match before it is rewritten to type="text/partytown".
+	 *
+	 * Only services that genuinely emit a <script src=…> loader followed by
+	 * an inline <script> initializer are listed here. Services that use a
+	 * pure inline embed (Facebook Pixel, TikTok Pixel, GTM container snippet)
+	 * or a standalone src= tag (Ahrefs, HubSpot) must NOT be in this map —
+	 * the next inline script in the page could be completely unrelated and
+	 * would break if pushed into the Partytown worker.
+	 *
+	 * Use the 'dc_swp_inline_companion_map' filter to add custom entries.
+	 *
+	 * @var array<string,string> $companion_map  key = URL substring, value = body regex
+	 */
+	$companion_map = (array) apply_filters( 'dc_swp_inline_companion_map', [
+		// Google gtag.js (Google Analytics 4 / Google Site Kit):
+		//   <script src="…/gtag/js?id=G-…"></script>
+		//   <script>window.dataLayer=…;function gtag(){…}</script>
+		'googletagmanager.com/gtag/js' => '/\bdataLayer\b|\bgtag\s*\(/i',
+	] );
+
+	// Pending companion state:
+	// null  → previous matched script has no known inline companion.
+	// array → [ 'type' => 'text/partytown'|'text/plain', 'validator' => '/regex/' ]
+	$pending_companion = null;
 
 	return preg_replace_callback(
 		'/<script\b([^>]*)>(.*?)<\/script>/is',
-		static function ( $matches ) use ( $patterns, &$prev_rewritten_type ) {
+		static function ( $matches ) use ( $patterns, $companion_map, &$pending_companion ) {
 			$tag_inner = $matches[1];
 			$body      = $matches[2];
 
 			// ── Inline script (no src=) ──────────────────────────────────────
 			if ( ! preg_match( '/\bsrc=(["\'])([^"\']+)\1/i', $tag_inner, $src_match ) ) {
-				// If the immediately preceding script was rewritten, apply the same
-				// type to this inline companion (e.g. GTM gtag() initializer).
-				if ( null !== $prev_rewritten_type ) {
-					$carry_type          = $prev_rewritten_type;
-					$prev_rewritten_type = null; // consume — only one inline companion per src= script
+				if ( null !== $pending_companion ) {
+					$carry             = $pending_companion;
+					$pending_companion = null; // consume — one companion per src= script
 
-					// GDPR guard: if a CMP has already set a non-standard blocking type,
-					// leave the inline script untouched.
+					// Content guard: inline body must match the service's expected
+					// initializer pattern. If it doesn't, this is an unrelated inline
+					// script that must NOT be moved into the Partytown worker.
+					if ( ! preg_match( $carry['validator'], $body ) ) {
+						return $matches[0];
+					}
+
+					// GDPR guard: CMP-blocked inline (non text/javascript type) stays untouched.
 					if ( preg_match( '/\btype=(["\'])([^"\']+)\1/i', $tag_inner, $type_match ) ) {
-						$existing_type = strtolower( $type_match[2] );
-						if ( $existing_type !== 'text/javascript' ) {
-							return $matches[0]; // CMP-blocked — leave untouched
+						if ( strtolower( $type_match[2] ) !== 'text/javascript' ) {
+							return $matches[0];
 						}
 					}
 
+					$carry_type = $carry['type'];
 					if ( preg_match( '/\btype=["\'][^"\']*["\']/i', $tag_inner ) ) {
 						$tag_inner = preg_replace( '/\btype=["\'][^"\']*["\']/i', 'type="' . $carry_type . '"', $tag_inner );
 					} else {
@@ -1049,70 +1080,83 @@ function dc_swp_partytown_buffer_rewrite( $html ) {
 					return '<script' . $tag_inner . '>' . $body . '</script>';
 				}
 
-				// Unrelated inline script — reset state and leave untouched.
-				$prev_rewritten_type = null;
+				// Unrelated inline — leave untouched.
 				return $matches[0];
 			}
 
 			// ── External (src=) script ───────────────────────────────────────
 			$src = $src_match[2];
 
-			// Check exclusion list first (hardcoded + user-defined).
+			// Exclusion list — always takes priority.
 			foreach ( dc_swp_get_partytown_exclude_patterns() as $excl ) {
 				if ( $excl !== '' && str_contains( $src, $excl ) ) {
-					$prev_rewritten_type = null;
-					return $matches[0]; // excluded — leave untouched
+					$pending_companion = null;
+					return $matches[0];
 				}
 			}
 
 			foreach ( $patterns as $pattern ) {
-				if ( $pattern !== '' && str_contains( $src, $pattern ) ) {
-					$existing_type_val = '';
-					if ( preg_match( '/\btype=(["\'])([^"\']+)\1/i', $tag_inner, $type_match ) ) {
-						$existing_type_val = strtolower( $type_match[2] );
-					}
-
-					// Already set to text/partytown by wp_script_attributes — just
-					// propagate state so the inline companion is handled below.
-					if ( $existing_type_val === 'text/partytown' ) {
-						$prev_rewritten_type = 'text/partytown';
-						return $matches[0];
-					}
-
-					// GDPR guard: if a CMP has already changed this script's type to a
-					// consent-blocking value (text/cmplz-script, text/plain, etc.), leave
-					// it untouched — consent has not been granted for this script yet.
-					if ( $existing_type_val !== '' && $existing_type_val !== 'text/javascript' ) {
-						$prev_rewritten_type = null;
-						return $matches[0]; // CMP-blocked — leave untouched
-					}
-
-					// Consent granted → Partytown runs it off-thread; no consent → block silently.
-					$new_type = dc_swp_has_marketing_consent() ? 'text/partytown' : 'text/plain';
-
-					// Replace existing type="text/javascript" or prepend if no type attribute.
-					if ( preg_match( '/\btype=["\'][^"\']*["\']/i', $tag_inner ) ) {
-						$tag_inner = preg_replace( '/\btype=["\'][^"\']*["\']/i', 'type="' . $new_type . '"', $tag_inner );
-					} else {
-						$tag_inner = ' type="' . $new_type . '"' . $tag_inner;
-					}
-					// Strip async (boolean form or assigned form).
-					$tag_inner = preg_replace( '/\s+async(?:=["\'][^"\']*["\'])?/i', '', $tag_inner );
-
-					// Remember this type so the next inline companion (if any) gets
-					// the same treatment and runs in the same Partytown context.
-					$prev_rewritten_type = $new_type;
-
-					return '<script' . $tag_inner . '>' . $body . '</script>';
+				if ( $pattern === '' || ! str_contains( $src, $pattern ) ) {
+					continue;
 				}
+
+				$existing_type_val = '';
+				if ( preg_match( '/\btype=(["\'])([^"\']+)\1/i', $tag_inner, $type_match ) ) {
+					$existing_type_val = strtolower( $type_match[2] );
+				}
+
+				// wp_script_attributes already set text/partytown — honour it and
+				// still arm the companion state in case this src has a known companion.
+				if ( $existing_type_val === 'text/partytown' ) {
+					$pending_companion = dc_swp_resolve_companion( $src, 'text/partytown', $companion_map );
+					return $matches[0];
+				}
+
+				// GDPR guard: CMP has blocked this script — leave untouched entirely.
+				if ( $existing_type_val !== '' && $existing_type_val !== 'text/javascript' ) {
+					$pending_companion = null;
+					return $matches[0];
+				}
+
+				$new_type = dc_swp_has_marketing_consent() ? 'text/partytown' : 'text/plain';
+
+				if ( preg_match( '/\btype=["\'][^"\']*["\']/i', $tag_inner ) ) {
+					$tag_inner = preg_replace( '/\btype=["\'][^"\']*["\']/i', 'type="' . $new_type . '"', $tag_inner );
+				} else {
+					$tag_inner = ' type="' . $new_type . '"' . $tag_inner;
+				}
+				$tag_inner = preg_replace( '/\s+async(?:=["\'][^"\']*["\'])?/i', '', $tag_inner );
+
+				// Arm companion state only for services with a known inline companion.
+				$pending_companion = dc_swp_resolve_companion( $src, $new_type, $companion_map );
+
+				return '<script' . $tag_inner . '>' . $body . '</script>';
 			}
 
-			// No pattern matched — reset state.
-			$prev_rewritten_type = null;
+			// No pattern matched — clear any pending companion state.
+			$pending_companion = null;
 			return $matches[0];
 		},
 		$html
 	);
+}
+
+/**
+ * Return a pending-companion descriptor if $src matches a key in $companion_map,
+ * or null if this src= script has no known inline companion.
+ *
+ * @param string               $src           The script src= URL.
+ * @param string               $type          'text/partytown' or 'text/plain'.
+ * @param array<string,string> $companion_map Map of URL substring → body validator regex.
+ * @return array{type:string,validator:string}|null
+ */
+function dc_swp_resolve_companion( $src, $type, $companion_map ) {
+	foreach ( $companion_map as $cdn_pattern => $validator_regex ) {
+		if ( str_contains( $src, $cdn_pattern ) ) {
+			return [ 'type' => $type, 'validator' => $validator_regex ];
+		}
+	}
+	return null;
 }
 
 
