@@ -722,7 +722,7 @@ function dc_swp_partytown_config() {
 	// to the SW bridge instead of crashing.
 	$coi_active = get_option( 'dc_swp_coi_headers', 'no' ) === 'yes';
 	$coi_probe  = $coi_active
-		? 'if(window.crossOriginIsolated){try{new SharedArrayBuffer(8);}catch(e){'
+		? 'if(window.crossOriginIsolated){try{new SharedArrayBuffer(1073741824);}catch(e){'
 		  . 'try{Object.defineProperty(window,"crossOriginIsolated",{value:false,configurable:false});}catch(e2){}}}'
 		: '';
 
