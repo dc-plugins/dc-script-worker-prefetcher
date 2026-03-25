@@ -717,13 +717,29 @@ function dc_swp_partytown_config() {
 	// RangeError: Array buffer allocation failed — an unhandled promise rejection
 	// that breaks the entire atomics bridge init.
 	//
-	// We probe SAB allocation BEFORE the Partytown snippet runs. If it fails we
-	// shadow window.crossOriginIsolated = false so Partytown falls back gracefully
-	// to the SW bridge instead of crashing.
+	// Pre-allocate the 1 GB SharedArrayBuffer early (before other scripts consume
+	// memory). Partytown reads window.crossOriginIsolated and then allocates its
+	// own SAB — by the time it runs, memory pressure may have grown enough that
+	// the allocation fails. We patch window.SharedArrayBuffer so Partytown's call
+	// reuses our pre-allocated buffer. If pre-allocation fails we shadow
+	// crossOriginIsolated = false so Partytown falls back to the SW bridge.
 	$coi_active = get_option( 'dc_swp_coi_headers', 'no' ) === 'yes';
+	// Pre-allocate the SAB early (before other scripts consume memory) and patch
+	// window.SharedArrayBuffer so Partytown's own allocation reuses the same buffer.
+	// If the pre-allocation itself fails we shadow crossOriginIsolated = false so
+	// Partytown falls back to the SW bridge instead of crashing later.
 	$coi_probe  = $coi_active
-		? 'if(window.crossOriginIsolated){try{new SharedArrayBuffer(1073741824);}catch(e){'
-		  . 'try{Object.defineProperty(window,"crossOriginIsolated",{value:false,configurable:false});}catch(e2){}}}'
+		? '(function(){'
+		  . 'if(!window.crossOriginIsolated)return;'
+		  . 'try{'
+		  . 'var _b=new SharedArrayBuffer(1073741824);'
+		  . 'var _O=window.SharedArrayBuffer;'
+		  . 'window.SharedArrayBuffer=function(n){if(n===1073741824&&_b){var r=_b;_b=null;return r;}return new _O(n);};'
+		  . 'window.SharedArrayBuffer.prototype=_O.prototype;'
+		  . '}catch(e){'
+		  . 'try{Object.defineProperty(window,"crossOriginIsolated",{value:false,configurable:false});}catch(e2){}'
+		  . '}'
+		  . '})();'
 		: '';
 
 	// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
