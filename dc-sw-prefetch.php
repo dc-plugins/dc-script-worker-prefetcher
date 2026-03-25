@@ -710,8 +710,23 @@ function dc_swp_partytown_config() {
 		. 'return p;'
 		. '}return url;};';
 
+	// SharedArrayBuffer probe: Partytown reads window.crossOriginIsolated and loads
+	// partytown-atomics.js if true. On some page loads (W3TC cache, certain browser
+	// versions) the response headers are in place but the browser process has not
+	// fully entered the isolated context, causing new SharedArrayBuffer() to throw
+	// RangeError: Array buffer allocation failed — an unhandled promise rejection
+	// that breaks the entire atomics bridge init.
+	//
+	// We probe SAB allocation BEFORE the Partytown snippet runs. If it fails we
+	// shadow window.crossOriginIsolated = false so Partytown falls back gracefully
+	// to the SW bridge instead of crashing.
+	$coi_probe = $coi_active
+		? 'if(window.crossOriginIsolated){try{new SharedArrayBuffer(8);}catch(e){'
+		  . 'try{Object.defineProperty(window,"crossOriginIsolated",{value:false,configurable:false});}catch(e2){}}}'
+		: '';
+
 	// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
-	echo '<script' . $nonce_attr . '>window.partytown=' . $config_json . ';' . $resolve_url_fn . "</script>\n";
+	echo '<script' . $nonce_attr . '>' . $coi_probe . 'window.partytown=' . $config_json . ';' . $resolve_url_fn . "</script>\n";
 	// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
 	echo '<script' . $nonce_attr . '>' . $snippet . "</script>\n";
 
