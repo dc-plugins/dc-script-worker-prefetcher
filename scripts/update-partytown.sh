@@ -56,6 +56,20 @@ sed -i.bak "s|\"@qwik.dev/partytown\": \"${CURRENT}\"|\"@qwik.dev/partytown\": \
 rm -f "$PKG.bak"
 echo "→ package.json updated: $CURRENT → $VERSION"
 
+# ── Reduce SAB from 1 GB → 256 MB in atomics bundles ─────────
+# Partytown defaults to new SharedArrayBuffer(1073741824) which hits the
+# heap limit on many devices. 256 MB is sufficient for Atomics messaging.
+SAB_FILES=(
+  "$DEST/partytown-atomics.js"
+  "$DEST/debug/partytown-atomics.js"
+)
+for f in "${SAB_FILES[@]}"; do
+  if [ -f "$f" ]; then
+    sed -i 's/SharedArrayBuffer(1073741824)/SharedArrayBuffer(268435456)/g' "$f"
+    echo "→ Patched SAB size in $f"
+  fi
+done
+
 echo ""
 echo "✅ Partytown $VERSION vendored in $DEST/"
 echo "   Commit with:"
