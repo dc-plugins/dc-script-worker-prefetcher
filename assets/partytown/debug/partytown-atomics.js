@@ -683,7 +683,7 @@
     };
     let worker;
     (async receiveMessage => {
-        const sharedDataBuffer = new SharedArrayBuffer(1073741824);
+        const sharedDataBuffer = new SharedArrayBuffer(268435456);
         const sharedData = new Int32Array(sharedDataBuffer);
         return (worker, msg) => {
             const msgType = msg[0];
