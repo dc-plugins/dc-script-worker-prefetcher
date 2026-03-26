@@ -26,15 +26,23 @@ jobs:
             --exclude='.git' \
             --exclude='.github' \
             --exclude='.gitignore' \
+            --exclude='.gitattributes' \
+            --exclude='.distignore' \
             --exclude='phpcs.xml' \
+            --exclude='composer.json' \
+            --exclude='composer.lock' \
+            --exclude='README.md' \
+            --exclude='scripts' \
+            --exclude='vendor' \
             ./ ${{ vars.SSH_USER }}@${{ vars.SSH_HOST }}:${{ vars.DEPLOY_PATH }}dc-sw-prefetch/
 
       - name: Build wordpress.org ZIP
         run: |
           mkdir -p dist
           zip -r dist/dc-sw-prefetch.zip . \
-            -x '*.git*' -x '.github/*' -x '.gitignore' \
-            -x 'phpcs.xml' -x 'dist/*'
+            -x '*.git*' -x '.github/*' -x '.gitignore' -x '.gitattributes' \
+            -x '.distignore' -x 'phpcs.xml' -x 'composer.json' -x 'composer.lock' \
+            -x 'README.md' -x 'scripts/*' -x 'vendor/*' -x 'dist/*'
 
       - name: Upload ZIP artifact
         uses: actions/upload-artifact@v4
