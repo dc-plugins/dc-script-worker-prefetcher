@@ -154,6 +154,30 @@ function dc_swp_setup_menu() {
 
 // Register settings
 add_action( 'admin_init', 'dc_swp_register_settings' );
+
+/**
+ * Sanitize callback for the dc_swp_inline_scripts option.
+ *
+ * The value is a JSON-encoded array of inline script block objects managed by
+ * the admin UI. Full per-field sanitization is applied in dc_swp_admin_page_html().
+ * This callback validates the JSON structure so the REST API and settings forms
+ * cannot store malformed data.
+ *
+ * @param mixed $value Raw option value.
+ * @return string Validated JSON string, or empty string if invalid.
+ */
+// phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedFunctionFound
+function dc_swp_sanitize_inline_scripts_option( $value ) {
+    if ( '' === $value || null === $value ) {
+        return '';
+    }
+    $decoded = json_decode( $value, true );
+    if ( ! is_array( $decoded ) ) {
+        return '';
+    }
+    return wp_json_encode( $decoded );
+}
+
 // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedFunctionFound
 function dc_swp_register_settings() {
     register_setting( 'dc-sw-prefetch-settings', 'dampcig_pwa_sw_enabled',       [ 'sanitize_callback' => 'sanitize_text_field' ] );
@@ -163,8 +187,8 @@ function dc_swp_register_settings() {
     register_setting( 'dc-sw-prefetch-settings', 'dc_swp_disable_emoji',         [ 'sanitize_callback' => 'sanitize_text_field' ] );
     register_setting( 'dc-sw-prefetch-settings', 'dc_swp_partytown_scripts',     [ 'sanitize_callback' => 'sanitize_textarea_field' ] );
     register_setting( 'dc-sw-prefetch-settings', 'dc_swp_partytown_exclude',     [ 'sanitize_callback' => 'sanitize_textarea_field' ] );
-    // Inline script blocks — admin-only JS content; no HTML sanitization applied (trusted manage_options user).
-    register_setting( 'dc-sw-prefetch-settings', 'dc_swp_inline_scripts' );
+    // Inline script blocks — admin-only JS content stored as JSON; validated via dc_swp_sanitize_inline_scripts_option.
+    register_setting( 'dc-sw-prefetch-settings', 'dc_swp_inline_scripts', [ 'sanitize_callback' => 'dc_swp_sanitize_inline_scripts_option' ] );
     register_setting( 'dc-sw-prefetch-settings', 'dc_swp_coi_headers', [ 'sanitize_callback' => 'sanitize_text_field' ] );
 }
 

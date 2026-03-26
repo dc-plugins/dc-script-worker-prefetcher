@@ -1,0 +1,11 @@
+# Files/directories to exclude from the plugin distribution ZIP and WordPress.org SVN.
+.distignore
+.gitattributes
+.gitignore
+.github
+composer.json
+composer.lock
+phpcs.xml
+README.md
+scripts
+vendor

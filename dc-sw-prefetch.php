@@ -94,6 +94,7 @@ endif; // function_exists( 'is_bot_request' )
  * Return true if the current visitor has granted marketing consent
  * according to any of the common CMP cookie conventions.
  */
+// phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedFunctionFound
 function dc_swp_has_marketing_consent() {
 	// Complianz
 	if ( isset( $_COOKIE['cmplz_marketing'] ) && $_COOKIE['cmplz_marketing'] === 'allow' ) {
@@ -110,7 +111,8 @@ function dc_swp_has_marketing_consent() {
 
 	// Borlabs Cookie — JSON-encoded object; .consents.marketing === true
 	if ( isset( $_COOKIE['borlabs-cookie'] ) ) {
-		$raw = json_decode( stripslashes( $_COOKIE['borlabs-cookie'] ), true );
+		// phpcs:ignore WordPress.Security.ValidatedSanitizedInput.MissingUnslash,WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- JSON decoded for boolean key check only; not used in HTML output.
+		$raw = json_decode( wp_unslash( $_COOKIE['borlabs-cookie'] ), true );
 		if ( ! empty( $raw['consents']['marketing'] ) ) {
 			return true;
 		}
@@ -136,7 +138,8 @@ function dc_swp_has_marketing_consent() {
 
 	// Cookie Information (popular in Scandinavia) — JSON; consents_approved[] contains "cookie_cat_marketing"
 	if ( isset( $_COOKIE['CookieInformationConsent'] ) ) {
-		$ci = json_decode( stripslashes( $_COOKIE['CookieInformationConsent'] ), true );
+		// phpcs:ignore WordPress.Security.ValidatedSanitizedInput.MissingUnslash,WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- JSON decoded for array key check only; not used in HTML output.
+		$ci = json_decode( wp_unslash( $_COOKIE['CookieInformationConsent'] ), true );
 		if ( ! empty( $ci['consents_approved'] ) && in_array( 'cookie_cat_marketing', $ci['consents_approved'], true ) ) {
 			return true;
 		}
@@ -144,7 +147,8 @@ function dc_swp_has_marketing_consent() {
 
 	// Moove GDPR Cookie Compliance — JSON; .thirdparty === 1
 	if ( isset( $_COOKIE['moove_gdpr_popup'] ) ) {
-		$mg = json_decode( stripslashes( $_COOKIE['moove_gdpr_popup'] ), true );
+		// phpcs:ignore WordPress.Security.ValidatedSanitizedInput.MissingUnslash,WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- JSON decoded for integer key check only; not used in HTML output.
+		$mg = json_decode( wp_unslash( $_COOKIE['moove_gdpr_popup'] ), true );
 		if ( isset( $mg['thirdparty'] ) && (int) $mg['thirdparty'] === 1 ) {
 			return true;
 		}
@@ -239,6 +243,7 @@ add_action( 'send_headers', 'dc_swp_cross_origin_isolation_headers' );
  * Skipped for bots, logged-in users, and transactional pages (cart / checkout /
  * account). Skipped unless the dc_swp_coi_headers option is enabled.
  */
+// phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedFunctionFound
 function dc_swp_cross_origin_isolation_headers() {
 	if ( get_option( 'dc_swp_coi_headers', 'no' ) !== 'yes' ) {
 		return;
@@ -361,8 +366,18 @@ function dc_swp_serve_partytown_files() {
 	// Partytown files are versioned by the plugin; cache for 1 hour, revalidate.
 	header( 'Cache-Control: public, max-age=3600, stale-while-revalidate=60' );
 
+	// Use WP_Filesystem to read and serve the file instead of direct readfile().
+	global $wp_filesystem;
+	if ( empty( $wp_filesystem ) ) {
+		require_once ABSPATH . 'wp-admin/includes/file.php';
+		WP_Filesystem();
+	}
+	if ( empty( $wp_filesystem ) ) {
+		status_header( 500 );
+		exit();
+	}
 	// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- serving a binary-safe static file
-	readfile( $file );
+	echo $wp_filesystem->get_contents( $file );
 	exit();
 }
 
@@ -399,6 +414,7 @@ add_action( 'init', 'dc_swp_serve_partytown_proxy', 1 );
  *  - No redirect following (redirection=0) to prevent SSRF via redirect.
  *  - SSL verification enabled.
  */
+// phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedFunctionFound
 function dc_swp_serve_partytown_proxy() {
 	$request_uri = isset( $_SERVER['REQUEST_URI'] )
 		? wp_parse_url( wp_unslash( $_SERVER['REQUEST_URI'] ), PHP_URL_PATH ) // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized
@@ -409,7 +425,7 @@ function dc_swp_serve_partytown_proxy() {
 	}
 
 	// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- read-only proxy, no state change
-	$raw_url = isset( $_GET['url'] ) ? wp_unslash( $_GET['url'] ) : '';
+	$raw_url = isset( $_GET['url'] ) ? esc_url_raw( wp_unslash( $_GET['url'] ) ) : '';
 	if ( $raw_url === '' ) {
 		status_header( 400 );
 		exit();
@@ -484,6 +500,7 @@ function dc_swp_serve_partytown_proxy() {
  *  2. WooCommerce permalink setting (woocommerce_permalinks.product_base)
  *  3. Hard fallback: /product/
  */
+// phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedFunctionFound
 function dc_swp_get_product_base() {
 	$override = trim( get_option( 'dampcig_pwa_product_base', '' ) );
 	if ( $override !== '' ) {
@@ -521,6 +538,7 @@ add_action( 'wp_head', 'dc_swp_partytown_config', 2 );
  *
  * @return string Base64-safe nonce, or empty string on failure.
  */
+// phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedFunctionFound
 function dc_swp_get_csp_nonce() {
 	static $nonce = null;
 	if ( null !== $nonce ) {
@@ -540,6 +558,7 @@ function dc_swp_get_csp_nonce() {
 	 *
 	 * @param string $nonce The generated nonce (base64, 16 random bytes).
 	 */
+	// phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedHooknameFound
 	$nonce = (string) apply_filters( 'dc_swp_csp_nonce', $nonce );
 	return $nonce;
 }
@@ -634,6 +653,7 @@ function dc_swp_partytown_config() {
 	//       $map['/collect'] = 'https://analytics.example.com/collect';
 	//       return $map;
 	//   } );
+	// phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedHooknameFound
 	$path_rewrites = apply_filters( 'dc_swp_partytown_path_rewrites', [
 		'/api/event' => 'https://analytics.ahrefs.com/api/event', // Ahrefs Analytics
 	] );
@@ -910,6 +930,7 @@ function dc_swp_maybe_remove_emoji() {
  *
  * @return string[]
  */
+// phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedFunctionFound
 function dc_swp_get_partytown_patterns() {
 	static $patterns = null;
 	if ( null !== $patterns ) {
@@ -943,6 +964,7 @@ function dc_swp_get_partytown_patterns() {
  *
  * @return string[] Lowercase, unique hostnames eligible for proxy.
  */
+// phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedFunctionFound
 function dc_swp_get_proxy_allowed_hosts() {
 	// Static memoisation: consistent with dc_swp_get_partytown_patterns().
 	// Mid-request option updates clear the object cache on the next request via
@@ -1066,6 +1088,7 @@ add_action( 'update_option_dc_swp_inline_scripts',    'dc_swp_bust_page_cache' )
  * Delete all object-cache pattern keys and flush W3TC page cache (if active),
  * so stale cached HTML with old type attributes is never served.
  */
+// phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedFunctionFound
 function dc_swp_bust_page_cache() {
 	wp_cache_delete( 'patterns', 'dc_swp' );
 	wp_cache_delete( 'exclude_patterns', 'dc_swp' );
@@ -1086,6 +1109,7 @@ function dc_swp_bust_page_cache() {
  * Pre-populated into the admin textarea on first use (when option is empty).
  * Users can edit the list freely — remove patterns they do not need.
  */
+// phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedFunctionFound
 function dc_swp_default_exclude_list() {
 	return implode( "\n", [
 		'widget.trustpilot.com',
@@ -1100,6 +1124,7 @@ function dc_swp_default_exclude_list() {
 	] );
 }
 
+// phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedFunctionFound
 function dc_swp_get_partytown_exclude_patterns() {
 	static $exclude = null;
 	if ( null !== $exclude ) {
@@ -1196,6 +1221,7 @@ function dc_swp_partytown_buffer_rewrite( $html ) {
 	 *
 	 * @var array<string,string> $companion_map  key = URL substring, value = body regex
 	 */
+	// phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedHooknameFound
 	$companion_map = (array) apply_filters( 'dc_swp_inline_companion_map', [
 		// Google gtag.js (Google Analytics 4 / Google Site Kit):
 		//   <script src="…/gtag/js?id=G-…"></script>
@@ -1313,6 +1339,7 @@ function dc_swp_partytown_buffer_rewrite( $html ) {
  * @param array<string,string> $companion_map Map of URL substring → body validator regex.
  * @return array{type:string,validator:string}|null
  */
+// phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedFunctionFound
 function dc_swp_resolve_companion( $src, $type, $companion_map ) {
 	foreach ( $companion_map as $cdn_pattern => $validator_regex ) {
 		if ( str_contains( $src, $cdn_pattern ) ) {
@@ -1347,6 +1374,7 @@ add_action( 'wp_head', 'dc_swp_output_inline_scripts', 3 );
  *
  * Runs at wp_head priority 3, after Partytown lib is loaded (priority 2).
  */
+// phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedFunctionFound
 function dc_swp_output_inline_scripts() {
 	if ( dc_swp_is_bot_request() ) {
 		return;
