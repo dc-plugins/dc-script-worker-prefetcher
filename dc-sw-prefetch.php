@@ -169,19 +169,22 @@ require_once plugin_dir_path( __FILE__ ) . 'admin.php';
 // themes without any PHP output-buffer or regex fragility.
 // ============================================================
 
-add_action( 'wp_footer', 'dc_swp_footer_credit_js', PHP_INT_MAX );
+// phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedFunctionFound
+if ( get_option( 'dampcig_pwa_footer_credit', 'no' ) === 'yes' && ! function_exists( 'dc_footer_credit_owner' ) ) {
+	/**
+	 * Sentinel: marks this plugin as the active footer-credit owner.
+	 * Other DC plugins check function_exists( 'dc_footer_credit_owner' ) and skip
+	 * their own registration when this is already defined.
+	 */
+	// phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedFunctionFound
+	function dc_footer_credit_owner(): void {}
+
+	add_action( 'wp_footer', 'dc_swp_footer_credit_js', PHP_INT_MAX );
+}
 
 // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedFunctionFound
 function dc_swp_footer_credit_js() {
 	if ( is_admin() ) return;
-	if ( get_option( 'dampcig_pwa_footer_credit', 'no' ) !== 'yes' ) return;
-	// If DC Google Indexing is active, it owns the footer credit — defer to avoid duplicates.
-	if ( function_exists( 'dc_gi_footer_credit_start' )
-		&& ! empty( ( dc_gi_get_settings() )['footer_credit'] ) ) {
-		return;
-	}
-	// If the PNG→WebP plugin is active, it owns the footer credit — defer.
-	if ( class_exists( 'DC_WebP_Converter' ) ) return;
 
 	$url   = 'https://www.dampcig.dk';
 	$title = esc_js( 'Powered by Dampcig.dk' );
