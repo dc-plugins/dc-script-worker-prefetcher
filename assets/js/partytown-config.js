@@ -1,0 +1,48 @@
+/**
+ * Partytown configuration — sets window.partytown before Partytown initialises.
+ * Data injected by PHP via wp_localize_script as dcSwpPartytownData.
+ *
+ * Includes the SharedArrayBuffer probe on every page load. The probe is harmless
+ * when COI headers are not active (window.crossOriginIsolated will be false and
+ * the block never executes).
+ *
+ * @package DC_Service_Worker_Prefetcher
+ */
+
+/* global dcSwpPartytownData */
+
+// SharedArrayBuffer probe: if the 256 MB allocation fails the browser's isolated
+// context is unusable. Override crossOriginIsolated = false so Partytown falls
+// back to the service-worker bridge instead of the broken atomics bridge.
+if ( window.crossOriginIsolated ) {
+	try {
+		new SharedArrayBuffer( 268435456 );
+	} catch {
+		try {
+			Object.defineProperty( window, 'crossOriginIsolated', { value: false, configurable: false } );
+		} catch { /* browser may disallow redefining the property */ }
+	}
+}
+
+// Set Partytown config from PHP-injected data (lib, debug, forward, nonce, etc.).
+window.partytown = dcSwpPartytownData.config;
+
+// resolveUrl — same-origin path rewrites + CORS proxy for Partytown workers.
+window.partytown.resolveUrl = function ( url, location, type ) {
+	// Reroute known same-origin analytics paths to their real external endpoints.
+	// Only applies to non-script requests (fetch/XHR/sendBeacon) so that script
+	// loads at a same-origin path are never rerouted to an external endpoint.
+	const pr = dcSwpPartytownData.pathRewrites;
+	if ( type !== 'script' && url && url.hostname === location.hostname && pr[ url.pathname ] ) {
+		return new URL( pr[ url.pathname ] );
+	}
+	// Forward external scripts through the server-side CORS proxy, but only for
+	// hostnames the admin has explicitly allowed in the Partytown Script List.
+	const ph = dcSwpPartytownData.proxyAllowedHosts;
+	if ( type === 'script' && url.hostname !== location.hostname && ph.indexOf( url.hostname ) !== -1 ) {
+		const p = new URL( dcSwpPartytownData.proxyUrl );
+		p.searchParams.append( 'url', url.href );
+		return p;
+	}
+	return url;
+};

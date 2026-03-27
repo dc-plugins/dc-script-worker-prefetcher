@@ -243,35 +243,15 @@ function dc_swp_footer_credit_js() { // phpcs:ignore WordPress.NamingConventions
 
 	$url   = 'https://www.dampcig.dk';
 	$title = 'Powered by Dampcig.dk';
-	ob_start();
-	?>
-(function(){
-var f=document.querySelector('footer');
-if(!f)return;
-var w=document.createTreeWalker(f,NodeFilter.SHOW_TEXT,null,false);
-var node;
-while((node=w.nextNode())){
-	if(node.nodeValue.indexOf('\u00A9')===-1)continue;
-	var idx=node.nodeValue.indexOf('\u00A9');
-	var frag=document.createDocumentFragment();
-	if(idx>0)frag.appendChild(document.createTextNode(node.nodeValue.slice(0,idx)));
-	var a=document.createElement('a');
-	a.href=<?php echo wp_json_encode( esc_url( $url ) ); ?>;
-	a.title=<?php echo wp_json_encode( $title ); ?>;
-	a.target='_blank';
-	a.rel='noopener noreferrer';
-	a.textContent='\u00A9';
-	frag.appendChild(a);
-	var rest=node.nodeValue.slice(idx+1);
-	if(rest)frag.appendChild(document.createTextNode(rest));
-	node.parentNode.replaceChild(frag,node);
-	break;
-}
-})();
-	<?php
-	$credit_js = ob_get_clean();
-	wp_register_script( 'dc-swp-footer-credit', false, [], false, [ 'in_footer' => true ] );
-	wp_add_inline_script( 'dc-swp-footer-credit', trim( $credit_js ) );
+	wp_register_script( 'dc-swp-footer-credit', plugins_url( 'assets/js/footer-credit.js', __FILE__ ), array(), DC_SWP_VERSION, array( 'in_footer' => true ) );
+	wp_localize_script(
+		'dc-swp-footer-credit',
+		'dcSwpFooterCreditData',
+		array(
+			'url'   => esc_url( $url ),
+			'title' => $title,
+		)
+	);
 	wp_enqueue_script( 'dc-swp-footer-credit' );
 }
 
@@ -370,6 +350,7 @@ function dc_swp_fallback_cache_headers() { // phpcs:ignore WordPress.NamingConve
  * Partytown itself is registered at this virtual path.
  */
 define( 'DC_SWP_PARTYTOWN_LIB', '/wp-content/plugins/dc-sw-prefetch/assets/partytown/' );
+define( 'DC_SWP_VERSION', '1.3.0' );
 
 add_action( 'init', 'dc_swp_serve_partytown_files', 1 );
 
@@ -694,21 +675,10 @@ function dc_swp_partytown_config() { // phpcs:ignore WordPress.NamingConventions
 		$config['nonce'] = $nonce;
 	}
 
-	$config_json = wp_json_encode( $config, JSON_UNESCAPED_SLASHES );
-
-	// resolveUrl routes cross-origin script fetches through our CORS proxy so
-	// Partytown's sandbox iframe can load external scripts (e.g. fbevents.js)
-	// without being blocked by CORS. The server-side proxy only accepts an
-	// explicit allowlist of CDN hostnames, preventing SSRF.
+	// resolveUrl + path-rewrite logic lives in assets/js/partytown-config.js.
+	// PHP passes the data via wp_localize_script (dcSwpPartytownData) below.
 	//
-	// Path-rewrite map: analytics scripts often issue fetch/beacon calls using a
-	// root-relative path (e.g. "/api/event") rather than a full URL. Inside the
-	// Partytown sandbox that relative path resolves against the site origin,
-	// resulting in a same-origin 404. We maintain a filterable map of known
-	// same-origin paths → correct external endpoints so any analytics tool can
-	// be handled without touching this file.
-	//
-	// To add a new entry from a theme/plugin, use add_filter on 'dc_swp_partytown_path_rewrites'.
+	// Path-rewrite map: to add a new entry from a theme/plugin, use add_filter on 'dc_swp_partytown_path_rewrites'.
 	// phpcs:disable Squiz.Commenting.InlineComment.InvalidEndChar
 	// add_filter( 'dc_swp_partytown_path_rewrites', function( $map ) {
 	// $map['/collect'] = 'https://analytics.example.com/collect';
@@ -722,58 +692,29 @@ function dc_swp_partytown_config() { // phpcs:ignore WordPress.NamingConventions
 			'/api/event' => 'https://analytics.ahrefs.com/api/event', // Ahrefs Analytics.
 		)
 	);
-	$path_rewrites_json = wp_json_encode( $path_rewrites, JSON_UNESCAPED_SLASHES );
 
-	$proxy_url_json           = wp_json_encode( home_url( '/~partytown-proxy' ), JSON_UNESCAPED_SLASHES );
-	$proxy_allowed_hosts_json = wp_json_encode( dc_swp_get_proxy_allowed_hosts(), JSON_UNESCAPED_SLASHES );
-
-	$resolve_url_fn = 'window.partytown.resolveUrl=function(url,location,type){'
-		// Same-origin path rewrite: catches analytics fetch/sendBeacon/XHR calls
-		// that use a root-relative URL and would otherwise 404 on the WordPress
-		// site. Explicitly excludes type==="script" — script loads at a same-origin
-		// path should never be rerouted to an external analytics endpoint.
-		// (resolveUrl is called for every request type: "script", "fetch", "xhr",
-		// "sendBeacon" — the type param lets us be precise about what we intercept.
-		. 'var pr=' . $path_rewrites_json . ';'
-		. 'if(type!=="script"&&url&&url.hostname===location.hostname&&pr[url.pathname]){'
-		. 'return new URL(pr[url.pathname]);'
-		. '}'
-		// Cross-origin script proxy: routes external script loads through the
-		// server-side CORS proxy, but only for hostnames the admin has configured
-		// in the Partytown Script List or Script Blocks.  Scripts from any other
-		// origin are returned as-is and Partytown fetches them directly.
-		. 'var ph=' . $proxy_allowed_hosts_json . ';'
-		. 'if(type==="script"&&url.hostname!==location.hostname&&ph.indexOf(url.hostname)!==-1){'
-		. 'var p=new URL(' . $proxy_url_json . ');'
-		. 'p.searchParams.append("url",url.href);'
-		. 'return p;'
-		. '}return url;};';
-
-	// SharedArrayBuffer probe: Partytown reads window.crossOriginIsolated and loads
-	// partytown-atomics.js if true. On some page loads (W3TC cache, certain browser
-	// versions) the response headers are in place but the browser process has not
-	// fully entered the isolated context, causing new SharedArrayBuffer() to throw
-	// RangeError: Array buffer allocation failed — an unhandled promise rejection
-	// that breaks the entire atomics bridge init.
-	//
-	// Probe whether a 256 MB SharedArrayBuffer can be allocated (the size our
-	// patched partytown-atomics.js bundle uses). If it throws, shadow
-	// crossOriginIsolated = false so Partytown falls back to the SW bridge.
-	// Note: partytown-atomics.js has been patched to use 268435456 (256 MB)
-	// instead of 1073741824 (1 GB) to stay well within typical heap budgets.
 	$coi_active = get_option( 'dc_swp_coi_headers', 'no' ) === 'yes';
-	$coi_probe  = $coi_active
-		? 'if(window.crossOriginIsolated){try{new SharedArrayBuffer(268435456);}catch(e){'
-			. 'try{Object.defineProperty(window,"crossOriginIsolated",{value:false,configurable:false});}catch(e2){}}}'
-		: '';
 
 	// Partytown config must load in <head> before any type="text/partytown" scripts.
-	wp_register_script( 'dc-swp-partytown-config', false, [], false, [ 'in_footer' => false ] );
-	wp_add_inline_script( 'dc-swp-partytown-config', $coi_probe . 'window.partytown=' . $config_json . ';' . $resolve_url_fn );
+	// partytown-config.js reads dcSwpPartytownData (injected below) to set window.partytown
+	// and window.partytown.resolveUrl. It also includes the SharedArrayBuffer probe
+	// (harmless when COI is not active — window.crossOriginIsolated is false).
+	wp_register_script( 'dc-swp-partytown-config', plugins_url( 'assets/js/partytown-config.js', __FILE__ ), array(), DC_SWP_VERSION, array( 'in_footer' => false ) );
+	wp_localize_script(
+		'dc-swp-partytown-config',
+		'dcSwpPartytownData',
+		array(
+			'config'            => $config,
+			'pathRewrites'      => $path_rewrites,
+			'proxyUrl'          => home_url( '/~partytown-proxy' ),
+			'proxyAllowedHosts' => dc_swp_get_proxy_allowed_hosts(),
+		)
+	);
 	wp_enqueue_script( 'dc-swp-partytown-config' );
 
 	// Partytown inline snippet — initializes the service worker bridge.
-	wp_register_script( 'dc-swp-partytown', false, [ 'dc-swp-partytown-config' ], false, [ 'in_footer' => false ] );
+	// phpcs:ignore WordPress.WP.EnqueuedResourceParameters.MissingVersion -- inline-only handle, no file to version.
+	wp_register_script( 'dc-swp-partytown', false, array( 'dc-swp-partytown-config' ), null, array( 'in_footer' => false ) );
 	wp_add_inline_script( 'dc-swp-partytown', $snippet );
 	wp_enqueue_script( 'dc-swp-partytown' );
 
@@ -788,57 +729,15 @@ function dc_swp_partytown_config() { // phpcs:ignore WordPress.NamingConventions
 	// The MutationObserver is kept as a fallback for iframes inserted via innerHTML
 	// or DOMParser, where navigation is deferred to a separate task.
 	if ( $coi_active ) {
-		$coi_js = '(function(){'
-			. 'if(!window.crossOriginIsolated)return;'
-			// Save original setAttribute before we override it, so ensureCredentialless
-			// can call it directly without going through our override.
-			. 'var _sa=HTMLIFrameElement.prototype.setAttribute;'
-			. 'function ensureCredentialless(el,src){'
-			. 'if(!src||el.hasAttribute("credentialless"))return;'
-			. 'try{'
-			. 'var u=new URL(src,location.href);'
-			// Skip about:, javascript:, data: — only http(s) cross-origin iframes need this.
-			. 'if(u.protocol==="about:"||u.protocol==="javascript:"||u.protocol==="data:")return;'
-			. 'if(u.origin!==location.origin)_sa.call(el,"credentialless","");'
-			. '}catch(e){}}'
-			// Intercept iframe.src = '...' — fires before the value is applied.
-			. 'var d=Object.getOwnPropertyDescriptor(HTMLIFrameElement.prototype,"src");'
-			. 'if(d&&d.set){'
-			. 'Object.defineProperty(HTMLIFrameElement.prototype,"src",{'
-			. 'set:function(v){ensureCredentialless(this,v);d.set.call(this,v);},'
-			. 'get:d.get,configurable:true});}'
-			// Intercept iframe.setAttribute("src", '...') — same guarantee.
-			. 'HTMLIFrameElement.prototype.setAttribute=function(n,v){'
-			. 'if(n.toLowerCase()==="src")ensureCredentialless(this,v);'
-			. '_sa.call(this,n,v);};'
-			// MutationObserver fallback for innerHTML / DOMParser inserted iframes.
-			. 'function markIfNeeded(el){'
-			. 'if(!el||el.tagName!=="IFRAME"||el.hasAttribute("credentialless"))return;'
-			. 'ensureCredentialless(el,el.getAttribute("src"));}'
-			. 'var obs=new MutationObserver(function(muts){'
-			. 'muts.forEach(function(m){'
-			. 'if(m.type==="childList"){'
-			. 'm.addedNodes.forEach(function(n){'
-			. 'if(n.nodeType!==1)return;'
-			. 'markIfNeeded(n);'
-			. 'if(n.querySelectorAll)n.querySelectorAll("iframe[src]").forEach(markIfNeeded);'
-			. '});}'
-			. 'else if(m.type==="attributes"&&m.target&&m.target.tagName==="IFRAME"){'
-			. 'markIfNeeded(m.target);}'
-			. '});});'
-			. 'obs.observe(document.documentElement,'
-			. '{childList:true,subtree:true,attributes:true,attributeFilter:["src"]});'
-			. '})();';
-		wp_register_script( 'dc-swp-coi-iframe', false, [ 'dc-swp-partytown' ], false, [ 'in_footer' => false ] );
-		wp_add_inline_script( 'dc-swp-coi-iframe', $coi_js );
+		wp_register_script( 'dc-swp-coi-iframe', plugins_url( 'assets/js/coi-iframe.js', __FILE__ ), array( 'dc-swp-partytown' ), DC_SWP_VERSION, array( 'in_footer' => false ) );
 		wp_enqueue_script( 'dc-swp-coi-iframe' );
 	}
 
 	// Stamp the CSP nonce on all Partytown inline scripts for strict-dynamic CSP compatibility.
-	if ( $nonce !== '' ) {
+	if ( '' !== $nonce ) {
 		$pt_handles = $coi_active
-			? [ 'dc-swp-partytown-config', 'dc-swp-partytown', 'dc-swp-coi-iframe' ]
-			: [ 'dc-swp-partytown-config', 'dc-swp-partytown' ];
+			? array( 'dc-swp-partytown-config', 'dc-swp-partytown', 'dc-swp-coi-iframe' )
+			: array( 'dc-swp-partytown-config', 'dc-swp-partytown' );
 		add_filter(
 			'wp_inline_script_attributes',
 			static function ( array $attrs ) use ( $nonce, $pt_handles ) {
@@ -881,98 +780,14 @@ function dc_swp_prefetch_footer() { // phpcs:ignore WordPress.NamingConventions.
 	}
 
 	$product_base = dc_swp_get_product_base();
-	ob_start();
-	?>
-(function () {
-	'use strict';
-
-	const productBase    = <?php echo wp_json_encode( $product_base ); ?>;
-	const prefetchedUrls = new Set();
-	const visibleItems   = new Set(); // track currently-intersecting elements
-
-	function prefetch(url) {
-		if (!url || prefetchedUrls.has(url)) return;
-		prefetchedUrls.add(url);
-		const link    = document.createElement('link');
-		link.rel      = 'prefetch';
-		link.href     = url;
-		link.as       = 'document';
-		document.head.appendChild(link);
-		console.log('[DC SW Prefetch] Prefetching:', url);
-	}
-
-	function resolveProductLink(el) {
-		const bad = (href) => !href
-			|| href.includes('add-to-cart')
-			|| href.includes('?remove_item')
-			|| href.includes('remove_item')
-			|| href.includes('?added-to-cart')
-			|| href.includes('#');
-
-		// Element itself may be the anchor (e.g. upsell-item <a> wrappers)
-		if (el.tagName === 'A' && el.href && !bad(el.href)) return el.href;
-
-		const anchors = Array.from( el.querySelectorAll('a[href]') );
-		// Prefer a link matching the (auto-detected or overridden) product slug
-		let a = anchors.find(a => a.href.includes(productBase) && !bad(a.href));
-		// Fallback: first non-utility anchor inside the item
-		if (!a) a = anchors.find(a => !bad(a.href));
-		if (!a) {
-			console.debug('[DC SW Prefetch] No link in item:', el, '| anchors found:', anchors.length, '| productBase:', productBase);
-		}
-		return a ? a.href : null;
-	}
-
-	function prefetchNextPage() {
-		const next = document.querySelector(
-			'.woocommerce-pagination a.next, .next.page-numbers, a.next-page'
-		);
-		if (next && next.href) setTimeout(() => prefetch(next.href), 2000);
-	}
-
-	// Wide selector — catches product grid items and upsell anchor-wrappers
-	const items = document.querySelectorAll(
-		'.products .product, ul.products li.product, .product-item, li.product, a.upsell-item[href]'
+	wp_register_script( 'dc-swp-prefetch', plugins_url( 'assets/js/prefetch.js', __FILE__ ), array(), DC_SWP_VERSION, array( 'in_footer' => true ) );
+	wp_localize_script(
+		'dc-swp-prefetch',
+		'dcSwpPrefetchData',
+		array(
+			'productBase' => $product_base,
+		)
 	);
-	if (!items.length) {
-		console.warn('[DC SW Prefetch] No product items found in DOM');
-		return;
-	}
-
-	console.log('[DC SW Prefetch] Monitoring', items.length, 'products | productBase:', productBase);
-
-	if ('IntersectionObserver' in window) {
-		const observer = new IntersectionObserver((entries) => {
-			entries.forEach(entry => {
-				if (entry.isIntersecting) {
-					visibleItems.add(entry.target);
-					const url = resolveProductLink(entry.target);
-					if (url) {
-						prefetch(url);
-					}
-				} else {
-					visibleItems.delete(entry.target);
-				}
-			});
-		}, { rootMargin: '50px', threshold: 0.1 });
-
-		items.forEach(item => observer.observe(item));
-		prefetchNextPage();
-	} else {
-		// Fallback for browsers without IntersectionObserver
-		const vh = window.innerHeight;
-		items.forEach(item => {
-			const url  = resolveProductLink(item);
-			const rect = item.getBoundingClientRect();
-			if (url && rect.top >= 0 && rect.top <= vh) prefetch(url);
-		});
-		prefetchNextPage();
-	}
-})();
-	<?php
-	$prefetch_js = ob_get_clean();
-	wp_register_script( 'dc-swp-prefetch', false, [], false, [ 'in_footer' => true ] );
-	wp_add_inline_script( 'dc-swp-prefetch', trim( $prefetch_js ) );
 	wp_enqueue_script( 'dc-swp-prefetch' );
 }
 
@@ -1009,12 +824,17 @@ function dc_swp_maybe_remove_emoji() { // phpcs:ignore WordPress.NamingConventio
 	remove_filter( 'wp_mail', 'wp_staticize_emoji_for_email' );
 	add_filter( 'emoji_svg_url', '__return_false' );
 
-	// Size any emoji <img> that still renders (e.g. from cached markup)
-	add_action( 'wp_enqueue_scripts', function() {
-		wp_register_style( 'dc-swp-emoji', false );
-		wp_add_inline_style( 'dc-swp-emoji', 'img.emoji{width:1em;height:1em;vertical-align:-0.1em}' );
-		wp_enqueue_style( 'dc-swp-emoji' );
-	}, 1 );
+	// Size any emoji <img> that still renders (e.g. from cached markup).
+	add_action(
+		'wp_enqueue_scripts',
+		function () {
+			// phpcs:ignore WordPress.WP.EnqueuedResourceParameters.MissingVersion -- inline-only handle, no file to version.
+			wp_register_style( 'dc-swp-emoji', false, array(), null );
+			wp_add_inline_style( 'dc-swp-emoji', 'img.emoji{width:1em;height:1em;vertical-align:-0.1em}' );
+			wp_enqueue_style( 'dc-swp-emoji' );
+		},
+		1
+	);
 }
 
 
@@ -1349,7 +1169,7 @@ function dc_swp_partytown_buffer_rewrite( $html ) { // phpcs:ignore WordPress.Na
 	// array → [ 'type' => 'text/partytown'|'text/plain', 'validator' => '/regex/' ].
 	$pending_companion = null;
 
-	return preg_replace_callback(
+	$html = preg_replace_callback(
 		'/<script\b([^>]*)>(.*?)<\/script>/is',
 		static function ( $matches ) use ( $patterns, $companion_map, &$pending_companion ) {
 			$tag_inner = $matches[1];
@@ -1465,8 +1285,8 @@ function dc_swp_partytown_buffer_rewrite( $html ) { // phpcs:ignore WordPress.Na
 				if ( ! preg_match( '/\bsrc=(["\'])([^"\']+)\1/i', $tag, $src_m ) ) {
 					return $tag;
 				}
-				$iframe_host = (string) wp_parse_url( $src_m[2], PHP_URL_HOST );
-				if ( $iframe_host === '' || $iframe_host === $site_host ) {
+						$iframe_host = (string) wp_parse_url( $src_m[2], PHP_URL_HOST );
+				if ( '' === $iframe_host || $site_host === $iframe_host ) {
 					return $tag;
 				}
 				// Insert before closing >.
@@ -1491,11 +1311,14 @@ function dc_swp_partytown_buffer_rewrite( $html ) { // phpcs:ignore WordPress.Na
 		// conservative so scripts without CORS support are never broken.
 		//
 		// Usage: add_filter( 'dc_swp_coi_crossorigin_patterns', function( $p ) {
-		//            $p[] = 'cdn.example.com'; return $p;
-		//        } );
-		$crossorigin_patterns = (array) apply_filters( 'dc_swp_coi_crossorigin_patterns', [
-			'widget.trustpilot.com',
-		] );
+		// $p[] = 'cdn.example.com'; return $p;
+		// } );
+		$crossorigin_patterns = (array) apply_filters(
+			'dc_swp_coi_crossorigin_patterns',
+			array(
+				'widget.trustpilot.com',
+			)
+		);
 		if ( ! empty( $crossorigin_patterns ) ) {
 			$html = preg_replace_callback(
 				'/<script\b([^>]*)>/i',
@@ -1506,7 +1329,7 @@ function dc_swp_partytown_buffer_rewrite( $html ) { // phpcs:ignore WordPress.Na
 						return $s_match[0];
 					}
 					$script_host = (string) wp_parse_url( $src_m[2], PHP_URL_HOST );
-					if ( $script_host === '' || $script_host === $site_host ) {
+					if ( '' === $script_host || $site_host === $script_host ) {
 						return $s_match[0];
 					}
 					// Already has crossorigin — leave untouched.
@@ -1516,7 +1339,7 @@ function dc_swp_partytown_buffer_rewrite( $html ) { // phpcs:ignore WordPress.Na
 					// Check against the allow-list.
 					$matched = false;
 					foreach ( $crossorigin_patterns as $pat ) {
-						if ( $pat !== '' && str_contains( $script_host, $pat ) ) {
+						if ( '' !== $pat && str_contains( $script_host, $pat ) ) {
 							$matched = true;
 							break;
 						}
@@ -1535,6 +1358,8 @@ function dc_swp_partytown_buffer_rewrite( $html ) { // phpcs:ignore WordPress.Na
 }
 
 /**
+ * Resolve an inline companion script entry for a given external script src.
+ *
  * @param string               $src           The script src= URL.
  * @param string               $type          'text/partytown' or 'text/plain'.
  * @param array<string,string> $companion_map Map of URL substring → body validator regex.

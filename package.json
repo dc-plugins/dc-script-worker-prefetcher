@@ -11,7 +11,19 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/dc-plugins/dc-sw-prefetch"
+    "url": "git+https://github.com/dc-plugins/dc-sw-prefetch.git"
   },
-  "license": "GPL-2.0+"
+  "license": "GPL-2.0+",
+  "main": "index.js",
+  "keywords": [],
+  "author": "",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/dc-plugins/dc-sw-prefetch/issues"
+  },
+  "homepage": "https://github.com/dc-plugins/dc-sw-prefetch#readme",
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "eslint": "^10.1.0"
+  }
 }

@@ -10,6 +10,9 @@ Thumbs.db
 *.zip
 node_modules/
 
+# ESLint
+package-lock.json
+
 # Composer
 vendor/
 composer.lock
