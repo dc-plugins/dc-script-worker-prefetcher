@@ -1,6 +1,6 @@
 # DC Service Worker Prefetcher
 
-**Version:** 1.3.0  
+**Version:** 1.3.8  
 **Requires WordPress:** 6.8+  
 **Requires PHP:** 8.0+  
 **WooCommerce tested up to:** 10.4.3  
@@ -115,18 +115,48 @@ languages/           — .pot translation template
 
 ## Changelog
 
+### 1.3.8
+- Refactor: Auto-detect scan now returns all third-party scripts found on the homepage.
+- Scripts on Partytown's officially verified services list are pre-checked with a green compatibility badge.
+- Unrecognised scripts are shown unchecked with an explicit compatibility warning.
+- Removed auto-population of the exclude/blocklist in auto-detect; architecture is now allow-list first.
+
+### 1.3.7
+- Revert: Removed `script_loader_tag` patching of third-party plugin scripts.
+- DC SW Prefetch now only manages scripts explicitly moved into Partytown.
+
+### 1.3.6
+- Fix: Removed `crossorigin="anonymous"` from Trustpilot `widget-bootstrap-js` when needed under `COEP: credentialless`.
+
+### 1.3.5
+- Revert: Restored `partytown-config.js` as a normal enqueued file.
+- Removed unnecessary inline `file_get_contents()` output path.
+
+### 1.3.4
+- Fix: `resolveUrl` now uses `this.pathRewrites`, `this.proxyAllowedHosts`, and `this.proxyUrl`.
+- Ensures the function is self-contained after Partytown serialises it into the worker.
+
+### 1.3.3
+- Fix: Prevent `ReferenceError: dcSwpPartytownData is not defined` in Partytown SW sandbox.
+
+### 1.3.2
+- Update: Vendored Partytown 0.13.1 (built from source, pre-release).
+
+### 1.3.1
+- Refactor: Moved inline JS into static files in `assets/js/` with `wp_localize_script()` data injection.
+- Added `DC_SWP_VERSION` constant for consistent script versioning/cache-busting.
+- Added ESLint tooling for `assets/js/`.
+
 ### 1.3.0
-- **New:** Consent-aware script loading — reads marketing-consent cookies from 8 common WordPress CMPs. Scripts output as `type="text/partytown"` after consent, `type="text/plain"` without.
-- Removed `dc_swp_cmp_intercept_script` Node.prototype hook (replaced by server-side cookie check).
-- Added `dc_swp_has_marketing_consent()` covering Complianz, Cookiebot, CookieYes, Borlabs, Cookie Notice, WebToffee, Cookie Information, and Moove GDPR.
+- New: Consent-aware script loading for 8 common WordPress CMP cookies.
+- Scripts now render as `type="text/partytown"` with consent and `type="text/plain"` without consent.
 
 ### 1.2.0
-- **New:** WP emoji removal — dequeues `print_emoji_detection_script` and `print_emoji_styles` saving ~76 KB.
+- New: WP emoji removal (`print_emoji_detection_script` and `print_emoji_styles`).
 
 ### 1.1.0
 - Replaced custom `dc-sw.js` service worker with vendored Partytown 0.10.3.
-- Added `scripts/update-partytown.sh` for manual vendor updates.
-- Added `.github/workflows/update-partytown.yml` weekly auto-update bot.
+- Added `scripts/update-partytown.sh` and weekly auto-update workflow.
 
 ### 1.0.0
 - Initial release.
