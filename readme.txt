@@ -5,7 +5,7 @@ Requires at least: 6.8
 Tested up to: 6.9
 Requires PHP: 8.0
 WC tested up to: 10.4.3
-Stable tag: 1.3.7
+Stable tag: 1.3.8
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -118,6 +118,10 @@ All officially tested services from [partytown.qwik.dev/common-services](https:/
 3. DevTools showing Partytown service worker registered at `/~partytown/`.
 
 == Changelog ==
+
+= 1.3.8 =
+* Refactor: Auto-detect scan now returns all third-party scripts found on the homepage. Scripts on Partytown's officially verified services list (https://partytown.qwik.dev/common-services/) are pre-checked and shown with a green badge; unrecognised scripts are shown unchecked with an "unknown compatibility" warning so admins make an explicit choice rather than having scripts silently accepted or rejected.
+* Removed: The auto-detect feature no longer auto-populates the exclude/blocklist textarea when incompatible scripts are found — the exclude-list concept is being phased out in favour of a pure allow-list architecture.
 
 = 1.3.7 =
 * Revert: Remove `script_loader_tag` filter that patched third-party plugin scripts. DC SW Prefetch only manages scripts it explicitly moves into Partytown; all other scripts are left entirely on the main thread as-is. Fixing compatibility issues in scripts belonging to other plugins is out of scope.

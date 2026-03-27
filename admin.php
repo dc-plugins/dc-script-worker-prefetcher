@@ -54,6 +54,8 @@ function dc_swp_str( $key ) { // phpcs:ignore WordPress.NamingConventions.Prefix
 			'partytown_autodetect_btn'   => '🔍 Auto-Detekter Tredjeparts-Scripts',
 			'partytown_autodetect_none'  => 'Ingen eksterne scripts fundet på forsiden.',
 			'partytown_autodetect_add'   => 'Tilføj Valgte til Liste',
+			'partytown_autodetect_warn'  => 'Ukendt kompatibilitet — ikke på Partytowns verificerede liste. Test grundigt, før du tilføjer til listen.',
+			'partytown_autodetect_known' => '✔ Verificeret kompatibel tjeneste',
 			'inline_scripts_label'       => 'Indlejrede Script Blokke',
 			'inline_scripts_desc'        => 'Indsæt komplette tredjeparts-script-blokke her — inkl. &lt;script&gt;-tags og &lt;noscript&gt;-fallbacks (Meta Pixel, TikTok Pixel osv.). Plugin\'et konverterer dem automatisk til <code>type="text/partytown"</code> så de køres i en Web Worker og respekterer marketingsamtykke. <a href="https://partytown.qwik.dev/common-services/" target="_blank" rel="noopener">Kompatible tjenester ↗</a>',
 			'inline_scripts_add_title'   => 'Tilføj Script Blok',
@@ -106,6 +108,8 @@ function dc_swp_str( $key ) { // phpcs:ignore WordPress.NamingConventions.Prefix
 			'partytown_autodetect_btn'   => '🔍 Auto-Detect Third-Party Scripts',
 			'partytown_autodetect_none'  => 'No external scripts found on the homepage.',
 			'partytown_autodetect_add'   => 'Add Selected to List',
+			'partytown_autodetect_warn'  => 'Compatibility unknown — not on Partytown\'s verified services list. Test carefully before adding.',
+			'partytown_autodetect_known' => '✔ Verified compatible service',
 			'inline_scripts_label'       => 'Inline Script Blocks',
 			'inline_scripts_desc'        => 'Paste complete third-party script blocks here — including &lt;script&gt; tags and &lt;noscript&gt; fallbacks (Meta Pixel, TikTok Pixel, etc.). The plugin automatically converts them to <code>type="text/partytown"</code> so they run in a Web Worker and respect marketing consent. <a href="https://partytown.qwik.dev/common-services/" target="_blank" rel="noopener">Compatible services ↗</a>',
 			'inline_scripts_add_title'   => 'Add Script Block',
@@ -553,6 +557,8 @@ function dc_swp_admin_page_html() { // phpcs:ignore WordPress.NamingConventions.
 		array(
 			'nonce'        => wp_create_nonce( 'dc_swp_detect_nonce' ),
 			'noScriptsMsg' => dc_swp_str( 'partytown_autodetect_none' ),
+			'unknownMsg'   => dc_swp_str( 'partytown_autodetect_warn' ),
+			'knownMsg'     => dc_swp_str( 'partytown_autodetect_known' ),
 			'noBlocksMsg'  => dc_swp_str( 'inline_scripts_empty' ),
 			'delMsg'       => dc_swp_str( 'inline_scripts_del_confirm' ),
 			'blocks'       => $inline_script_blocks,
@@ -596,42 +602,62 @@ function dc_swp_ajax_detect_scripts() { // phpcs:ignore WordPress.NamingConventi
 
 	preg_match_all( '/<script[^>]+\bsrc=["\'](https?:[^"\']+|[\/][^"\']+)["\']/i', $body, $matches );
 
-	$compatible            = array();
-	$incompatible          = array();
-	$incompatible_patterns = array_filter( array_map( 'trim', explode( "\n", dc_swp_default_exclude_list() ) ), static fn( $l ) => '' !== $l );
+	// Patterns for services listed on the Partytown common-services page.
+	// phpcs:ignore Squiz.Commenting.InlineComment.InvalidEndChar
+	$known_patterns = array(
+		'googletagmanager.com',
+		'google-analytics.com',
+		'analytics.google.com',
+		'connect.facebook.net',
+		'js.hs-scripts.com',
+		'js.hsforms.net',
+		'js.hscollectedforms.net',
+		'js.hubspot.com',
+		'widget.intercom.io',
+		'js.intercomcdn.com',
+		'static.klaviyo.com',
+		'analytics.tiktok.com',
+		'cdn.mxpnl.com',
+		'cdn4.mxpnl.com',
+		'clarity.ms',
+		'static.hotjar.com',
+		'script.hotjar.com',
+		'snap.licdn.com',
+		'static.ads-twitter.com',
+		'cdn.segment.com',
+	);
+
+	$seen    = array();
+	$scripts = array();
 	foreach ( (array) $matches[1] as $src ) {
 		if ( str_starts_with( $src, '//' ) ) {
 			$src = 'https:' . $src;
 		}
 		if ( str_starts_with( $src, '/' ) ) {
-			continue; // On-site relative URL.
+			continue; // On-site relative URL — skip.
 		}
 		$parsed = wp_parse_url( $src );
 		if ( empty( $parsed['host'] ) || $parsed['host'] === $site_host ) {
 			continue;
 		}
-			// Store only the hostname as the pattern (e.g. "googletagmanager.com").
 		$host = $parsed['host'];
+		if ( isset( $seen[ $host ] ) ) {
+			continue; // Deduplicate by hostname.
+		}
+		$seen[ $host ] = true;
 
-		$is_incompatible = false;
-		foreach ( $incompatible_patterns as $excl ) {
-			if ( str_contains( $host, $excl ) || str_contains( $excl, $host ) ) {
-				$is_incompatible = true;
+		$is_known = false; // phpcs:ignore -- checked below.
+		foreach ( $known_patterns as $pat ) {
+			if ( str_contains( $host, $pat ) || str_contains( $pat, $host ) ) {
+				$is_known = true;
 				break;
 			}
 		}
-
-		if ( $is_incompatible ) {
-			$incompatible[] = $host;
-		} else {
-			$compatible[] = $host;
-		}
+		$scripts[] = array(
+			'host'  => $host,
+			'known' => $is_known,
+		);
 	}
 
-	wp_send_json_success(
-		array(
-			'compatible'   => array_values( array_unique( $compatible ) ),
-			'incompatible' => array_values( array_unique( $incompatible ) ),
-		)
-	);
+	wp_send_json_success( array( 'scripts' => $scripts ) );
 }

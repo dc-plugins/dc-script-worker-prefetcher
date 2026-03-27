@@ -13,10 +13,12 @@ jQuery( function ( $ ) {
 	const noScriptsMsg = dcSwpAdminData.noScriptsMsg;
 
 	$( '#dc-swp-autodetect-btn' ).on( 'click', function () {
-		const $btn  = $( this );
-		const $spin = $( '#dc-swp-autodetect-spinner' );
-		const $res  = $( '#dc-swp-autodetect-results' );
-		const $list = $( '#dc-swp-autodetect-list' );
+		const $btn      = $( this );
+		const $spin     = $( '#dc-swp-autodetect-spinner' );
+		const $res      = $( '#dc-swp-autodetect-results' );
+		const $list     = $( '#dc-swp-autodetect-list' );
+		const unknownMsg = dcSwpAdminData.unknownMsg;
+		const knownMsg   = dcSwpAdminData.knownMsg;
 
 		$btn.prop( 'disabled', true );
 		$spin.css( 'display', 'inline-block' );
@@ -26,28 +28,26 @@ jQuery( function ( $ ) {
 			$btn.prop( 'disabled', false );
 			$spin.hide();
 
-			const compatible   = ( r.success && r.data && r.data.compatible )   ? r.data.compatible   : [];
-			const incompatible = ( r.success && r.data && r.data.incompatible ) ? r.data.incompatible : [];
+			const scripts = ( r.success && r.data && r.data.scripts ) ? r.data.scripts : [];
 
-			// Auto-merge only the incompatible scripts that were actually found on the site.
-			if ( incompatible.length ) {
-				const $excl      = $( 'textarea[name="dc_swp_partytown_exclude"]' );
-				const existingEx = $excl.val().split( '\n' ).map( function ( s ) { return s.trim(); } ).filter( Boolean );
-				const toExclude  = incompatible.filter( function ( p ) { return existingEx.indexOf( p ) === -1; } );
-				if ( toExclude.length ) {
-					$excl.val( existingEx.concat( toExclude ).join( '\n' ) );
-				}
-			}
-
-			// Show compatible scripts as checkboxes for the include list.
-			if ( ! compatible.length ) {
+			// Show all third-party scripts found; warn on those not on Partytown's known-compatible list.
+			if ( ! scripts.length ) {
 				$list.html( '<em>' + $( '<span>' ).text( noScriptsMsg ).html() + '</em>' );
 				$( '#dc-swp-add-selected' ).hide();
 			} else {
 				let html = '';
-				$.each( compatible, function ( _i, url ) {
-					const safe = $( '<span>' ).text( url ).html();
-					html += '<label style="display:block;margin:2px 0"><input type="checkbox" value="' + safe + '" checked> <code>' + safe + '</code></label>';
+				$.each( scripts, function ( _i, item ) {
+					const safe    = $( '<span>' ).text( item.host ).html();
+					const badgeEl = $( '<span>' );
+					if ( item.known ) {
+						badgeEl.text( knownMsg ).css( { color: '#00a32a', 'font-size': '11px', 'margin-left': '6px' } );
+					} else {
+						badgeEl.text( '\u26a0 ' + unknownMsg ).css( { color: '#d63638', 'font-size': '11px', 'margin-left': '6px' } );
+					}
+					const badge = badgeEl[0].outerHTML;
+					// Known services pre-checked; unknown scripts unchecked — user must opt in explicitly.
+					const checked = item.known ? ' checked' : '';
+					html += '<label style="display:block;margin:3px 0"><input type="checkbox" value="' + safe + '"' + checked + '> <code>' + safe + '</code>' + badge + '</label>';
 				} );
 				$list.html( html );
 				$( '#dc-swp-add-selected' ).show();
