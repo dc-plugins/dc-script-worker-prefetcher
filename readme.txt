@@ -5,7 +5,7 @@ Requires at least: 6.8
 Tested up to: 6.9
 Requires PHP: 8.0
 WC tested up to: 10.4.3
-Stable tag: 1.3.5
+Stable tag: 1.3.6
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -118,6 +118,9 @@ All officially tested services from [partytown.qwik.dev/common-services](https:/
 3. DevTools showing Partytown service worker registered at `/~partytown/`.
 
 == Changelog ==
+
+= 1.3.6 =
+* Fix: Strip `crossorigin="anonymous"` from `widget-bootstrap-js` (Trustpilot bootstrap) via `script_loader_tag` filter. Under `COEP: credentialless`, scripts with `crossorigin` are fetched in CORS mode; since `widget.trustpilot.com` sends no `Access-Control-Allow-Origin` header the load is blocked. Without the attribute the browser uses no-cors mode, which succeeds. The Trustpilot plugin added `crossorigin` via the WP 6.3+ `$args` API; this filter removes it for scripts that are incompatible with enforced CORS.
 
 = 1.3.5 =
 * Revert: restore `partytown-config.js` as a normal enqueued file (the inline approach in 1.3.3 was a misdiagnosis — the Partytown SW does not intercept regular script requests). The `file_get_contents()` load and unnecessary inline output are removed.
