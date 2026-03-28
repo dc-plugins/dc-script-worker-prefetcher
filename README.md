@@ -1,6 +1,6 @@
 # DC Service Worker Prefetcher
 
-**Version:** 1.3.8  
+**Version:** 1.3.9  
 **Requires WordPress:** 6.8+  
 **Requires PHP:** 8.0+  
 **WooCommerce tested up to:** 10.4.3  
@@ -168,6 +168,15 @@ The administrator may configure additional services via the Partytown Script Lis
 ---
 
 ## Changelog
+
+### 1.3.9
+- Fix: Sanitize each field in `dc_swp_sanitize_inline_scripts_option()` register_setting callback.
+- Fix: Explicitly close output buffer on `shutdown` (priority 0) via `dc_swp_partytown_buffer_end()` to prevent buffer-stack misalignment.
+- Fix: `phpcs:ignore` comments moved to correct lines for `apply_filters` hook name tokens.
+- Deploy: Add SSH cleanup step in `deploy.yml` to remove dev-only files from production server after rsync.
+- Docs: Add External Services disclosure section with per-service privacy policy and terms links.
+- Docs: Correct async/defer description — execution (not download) is the main thread cost.
+- Docs: Add Partytown beta disclaimer, trade-offs link, and "How Partytown works" section.
 
 ### 1.3.8
 - Refactor: Auto-detect scan now returns all third-party scripts found on the homepage.

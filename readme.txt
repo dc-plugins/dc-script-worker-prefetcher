@@ -5,7 +5,7 @@ Requires at least: 6.8
 Tested up to: 6.9
 Requires PHP: 8.0
 WC tested up to: 10.4.3
-Stable tag: 1.3.8
+Stable tag: 1.3.9
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -189,6 +189,17 @@ The administrator may freely add other services through the Partytown Script Lis
 3. DevTools showing Partytown service worker registered at `/~partytown/`.
 
 == Changelog ==
+
+= 1.3.9 =
+* Fix: Sanitize each field in `dc_swp_sanitize_inline_scripts_option()` register_setting callback (id via sanitize_key, label via sanitize_text_field, enabled as boolean).
+* Fix: Explicitly close output buffer on WordPress `shutdown` action (priority 0) via `dc_swp_partytown_buffer_end()` to prevent buffer-stack misalignment with other plugins.
+* Fix: Move `phpcs:ignore` comment to hook-name line for `dc_swp_coi_crossorigin_patterns` and `dc_swp_inline_companion_map` apply_filters calls.
+* Fix: Add `phpcs:ignore` to `dc_swp_enqueue_admin_assets` function declaration.
+* Deploy: Add SSH cleanup step to remove dev-only files (.distignore, scripts/, vendor/, etc.) from the production server after rsync.
+* Docs: Add External Services section to readme.txt and README.md disclosing Partytown, CORS proxy, and all pre-configured third-party analytics services with privacy policy and terms links.
+* Docs: Correct async/defer description — scripts still execute on the main thread (and can block window.onload); the download is already off-thread.
+* Docs: Add Partytown beta disclaimer and trade-offs link.
+* Docs: Add "How Partytown works" section explaining type attribute, service worker, web worker, JS Proxies, and Atomics vs sync XHR communication.
 
 = 1.3.8 =
 * Refactor: Auto-detect scan now returns all third-party scripts found on the homepage. Scripts on Partytown's officially verified services list (https://partytown.qwik.dev/common-services/) are pre-checked and shown with a green badge; unrecognised scripts are shown unchecked with an "unknown compatibility" warning so admins make an explicit choice rather than having scripts silently accepted or rejected.
