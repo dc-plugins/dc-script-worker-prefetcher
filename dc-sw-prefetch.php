@@ -1094,6 +1094,11 @@ add_action( 'template_redirect', 'dc_swp_partytown_buffer_start', 2 );
 /**
  * Start output buffering so dc_swp_partytown_buffer_rewrite()
  * can rewrite the full HTML response before it is sent.
+ *
+ * The buffer is explicitly closed by dc_swp_partytown_buffer_end() on the
+ * WordPress `shutdown` action (priority 0) so it is never left open across
+ * the request lifecycle, preventing buffer-stack misalignment with other
+ * plugins or themes.
  */
 function dc_swp_partytown_buffer_start() { // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedFunctionFound
 	if ( is_admin() ) {
@@ -1109,6 +1114,20 @@ function dc_swp_partytown_buffer_start() { // phpcs:ignore WordPress.NamingConve
 		return;
 	}
 	ob_start( 'dc_swp_partytown_buffer_rewrite' );
+	add_action( 'shutdown', 'dc_swp_partytown_buffer_end', 0 );
+}
+
+/**
+ * Explicitly close the output buffer opened by dc_swp_partytown_buffer_start().
+ *
+ * Runs on the `shutdown` action at priority 0 (before WordPress core and
+ * other plugins tear down) so the buffer is never left open. ob_end_flush()
+ * invokes dc_swp_partytown_buffer_rewrite() and sends the rewritten HTML.
+ */
+function dc_swp_partytown_buffer_end() { // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedFunctionFound
+	if ( ob_get_level() > 0 && false !== ob_get_length() ) {
+		ob_end_flush();
+	}
 }
 
 /**

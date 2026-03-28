@@ -264,12 +264,12 @@ add_action( 'admin_init', 'dc_swp_register_settings' );
  * Sanitize callback for the dc_swp_inline_scripts option.
  *
  * The value is a JSON-encoded array of inline script block objects managed by
- * the admin UI. Full per-field sanitization is applied in dc_swp_admin_page_html().
- * This callback validates the JSON structure so the REST API and settings forms
- * cannot store malformed data.
+ * the admin UI. Each block field is sanitized individually: id via sanitize_key(),
+ * label via sanitize_text_field(), enabled as a boolean, and code is kept as-is
+ * (admin-only JS content; capability-gated by manage_options).
  *
- * @param mixed $value Raw option value.
- * @return string Validated JSON string, or empty string if invalid.
+ * @param mixed $value Raw option value (JSON string).
+ * @return string Sanitized JSON string, or empty string if invalid.
  */
 function dc_swp_sanitize_inline_scripts_option( $value ) { // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedFunctionFound
 	if ( '' === $value || null === $value ) {
@@ -279,7 +279,20 @@ function dc_swp_sanitize_inline_scripts_option( $value ) { // phpcs:ignore WordP
 	if ( ! is_array( $decoded ) ) {
 		return '';
 	}
-	return wp_json_encode( $decoded );
+	$sanitized = array();
+	foreach ( $decoded as $blk ) {
+		if ( ! is_array( $blk ) ) {
+			continue;
+		}
+		$sanitized[] = array(
+			'id'      => sanitize_key( $blk['id'] ?? '' ),
+			'label'   => sanitize_text_field( $blk['label'] ?? '' ),
+			// phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- admin-only JS code; capability-gated by manage_options.
+			'code'    => $blk['code'] ?? '',
+			'enabled' => ! empty( $blk['enabled'] ),
+		);
+	}
+	return wp_json_encode( $sanitized );
 }
 
 /**

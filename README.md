@@ -113,6 +113,46 @@ languages/           — .pot translation template
 
 ---
 
+## External Services
+
+This plugin is a **framework** for running administrator-configured third-party scripts off the browser's main thread using the vendored [Partytown](https://partytown.qwik.dev/) library. The plugin itself does not connect to any external service autonomously.
+
+### Partytown library
+
+The Partytown JavaScript library is fully **vendored** inside the plugin (`assets/partytown/`). No files are downloaded from any CDN at runtime; the library is loaded from your own server.
+
+### CORS proxy (server-side script relay)
+
+Some third-party CDNs do not send CORS headers, which prevents Partytown's sandbox from fetching their scripts directly from the browser. The plugin provides a `/~partytown-proxy` endpoint: WordPress makes a **server-side HTTP GET request** to the CDN and re-serves the script to the browser.
+
+- **What is sent:** the script file request only — no visitor personal data.
+- **When:** only when Partytown cannot fetch a script directly, and only for hostnames the administrator has added to the Partytown Script List.
+- **Allowlist-only:** the proxy strictly rejects any hostname not configured by the administrator.
+
+### Third-party analytics and marketing scripts (administrator-configured)
+
+When the administrator adds a service's URL pattern to the Partytown Script List, that service's script loads inside a Web Worker (via Partytown) for visitors who have granted marketing consent. The visitor's browser (or the CORS proxy) contacts the service's CDN, and the service may receive visitor data per its own terms.
+
+**Scripts are only loaded when:**
+1. The administrator has added the service's URL pattern to the Partytown Script List or Inline Script Blocks.
+2. The visitor has a valid marketing-consent cookie from a supported CMP. Without consent, all configured scripts are blocked (`type="text/plain"`).
+
+The plugin ships pre-configured forwarding for these officially tested services:
+
+| Service | Provider | Data sent | Privacy | Terms |
+|---|---|---|---|---|
+| Google Tag Manager / GA4 | Google LLC | Page URL, visitor interactions | [Privacy](https://policies.google.com/privacy) | [Terms](https://policies.google.com/terms) |
+| Meta (Facebook) Pixel | Meta Platforms, Inc. | Page URL, events, hashed identifiers | [Privacy](https://www.facebook.com/privacy/policy) | [Terms](https://www.facebook.com/terms) |
+| HubSpot Analytics | HubSpot, Inc. | Page views, form interactions | [Privacy](https://legal.hubspot.com/privacy-policy) | [Terms](https://legal.hubspot.com/terms-of-service) |
+| Intercom | Intercom R&D Unlimited Company | Visitor identity, page views, events | [Privacy](https://www.intercom.com/legal/privacy) | [Terms](https://www.intercom.com/legal/terms-and-policies) |
+| Klaviyo | Klaviyo, Inc. | Page views, cart/checkout events, email | [Privacy](https://www.klaviyo.com/legal/privacy-notice) | [Terms](https://www.klaviyo.com/legal/terms-of-service) |
+| TikTok Pixel | TikTok Inc. / ByteDance Ltd. | Page views, events, hashed identifiers | [Privacy](https://www.tiktok.com/legal/page/global/privacy-policy) | [Terms](https://ads.tiktok.com/i18n/official/policy/contractor) |
+| Mixpanel | Mixpanel, Inc. | Page views, events, anonymous visitor ID | [Privacy](https://mixpanel.com/legal/privacy-policy/) | [Terms](https://mixpanel.com/legal/terms-of-use/) |
+
+The administrator may configure additional services via the Partytown Script List. Refer to each service's own privacy policy and terms of service for details on collected data.
+
+---
+
 ## Changelog
 
 ### 1.3.8
