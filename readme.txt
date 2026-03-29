@@ -5,7 +5,7 @@ Requires at least: 6.8
 Tested up to: 6.9
 Requires PHP: 8.0
 WC tested up to: 10.4.3
-Stable tag: 1.4.0
+Stable tag: 1.4.1
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -189,6 +189,9 @@ The administrator may freely add other services through the Partytown Script Lis
 3. DevTools showing Partytown service worker registered at `/~partytown/`.
 
 == Changelog ==
+
+= 1.4.1 =
+* Chore: Rename plugin to "DC Script Worker Prefetcher" in all remaining source files (admin.php, uninstall.php, phpcs.xml, package.json, .pot file, copilot-instructions.md, PHP docblock headers).
 
 = 1.4.0 =
 * Feature: Add FullStory (`FS.identify`, `FS.event`) to the Partytown `forward` array — now on the official tested-services list.
