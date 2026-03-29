@@ -402,9 +402,11 @@ function dc_swp_serve_partytown_files() { // phpcs:ignore WordPress.NamingConven
 	header( 'Service-Worker-Allowed: /' );
 	header( 'X-Robots-Tag: none' );
 	// Required for the debug build: partytown-ww-atomics.js is loaded as a real URL
-	// (not a blob) so the COI/COEP context would block it without this header.
-	// safe for same-origin resources; has no effect on production (blob worker URL).
+	// (not a blob). Chrome requires both CORP and COEP on worker script responses when
+	// the creating context has COEP. Production is unaffected (uses a blob: URL).
+	// COEP must match or be stricter than the page (site uses credentialless).
 	header( 'Cross-Origin-Resource-Policy: same-origin' );
+	header( 'Cross-Origin-Embedder-Policy: credentialless' );
 	// Partytown files are versioned by the plugin; cache for 1 hour, revalidate.
 	header( 'Cache-Control: public, max-age=3600, stale-while-revalidate=60' );
 
