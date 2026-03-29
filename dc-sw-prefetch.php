@@ -401,6 +401,10 @@ function dc_swp_serve_partytown_files() { // phpcs:ignore WordPress.NamingConven
 	header( 'Content-Type: ' . $mime );
 	header( 'Service-Worker-Allowed: /' );
 	header( 'X-Robots-Tag: none' );
+	// Required for the debug build: partytown-ww-atomics.js is loaded as a real URL
+	// (not a blob) so the COI/COEP context would block it without this header.
+	// safe for same-origin resources; has no effect on production (blob worker URL).
+	header( 'Cross-Origin-Resource-Policy: same-origin' );
 	// Partytown files are versioned by the plugin; cache for 1 hour, revalidate.
 	header( 'Cache-Control: public, max-age=3600, stale-while-revalidate=60' );
 

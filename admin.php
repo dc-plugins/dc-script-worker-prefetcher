@@ -79,7 +79,7 @@ function dc_swp_str( $key ) { // phpcs:ignore WordPress.NamingConventions.Prefix
 			'product_base_desc'          => 'URL-segmentet der identificerer produktsider, f.eks. <code>/product/</code> eller <code>/produkt/</code>. Lad feltet være tomt for at bruge den auto-detekterede WooCommerce-indstilling.',
 			'product_base_detected'      => 'Auto-detekteret fra WooCommerce',
 			'debug_label'                => 'Partytown Debug-tilstand',
-			'debug_desc'                 => 'Indlæser den uminificeret debug-version af Partytown og aktiverer alle log-flag i browserkonsollen (DevTools → Verbose). <strong>Brug kun i staging eller lokalt udviklingsmiljø — åbner verbose-logging for alle besøgende.</strong>',
+			'debug_desc'                 => 'Indlæser den uminificeret debug-version af Partytown og aktiverer alle log-flag. Log-output sendes via <code>console.debug()</code> — husk at aktivere <strong>Verbose</strong>-niveauet i DevTools-konsollen (standardfilter skjuler det). Worker-logge fra web workeren vises kun i <strong>Atomics Bridge</strong>-tilstand, som kræver at <em>COI-headers</em> er aktiveret ovenfor. <strong>Brug kun i staging eller lokalt udviklingsmiljø — åbner verbose-logging for alle besøgende.</strong>',
 		) : array(
 			'page_title'                 => 'SW Prefetch Settings',
 			'saved'                      => 'Settings saved!',
@@ -135,7 +135,7 @@ function dc_swp_str( $key ) { // phpcs:ignore WordPress.NamingConventions.Prefix
 			'product_base_desc'          => 'The URL segment that identifies product pages, e.g. <code>/product/</code> or <code>/shop/</code>. Leave blank to use the auto-detected WooCommerce setting.',
 			'product_base_detected'      => 'Auto-detected from WooCommerce',
 			'debug_label'                => 'Partytown Debug Mode',
-			'debug_desc'                 => 'Loads the unminified debug build of Partytown and enables all log flags in the browser console (DevTools → Verbose). <strong>Use only in staging or local development — enables verbose logging for all visitors.</strong>',
+			'debug_desc'                 => 'Loads the unminified debug build of Partytown and enables all log flags. Output is emitted via <code>console.debug()</code> — you must enable the <strong>Verbose</strong> level in the DevTools Console filter (hidden by default). Worker-side logs only appear in <strong>Atomics Bridge</strong> mode, which requires the <em>COI Headers</em> option above to be enabled. <strong>Use only in staging or local development — enables verbose logging for all visitors.</strong>',
 		);
 	}
 	return $s[ $key ] ?? $key;
