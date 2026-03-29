@@ -6,7 +6,7 @@
  * Plugin Name: DC Service Worker Prefetcher
  * Plugin URI:  https://github.com/dc-plugins/dc-sw-prefetch
  * Description: Partytown service worker with viewport/pagination prefetching for WooCommerce. Offloads third-party scripts via Partytown and pre-fetches visible products & next pages.
- * Version:     1.3.9
+ * Version:     1.4.0
  * Author:      lennilg
  * Author URI:  https://github.com/lennilg
  * License:     GPL-2.0+
@@ -350,7 +350,7 @@ function dc_swp_fallback_cache_headers() { // phpcs:ignore WordPress.NamingConve
  * Partytown itself is registered at this virtual path.
  */
 define( 'DC_SWP_PARTYTOWN_LIB', '/wp-content/plugins/dc-sw-prefetch/assets/partytown/' );
-define( 'DC_SWP_VERSION', '1.3.9' );
+define( 'DC_SWP_VERSION', '1.4.0' );
 
 add_action( 'init', 'dc_swp_serve_partytown_files', 1 );
 
@@ -599,6 +599,39 @@ function dc_swp_get_csp_nonce() { // phpcs:ignore WordPress.NamingConventions.Pr
 }
 
 /**
+ * Detect whether FullStory is configured in the Partytown Script List or Inline Script Blocks.
+ *
+ * Used to auto-enable strictProxyHas — required when FullStory is loaded via GTM to prevent
+ * false namespace-conflict detection caused by Partytown's default `in` operator behaviour.
+ * Follows the same dual-source scan pattern as dc_swp_get_proxy_allowed_hosts().
+ *
+ * @return bool
+ */
+function dc_swp_has_fullstory_configured() { // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedFunctionFound
+	// ── 1. Script List patterns ──────────────────────────────────────────────
+	foreach ( dc_swp_get_partytown_patterns() as $pattern ) {
+		if ( str_contains( strtolower( $pattern ), 'fullstory' ) ) {
+			return true;
+		}
+	}
+
+	// ── 2. Inline Script Blocks ──────────────────────────────────────────────
+	$raw_stored = (string) get_option( 'dc_swp_inline_scripts', '' );
+	if ( '' !== $raw_stored ) {
+		$decoded = json_decode( $raw_stored, true );
+		if ( is_array( $decoded ) ) {
+			foreach ( $decoded as $blk ) {
+				if ( ! empty( $blk['enabled'] ) && str_contains( strtolower( (string) ( $blk['code'] ?? '' ) ), 'fullstory' ) ) {
+					return true;
+				}
+			}
+		}
+	}
+
+	return false;
+}
+
+/**
  * Emit the Partytown config object and the inline snippet in <head>.
  * Must run before any type="text/partytown" scripts.
  */
@@ -615,8 +648,12 @@ function dc_swp_partytown_config() { // phpcs:ignore WordPress.NamingConventions
 		return;
 	}
 
+	$debug_mode = get_option( 'dc_swp_debug_mode', 'no' ) === 'yes';
+
 	// Inline Partytown snippet — serves workers from /~partytown/.
-	$snippet_file = plugin_dir_path( __FILE__ ) . 'assets/partytown/partytown.js';
+	// Debug mode uses the unminified build from assets/partytown/debug/; the serve
+	// endpoint already handles /~partytown/debug/* via its realpath security check.
+	$snippet_file = plugin_dir_path( __FILE__ ) . 'assets/partytown/' . ( $debug_mode ? 'debug/' : '' ) . 'partytown.js';
 	if ( ! file_exists( $snippet_file ) ) {
 		return;
 	}
@@ -630,7 +667,7 @@ function dc_swp_partytown_config() { // phpcs:ignore WordPress.NamingConventions
 	// 'lintrk' (LinkedIn) and 'twq' (Twitter/X) are excluded — not on the officially tested list.
 	$config = array(
 		'lib'     => '/~partytown/',
-		'debug'   => false,
+		'debug'   => $debug_mode,
 		// preserveBehavior:true on dataLayer.push ensures GTM and consent stacks
 		// also fire the original (main-thread) implementation, keeping tag-manager
 		// event flow intact.
@@ -645,6 +682,8 @@ function dc_swp_partytown_config() { // phpcs:ignore WordPress.NamingConventions
 			'ttq.page',
 			'ttq.load',
 			'mixpanel.track', // Mixpanel.
+			'FS.identify',    // FullStory.
+			'FS.event',
 		),
 	);
 
@@ -673,6 +712,24 @@ function dc_swp_partytown_config() { // phpcs:ignore WordPress.NamingConventions
 	$nonce = dc_swp_get_csp_nonce();
 	if ( '' !== $nonce ) {
 		$config['nonce'] = $nonce;
+	}
+
+	// Auto-enable strictProxyHas when FullStory is configured — required to prevent
+	// the `in` operator from falsely reporting a namespace conflict that blocks
+	// FullStory initialisation when loaded via a GTM Custom HTML tag.
+	if ( dc_swp_has_fullstory_configured() ) {
+		$config['strictProxyHas'] = true;
+	}
+
+	// Debug mode: enable all seven Partytown log flags for DevTools Verbose output.
+	if ( $debug_mode ) {
+		$config['logCalls']              = true;
+		$config['logGetters']            = true;
+		$config['logSetters']            = true;
+		$config['logImageRequests']      = true;
+		$config['logScriptExecution']    = true;
+		$config['logSendBeaconRequests'] = true;
+		$config['logStackTraces']        = true;
 	}
 
 	// resolveUrl + path-rewrite logic lives in assets/js/partytown-config.js.

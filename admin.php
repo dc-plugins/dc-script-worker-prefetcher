@@ -50,7 +50,7 @@ function dc_swp_str( $key ) { // phpcs:ignore WordPress.NamingConventions.Prefix
 			'benefit_7'                  => 'Tredjeparts-scripts auto-detekteres og offloades til Partytown med ét klik',
 			'benefit_8'                  => 'Samtykke-bevidst: scripts blokeres (text/plain) indtil marketingcookien er sat — understøtter Complianz, Cookiebot, CookieYes, Borlabs, Cookie Notice, WebToffee, Cookie Information og Moove GDPR',
 			'partytown_scripts_label'    => 'Partytown Script Liste',
-			'partytown_scripts_desc'     => 'Angiv én URL eller søgestreng per linje. Matcher mod script src. Kun officielt testede tjenester anbefales: <strong>Google Tag Manager</strong> (<code>googletagmanager.com</code>), <strong>Facebook Pixel</strong> (<code>connect.facebook.net</code>), <strong>HubSpot</strong>, <strong>Intercom</strong>, <strong>Klaviyo</strong>, <strong>TikTok Pixel</strong>, <strong>Mixpanel</strong>. <a href="https://partytown.qwik.dev/common-services/" target="_blank" rel="noopener">Fuld liste ↗</a>',
+			'partytown_scripts_desc'     => 'Angiv én URL eller søgestreng per linje. Matcher mod script src. Kun officielt testede tjenester anbefales: <strong>Google Tag Manager</strong> (<code>googletagmanager.com</code>), <strong>Facebook Pixel</strong> (<code>connect.facebook.net</code>), <strong>HubSpot</strong>, <strong>Intercom</strong>, <strong>Klaviyo</strong>, <strong>TikTok Pixel</strong>, <strong>Mixpanel</strong>, <strong>FullStory</strong> (<code>fullstory.com</code>). <a href="https://partytown.qwik.dev/common-services/" target="_blank" rel="noopener">Fuld liste ↗</a>',
 			'partytown_autodetect_btn'   => '🔍 Auto-Detekter Tredjeparts-Scripts',
 			'partytown_autodetect_none'  => 'Ingen eksterne scripts fundet på forsiden.',
 			'partytown_autodetect_add'   => 'Tilføj Valgte til Liste',
@@ -78,6 +78,8 @@ function dc_swp_str( $key ) { // phpcs:ignore WordPress.NamingConventions.Prefix
 			'product_base_label'         => 'Produkt-URL slug',
 			'product_base_desc'          => 'URL-segmentet der identificerer produktsider, f.eks. <code>/product/</code> eller <code>/produkt/</code>. Lad feltet være tomt for at bruge den auto-detekterede WooCommerce-indstilling.',
 			'product_base_detected'      => 'Auto-detekteret fra WooCommerce',
+			'debug_label'                => 'Partytown Debug-tilstand',
+			'debug_desc'                 => 'Indlæser den uminificeret debug-version af Partytown og aktiverer alle log-flag i browserkonsollen (DevTools → Verbose). <strong>Brug kun i staging eller lokalt udviklingsmiljø — åbner verbose-logging for alle besøgende.</strong>',
 		) : array(
 			'page_title'                 => 'SW Prefetch Settings',
 			'saved'                      => 'Settings saved!',
@@ -104,7 +106,7 @@ function dc_swp_str( $key ) { // phpcs:ignore WordPress.NamingConventions.Prefix
 			'benefit_7'                  => 'Third-party scripts auto-detected and offloaded to Partytown in one click',
 			'benefit_8'                  => 'Consent-aware: scripts blocked (text/plain) until marketing consent cookie is set — supports Complianz, Cookiebot, CookieYes, Borlabs, Cookie Notice, WebToffee, Cookie Information & Moove GDPR',
 			'partytown_scripts_label'    => 'Partytown Script List',
-			'partytown_scripts_desc'     => 'Enter one URL or pattern per line. Matched against the script <code>src</code> attribute. Only officially tested services are recommended: <strong>Google Tag Manager</strong> (<code>googletagmanager.com</code>), <strong>Facebook Pixel</strong> (<code>connect.facebook.net</code>), <strong>HubSpot</strong>, <strong>Intercom</strong>, <strong>Klaviyo</strong>, <strong>TikTok Pixel</strong>, <strong>Mixpanel</strong>. <a href="https://partytown.qwik.dev/common-services/" target="_blank" rel="noopener">Full list ↗</a>',
+			'partytown_scripts_desc'     => 'Enter one URL or pattern per line. Matched against the script <code>src</code> attribute. Only officially tested services are recommended: <strong>Google Tag Manager</strong> (<code>googletagmanager.com</code>), <strong>Facebook Pixel</strong> (<code>connect.facebook.net</code>), <strong>HubSpot</strong>, <strong>Intercom</strong>, <strong>Klaviyo</strong>, <strong>TikTok Pixel</strong>, <strong>Mixpanel</strong>, <strong>FullStory</strong> (<code>fullstory.com</code>). <a href="https://partytown.qwik.dev/common-services/" target="_blank" rel="noopener">Full list ↗</a>',
 			'partytown_autodetect_btn'   => '🔍 Auto-Detect Third-Party Scripts',
 			'partytown_autodetect_none'  => 'No external scripts found on the homepage.',
 			'partytown_autodetect_add'   => 'Add Selected to List',
@@ -132,6 +134,8 @@ function dc_swp_str( $key ) { // phpcs:ignore WordPress.NamingConventions.Prefix
 			'product_base_label'         => 'Product URL slug',
 			'product_base_desc'          => 'The URL segment that identifies product pages, e.g. <code>/product/</code> or <code>/shop/</code>. Leave blank to use the auto-detected WooCommerce setting.',
 			'product_base_detected'      => 'Auto-detected from WooCommerce',
+			'debug_label'                => 'Partytown Debug Mode',
+			'debug_desc'                 => 'Loads the unminified debug build of Partytown and enables all log flags in the browser console (DevTools → Verbose). <strong>Use only in staging or local development — enables verbose logging for all visitors.</strong>',
 		);
 	}
 	return $s[ $key ] ?? $key;
@@ -312,6 +316,7 @@ function dc_swp_register_settings() { // phpcs:ignore WordPress.NamingConvention
 	// Inline script blocks — admin-only JS content stored as JSON; validated via dc_swp_sanitize_inline_scripts_option.
 	register_setting( 'dc-sw-prefetch-settings', 'dc_swp_inline_scripts', array( 'sanitize_callback' => 'dc_swp_sanitize_inline_scripts_option' ) );
 	register_setting( 'dc-sw-prefetch-settings', 'dc_swp_coi_headers', array( 'sanitize_callback' => 'sanitize_text_field' ) );
+	register_setting( 'dc-sw-prefetch-settings', 'dc_swp_debug_mode', array( 'sanitize_callback' => 'sanitize_text_field' ) );
 }
 
 // Admin page HTML.
@@ -356,6 +361,7 @@ function dc_swp_admin_page_html() { // phpcs:ignore WordPress.NamingConventions.
 		}
 		update_option( 'dc_swp_inline_scripts', wp_json_encode( $sanitized_blocks ) );
 		update_option( 'dc_swp_coi_headers', isset( $_POST['dc_swp_coi_headers'] ) ? 'yes' : 'no' );
+		update_option( 'dc_swp_debug_mode', isset( $_POST['dc_swp_debug_mode'] ) ? 'yes' : 'no' );
 		echo '<div class="notice notice-success"><p>' . esc_html( dc_swp_str( 'saved' ) ) . '</p></div>';
 	}
 
@@ -363,6 +369,7 @@ function dc_swp_admin_page_html() { // phpcs:ignore WordPress.NamingConventions.
 	$preload_products  = get_option( 'dampcig_pwa_preload_products', 'yes' ) === 'yes';
 	$disable_emoji     = get_option( 'dc_swp_disable_emoji', 'yes' ) === 'yes';
 	$coi_headers       = get_option( 'dc_swp_coi_headers', 'no' ) === 'yes';
+	$debug_mode        = get_option( 'dc_swp_debug_mode', 'no' ) === 'yes';
 	$partytown_scripts = get_option( 'dc_swp_partytown_scripts', '' );
 	$partytown_exclude = get_option( 'dc_swp_partytown_exclude', '' );
 	// Inline script blocks — decode JSON; auto-migrate legacy plain-text format.
@@ -505,6 +512,16 @@ function dc_swp_admin_page_html() { // phpcs:ignore WordPress.NamingConventions.
 							<span class="pwa-slider"></span>
 						</label>
 						<p class="description"><?php echo wp_kses_post( dc_swp_str( 'coi_desc' ) ); ?></p>
+					</td>
+				</tr>
+				<tr valign="top">
+					<th scope="row"><?php echo esc_html( dc_swp_str( 'debug_label' ) ); ?></th>
+					<td>
+						<label class="pwa-toggle">
+							<input type="checkbox" name="dc_swp_debug_mode" value="yes" <?php checked( $debug_mode, true ); ?>>
+							<span class="pwa-slider"></span>
+						</label>
+						<p class="description"><?php echo wp_kses_post( dc_swp_str( 'debug_desc' ) ); ?></p>
 					</td>
 				</tr>
 				<tr valign="top">

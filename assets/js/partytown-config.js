@@ -57,3 +57,23 @@ window.partytown.resolveUrl = function ( url, location, type ) {
 	}
 	return url;
 };
+
+/**
+ * Notify Partytown that new type="text/partytown" scripts have been added to the DOM.
+ *
+ * Call window.dcSwpPartytownUpdate() after programmatically inserting a
+ * type="text/partytown" script element into the document, so Partytown
+ * picks it up and executes it in the worker.
+ *
+ * @see https://partytown.qwik.dev/partytown-scripts/#dynamically-appending-scripts
+ *
+ * @example
+ * const script = document.createElement( 'script' );
+ * script.type = 'text/partytown';
+ * script.textContent = 'console.log("worker script")';
+ * document.head.appendChild( script );
+ * window.dcSwpPartytownUpdate();
+ */
+window.dcSwpPartytownUpdate = function () {
+	window.dispatchEvent( new CustomEvent( 'ptupdate' ) );
+};

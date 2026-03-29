@@ -5,7 +5,7 @@ Requires at least: 6.8
 Tested up to: 6.9
 Requires PHP: 8.0
 WC tested up to: 10.4.3
-Stable tag: 1.3.9
+Stable tag: 1.4.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -189,6 +189,12 @@ The administrator may freely add other services through the Partytown Script Lis
 3. DevTools showing Partytown service worker registered at `/~partytown/`.
 
 == Changelog ==
+
+= 1.4.0 =
+* Feature: Add FullStory (`FS.identify`, `FS.event`) to the Partytown `forward` array — now on the official tested-services list.
+* Feature: Auto-enable `strictProxyHas` when FullStory patterns are detected in the Script List or Inline Script Blocks, preventing the `in` operator false-positive that blocks FullStory initialisation via GTM.
+* Feature: Add **Partytown Debug Mode** admin toggle (`dc_swp_debug_mode`). When enabled, loads the unminified `debug/partytown.js` build and sets all seven Partytown log flags (`logCalls`, `logGetters`, `logSetters`, `logImageRequests`, `logScriptExecution`, `logSendBeaconRequests`, `logStackTraces`) for DevTools Verbose output. Bilingual UI (EN/DA).
+* Feature: Expose `window.dcSwpPartytownUpdate()` JS helper in `partytown-config.js` that dispatches the `ptupdate` CustomEvent, enabling integrators to notify Partytown of dynamically appended `type="text/partytown"` scripts.
 
 = 1.3.9 =
 * Fix: Sanitize each field in `dc_swp_sanitize_inline_scripts_option()` register_setting callback (id via sanitize_key, label via sanitize_text_field, enabled as boolean).
