@@ -1,12 +1,12 @@
-# DC Service Worker Prefetcher
+# DC Script Worker Prefetcher
 
-**Version:** 1.3.9  
+**Version:** 1.4.0  
 **Requires WordPress:** 6.8+  
 **Requires PHP:** 8.0+  
 **WooCommerce tested up to:** 10.4.3  
 **License:** GPLv2 or later
 
-Lazy-loaded Partytown library + consent-aware third-party script management + viewport/pagination prefetching for WooCommerce. Fully vendored — no npm required.
+Offload third-party scripts (GTM, Pixel, HubSpot…) to a Web Worker via Partytown + consent-aware loading + viewport/pagination prefetching for WooCommerce. Fully vendored — no npm required.
 
 ---
 
@@ -42,12 +42,11 @@ If no supported CMP cookie is found, scripts remain `type="text/plain"` — safe
 ## How Partytown works
 
 1. Scripts matching your configured patterns are output with `type="text/partytown"` — this tells the browser **not** to execute them on the main thread.
-2. Partytown's **service worker** intercepts fetch requests originating from the web worker.
-3. A **web worker** receives and executes the scripts entirely off the main thread.
-4. **JavaScript Proxies** replicate main thread APIs (DOM reads/writes) synchronously inside the worker — third-party scripts run exactly as coded, without modification.
-5. Communication between the web worker and main thread uses either:
-   - **Synchronous XHR + Service Worker** (default)
-   - **Atomics bridge** when `crossOriginIsolated` is enabled — roughly **10× faster**. Enabled via the **SharedArrayBuffer** setting, which sends the required `Cross-Origin-Opener-Policy` and `Cross-Origin-Embedder-Policy` headers.
+2. A **Web Worker** receives and executes those scripts entirely off the main thread.
+3. **JavaScript Proxies** replicate main-thread APIs (DOM reads/writes) synchronously inside the worker — third-party scripts run exactly as coded, without modification.
+4. Communication between the web worker and main thread uses one of two bridges:
+   - **Atomics bridge** (`crossOriginIsolated` active) — worker writes a request into a `SharedArrayBuffer` slot and calls `Atomics.wait()` to block; main thread reads the slot, writes the response, and calls `Atomics.notify()` to wake the worker. No service worker involved. Roughly **10× faster** round-trips. Enabled via the **COI Headers** setting.
+   - **Service Worker bridge** (fallback when COI is unavailable) — worker makes a synchronous XHR to a synthetic URL; a registered service worker intercepts it, relays the message to the main thread, and returns the response as the XHR body.
 
 ---
 
@@ -63,7 +62,8 @@ Page request (PHP)
 ```
 Layer                    Handled by
 ───────────────────────  ──────────────────────────────────
-Third-party scripts      Partytown service worker
+Third-party scripts      Partytown Web Worker
+Main-thread sync bridge  Atomics (COI) or SW relay (fallback)
 HTML page caching        W3 Total Cache (or PHP fallback)
 Product/page prefetch    DC Prefetch (IntersectionObserver)
 ```
@@ -91,7 +91,7 @@ Product/page prefetch    DC Prefetch (IntersectionObserver)
 4. Add URL patterns for any third-party scripts you want to offload (e.g. `analytics.ahrefs.com` or the full GTM URL). Use the **Auto-Detect** button to scan your homepage.
 5. Save.
 
-The `window.partytown.forward` array is pre-configured for all officially tested services: `dataLayer.push` (GTM), `fbq` (Facebook Pixel), `_hsq.push` (HubSpot), `Intercom`, `_learnq.push` (Klaviyo), `ttq.track`/`ttq.page`/`ttq.load` (TikTok Pixel), `mixpanel.track` (Mixpanel). See [partytown.qwik.dev/common-services](https://partytown.qwik.dev/common-services/) for details.
+The `window.partytown.forward` array is pre-configured for all officially tested services: `dataLayer.push` (GTM), `fbq` (Facebook Pixel), `_hsq.push` (HubSpot), `Intercom`, `_learnq.push` (Klaviyo), `ttq.track`/`ttq.page`/`ttq.load` (TikTok Pixel), `mixpanel.track` (Mixpanel), `FS.identify`/`FS.event` (FullStory). See [partytown.qwik.dev/common-services](https://partytown.qwik.dev/common-services/) for details.
 
 ---
 
@@ -162,12 +162,21 @@ The plugin ships pre-configured forwarding for these officially tested services:
 | Klaviyo | Klaviyo, Inc. | Page views, cart/checkout events, email | [Privacy](https://www.klaviyo.com/legal/privacy-notice) | [Terms](https://www.klaviyo.com/legal/terms-of-service) |
 | TikTok Pixel | TikTok Inc. / ByteDance Ltd. | Page views, events, hashed identifiers | [Privacy](https://www.tiktok.com/legal/page/global/privacy-policy) | [Terms](https://ads.tiktok.com/i18n/official/policy/contractor) |
 | Mixpanel | Mixpanel, Inc. | Page views, events, anonymous visitor ID | [Privacy](https://mixpanel.com/legal/privacy-policy/) | [Terms](https://mixpanel.com/legal/terms-of-use/) |
+| FullStory | FullStory, Inc. | Session replay, events, visitor identity | [Privacy](https://www.fullstory.com/legal/privacy-policy/) | [Terms](https://www.fullstory.com/legal/terms-and-conditions/) |
 
 The administrator may configure additional services via the Partytown Script List. Refer to each service's own privacy policy and terms of service for details on collected data.
 
 ---
 
 ## Changelog
+
+### 1.4.0
+- Feature: Add FullStory (`FS.identify`, `FS.event`) to the Partytown `forward` array — now on the officially tested services list.
+- Feature: Auto-enable `strictProxyHas` when FullStory patterns are detected in the Script List or Inline Script Blocks, preventing the `in` operator false-positive that blocks FullStory initialisation via GTM.
+- Feature: **Partytown Debug Mode** admin toggle. When enabled, loads the unminified `debug/partytown.js` build and sets all seven Partytown log flags (`logCalls`, `logGetters`, `logSetters`, `logImageRequests`, `logScriptExecution`, `logSendBeaconRequests`, `logStackTraces`). Output via `console.debug` — enable **Verbose** in DevTools. Worker-side logs require COI Headers to be active (Atomics Bridge). Bilingual UI (EN/DA).
+- Feature: Expose `window.dcSwpPartytownUpdate()` JS helper that dispatches the `ptupdate` CustomEvent, enabling integrators to notify Partytown of dynamically appended `type="text/partytown"` scripts.
+- Fix: Add `Cross-Origin-Resource-Policy: same-origin` and `Cross-Origin-Embedder-Policy: credentialless` headers to `/~partytown/` file responses. Required for the debug build's `partytown-ww-atomics.js`, which is loaded as a real URL (not a blob) and is blocked by COEP enforcement without these headers.
+- Rename: Plugin display name updated to **DC Script Worker Prefetcher** — "Script Worker" accurately reflects the Web Worker (not service worker) architecture.
 
 ### 1.3.9
 - Fix: Sanitize each field in `dc_swp_sanitize_inline_scripts_option()` register_setting callback.

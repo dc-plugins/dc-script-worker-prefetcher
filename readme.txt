@@ -1,4 +1,4 @@
-=== DC Service Worker Prefetcher ===
+=== DC Script Worker Prefetcher ===
 Contributors: lennilg
 Tags: service worker, prefetch, partytown, performance, woocommerce
 Requires at least: 6.8
