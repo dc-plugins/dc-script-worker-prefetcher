@@ -9,7 +9,7 @@ Stable tag: 1.4.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
-Lazy-loaded Partytown library (third-party script offloading via web worker) + consent-aware loading + viewport/pagination prefetching for WooCommerce. Vendored — no npm required.
+Offload third-party scripts (GTM, Pixel, HubSpot…) to a web worker via Partytown + consent-aware loading + WooCommerce prefetching. Vendored.
 
 == Description ==
 
