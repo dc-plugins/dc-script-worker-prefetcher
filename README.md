@@ -1,10 +1,12 @@
 # DC Script Worker Prefetcher
 
-**Version:** 1.4.0  
-**Requires WordPress:** 6.8+  
-**Requires PHP:** 8.0+  
-**WooCommerce tested up to:** 10.4.3  
-**License:** GPLv2 or later
+> Offload third-party scripts to a Web Worker via Partytown + consent-aware loading + WooCommerce prefetching.
+
+![Version](https://img.shields.io/badge/version-1.4.1-blue)
+![WordPress](https://img.shields.io/badge/WordPress-6.8%2B-21759b)
+![PHP](https://img.shields.io/badge/PHP-8.0%2B-777bb4)
+![WooCommerce](https://img.shields.io/badge/WooCommerce-10.4%2B-96588a)
+![License](https://img.shields.io/badge/license-GPL--2.0%2B-green)
 
 Offload third-party scripts (GTM, Pixel, HubSpot…) to a Web Worker via Partytown + consent-aware loading + viewport/pagination prefetching for WooCommerce. Fully vendored — no npm required.
 
