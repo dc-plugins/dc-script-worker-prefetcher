@@ -171,6 +171,19 @@ The administrator may configure additional services via the Partytown Script Lis
 
 ## Changelog
 
+### 1.4.2
+- Feature: Script Block compatibility badges — each block now shows a **Supported | Partytown** or **Unsupported | Deferred** badge based on whether its scripts (src= or inline) reference a Partytown-verified service. Inline scripts (e.g. Meta Pixel) are scanned for embedded service URLs.
+- Feature: **Force Enable Partytown** toggle for unsupported Script Block scripts — admin can force an unknown script into the Partytown worker, with a warning notice. Badge state changes to **Forced | Partytown** (orange).
+- Feature: Badges load as shields.io SVG images with an automatic CSS text fallback for offline or firewalled admin environments.
+- Fix: `force_partytown` flag was silently dropped on every save — added to both sanitize paths (`dc_swp_sanitize_inline_scripts_option` and the `$_POST` handler).
+- Fix: Unknown inline Script Block scripts now fall back to deferred main-thread execution instead of unconditionally entering the Partytown worker.
+- Fix: Unknown src= Script Block scripts now always run on the main thread (consent-gated), preventing the `about:srcdoc` sandbox error.
+- Chore: Add `vendor/` and `node_modules/` exclude-patterns to `phpcs.xml`.
+- Chore: Remove `eslint.config.mjs` from `.gitignore` (tracked source); add to `.distignore` instead.
+
+### 1.4.1
+- Chore: Rename plugin to "DC Script Worker Prefetcher" in all remaining source files (admin.php, uninstall.php, phpcs.xml, package.json, .pot file, copilot-instructions.md, PHP docblock headers).
+
 ### 1.4.0
 - Feature: Add FullStory (`FS.identify`, `FS.event`) to the Partytown `forward` array — now on the officially tested services list.
 - Feature: Auto-enable `strictProxyHas` when FullStory patterns are detected in the Script List or Inline Script Blocks, preventing the `in` operator false-positive that blocks FullStory initialisation via GTM.
