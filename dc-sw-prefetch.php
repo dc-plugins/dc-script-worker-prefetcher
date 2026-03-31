@@ -6,16 +6,18 @@
  * Plugin Name: DC Script Worker Prefetcher
  * Plugin URI:  https://github.com/dc-plugins/dc-sw-prefetch
  * Description: Partytown service worker with viewport/pagination prefetching for WooCommerce. Offloads third-party scripts via Partytown and pre-fetches visible products & next pages.
- * Version:     1.4.2
+ * Version:     1.5.0
  * Author:      lennilg
  * Author URI:  https://github.com/lennilg
- * License:     GPL-2.0+
- * License URI: https://www.gnu.org/licenses/gpl-2.0.html
- * Text Domain: dc-sw-prefetch
- * Domain Path: /languages
+ * License:           GPL-2.0-or-later
+ * License URI:       https://www.gnu.org/licenses/gpl-2.0.html
+ * Text Domain:       dc-sw-prefetch
+ * Domain Path:       /languages
  * Requires at least: 6.8
- * Requires PHP: 8.0
- * Tested up to: 6.9
+ * Requires PHP:      8.0
+ * Tested up to:      6.9
+ * WC tested up to:   10.4.3
+ * Update URI:        https://github.com/dc-plugins/dc-sw-prefetch
  *
  * @package DC_Service_Worker_Prefetcher
  */
@@ -202,6 +204,33 @@ function dc_swp_has_marketing_consent() { // phpcs:ignore WordPress.NamingConven
 	return false;
 }
 
+/**
+ * Return true if Google Consent Mode v2 is enabled in settings.
+ *
+ * When active, Partytown-managed scripts always use type="text/partytown"
+ * and a gtag('consent','default',{…denied}) snippet is injected early in
+ * <head> so Google's own Consent Mode API handles measurement signals.
+ *
+ * @return bool
+ */
+function dc_swp_is_consent_mode_enabled() { // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedFunctionFound
+	return get_option( 'dc_swp_consent_mode', 'no' ) === 'yes';
+}
+
+/**
+ * Return true if Meta/Facebook Pixel Limited Data Use (LDU) mode is enabled.
+ *
+ * When active, Partytown-managed fbq scripts always use type="text/partytown"
+ * and an fbq('dataProcessingOptions',['LDU'],0,0) snippet is injected early
+ * in <head> so the Meta pixel fires in LDU mode on every page load without
+ * requiring a marketing consent cookie to be present.
+ *
+ * @return bool
+ */
+function dc_swp_is_meta_ldu_enabled() { // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedFunctionFound
+	return get_option( 'dc_swp_meta_ldu', 'no' ) === 'yes';
+}
+
 
 // ============================================================
 // ADMIN INTERFACE
@@ -350,7 +379,7 @@ function dc_swp_fallback_cache_headers() { // phpcs:ignore WordPress.NamingConve
  * Partytown itself is registered at this virtual path.
  */
 define( 'DC_SWP_PARTYTOWN_LIB', '/wp-content/plugins/dc-sw-prefetch/assets/partytown/' );
-define( 'DC_SWP_VERSION', '1.4.2' );
+define( 'DC_SWP_VERSION', '1.5.0' );
 
 add_action( 'init', 'dc_swp_serve_partytown_files', 1 );
 
@@ -654,6 +683,118 @@ function dc_swp_build_path_rewrites() { // phpcs:ignore WordPress.NamingConventi
 		'dc_swp_partytown_path_rewrites',
 		$rewrites
 	);
+}
+
+// ============================================================
+// GOOGLE CONSENT MODE V2
+// When enabled, injects gtag('consent','default',{…denied}) at
+// wp_head priority 1 — before Partytown and any analytics scripts
+// — so GTM / GA4 running in the Partytown worker see the consent
+// defaults on startup.
+//
+// Partytown-managed scripts are always emitted as text/partytown
+// (never text/plain). Google's own Consent Mode API handles
+// measurement; the existing CMP fires
+// gtag('consent','update',{…granted}) when the visitor consents.
+// ============================================================
+
+add_action( 'wp_head', 'dc_swp_inject_consent_mode_default', 1 );
+
+/**
+ * Inject the Google Consent Mode v2 default-denied state into <head>
+ * before any Partytown or analytics scripts load.
+ *
+ * @return void
+ */
+function dc_swp_inject_consent_mode_default() { // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedFunctionFound
+	if ( dc_swp_is_bot_request() ) {
+		return;
+	}
+	if ( is_admin() ) {
+		return;
+	}
+	if ( get_option( 'dampcig_pwa_sw_enabled', 'yes' ) !== 'yes' ) {
+		return;
+	}
+	if ( ! dc_swp_is_consent_mode_enabled() ) {
+		return;
+	}
+	if (
+		( function_exists( 'is_cart' ) && is_cart() ) ||
+		( function_exists( 'is_checkout' ) && is_checkout() ) ||
+		( function_exists( 'is_account_page' ) && is_account_page() )
+	) {
+		return;
+	}
+
+	$nonce      = dc_swp_get_csp_nonce();
+	$nonce_attr = '' !== $nonce ? ' nonce="' . esc_attr( $nonce ) . '"' : '';
+
+	$consent_js  = "window.dataLayer=window.dataLayer||[];\n";
+	$consent_js .= "function gtag(){dataLayer.push(arguments);}\n";
+	$consent_js .= "gtag('consent','default',{\n";
+	$consent_js .= "  'ad_storage':'denied',\n";
+	$consent_js .= "  'analytics_storage':'denied',\n";
+	$consent_js .= "  'ad_user_data':'denied',\n";
+	$consent_js .= "  'ad_personalization':'denied',\n";
+	$consent_js .= "  'wait_for_update':500\n";
+	$consent_js .= "});\n";
+	// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- fully static JS; nonce is pre-escaped via esc_attr.
+	echo '<script' . $nonce_attr . ">\n" . $consent_js . "</script>\n";
+}
+
+// ============================================================
+// META / FACEBOOK PIXEL — LIMITED DATA USE (LDU) MODE
+// When enabled, injects the fbq stub + dataProcessingOptions
+// at wp_head priority 1, before Partytown and any fbq scripts.
+// The pixel always fires (type="text/partytown") and Meta
+// applies LDU restrictions internally; the CMP does not need
+// to block the script via text/plain.
+// ============================================================
+
+add_action( 'wp_head', 'dc_swp_inject_meta_ldu_default', 1 );
+
+/**
+ * Inject the Meta Pixel LDU initialization stub into <head>
+ * before any Partytown or fbq scripts load.
+ *
+ * @return void
+ */
+function dc_swp_inject_meta_ldu_default() { // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedFunctionFound
+	if ( dc_swp_is_bot_request() ) {
+		return;
+	}
+	if ( is_admin() ) {
+		return;
+	}
+	if ( get_option( 'dampcig_pwa_sw_enabled', 'yes' ) !== 'yes' ) {
+		return;
+	}
+	if ( ! dc_swp_is_meta_ldu_enabled() ) {
+		return;
+	}
+	if (
+		( function_exists( 'is_cart' ) && is_cart() ) ||
+		( function_exists( 'is_checkout' ) && is_checkout() ) ||
+		( function_exists( 'is_account_page' ) && is_account_page() )
+	) {
+		return;
+	}
+
+	$nonce      = dc_swp_get_csp_nonce();
+	$nonce_attr = '' !== $nonce ? ' nonce="' . esc_attr( $nonce ) . '"' : '';
+
+	$ldu_js  = "window._fbq=window._fbq||[];\n";
+	$ldu_js .= "window.fbq=window.fbq||function(){\n";
+	$ldu_js .= "  window._fbq.push?window._fbq.push(arguments):window._fbq.que.push(arguments);\n";
+	$ldu_js .= "};\n";
+	$ldu_js .= "window.fbq.push=window.fbq;\n";
+	$ldu_js .= "window.fbq.loaded=true;\n";
+	$ldu_js .= "window.fbq.version='2.0';\n";
+	$ldu_js .= "window.fbq.queue=[];\n";
+	$ldu_js .= "fbq('dataProcessingOptions',['LDU'],0,0);\n";
+	// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- fully static JS; nonce is pre-escaped via esc_attr.
+	echo '<script' . $nonce_attr . ">\n" . $ldu_js . "</script>\n";
 }
 
 add_action( 'wp_enqueue_scripts', 'dc_swp_partytown_config', 2 );
@@ -1069,6 +1210,120 @@ function dc_swp_inline_matches_known_service( $code ) { // phpcs:ignore WordPres
 }
 
 /**
+ * Return the list of third-party script hostnames that natively implement
+ * Google Consent Mode v2 (GCM v2).
+ *
+ * When GCM v2 is active in the plugin, scripts for these services are always
+ * offloaded via Partytown — each service reads the GCM v2 consent state
+ * (analytics_storage, ad_storage, etc.) and self-restricts data collection
+ * when consent is denied, so no text/plain gate is needed.
+ *
+ * Meta/Facebook Pixel is intentionally excluded: it uses its own proprietary
+ * LDU consent mechanism, not the GCM v2 API.
+ *
+ * Use the 'dc_swp_gcm_v2_aware_services' filter to add custom entries.
+ *
+ * @return string[] Lowercase hostname substrings.
+ */
+function dc_swp_get_gcm_v2_aware_services() { // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedFunctionFound
+	$services = array(
+		'googletagmanager.com', // Google Tag Manager — owns the GCM v2 API.
+		'google-analytics.com', // Google Analytics (UA / GA4).
+		'analytics.google.com', // GA4 measurement protocol.
+		'static.hotjar.com',    // Hotjar — respects analytics_storage since 2024.
+		'script.hotjar.com',    // Hotjar (alternate CDN).
+		'clarity.ms',           // Microsoft Clarity — native GCM v2 integration.
+		'snap.licdn.com',       // LinkedIn Insight Tag v3 — GCM v2 support.
+		'analytics.tiktok.com', // TikTok Pixel — GCM v2 support.
+	);
+
+	/**
+	 * Filter the list of GCM v2-aware service hostnames.
+	 *
+	 * Add custom services whose scripts natively check the GCM v2 consent state
+	 * and restrict data collection on their own when consent is denied.
+	 *
+	 * @param string[] $services Lowercase hostname substrings.
+	 */
+	return (array) apply_filters(
+		// phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedHooknameFound
+		'dc_swp_gcm_v2_aware_services',
+		$services
+	);
+}
+
+/**
+ * Return true if a script src URL belongs to a GCM v2-aware service.
+ *
+ * Used to decide whether a script may bypass the CMP marketing-consent cookie
+ * gate when Google Consent Mode v2 is active in the plugin.
+ *
+ * @param string $url Script src URL to test.
+ * @return bool
+ */
+function dc_swp_script_uses_gcm_v2( $url ) { // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedFunctionFound
+	$host = strtolower( (string) wp_parse_url( $url, PHP_URL_HOST ) );
+	foreach ( dc_swp_get_gcm_v2_aware_services() as $service ) {
+		if ( false !== stripos( $host, $service ) ) {
+			return true;
+		}
+	}
+	return false;
+}
+
+/**
+ * Return true if a script src URL belongs to the Meta/Facebook Pixel CDN.
+ *
+ * Meta Pixel does not support GCM v2; it uses its own Limited Data Use (LDU)
+ * consent mechanism. This helper gates LDU bypass on the correct service.
+ *
+ * @param string $url Script src URL to test.
+ * @return bool
+ */
+function dc_swp_is_meta_script( $url ) { // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedFunctionFound
+	$host = strtolower( (string) wp_parse_url( $url, PHP_URL_HOST ) );
+	return str_contains( $host, 'connect.facebook.net' );
+}
+
+/**
+ * Return true if an inline script body references a GCM v2-aware service URL.
+ *
+ * Scans for https?:// URLs embedded in the code and checks each hostname against
+ * dc_swp_get_gcm_v2_aware_services(). Works reliably for standard inline snippets
+ * (GTM, Hotjar, LinkedIn, TikTok) which all embed their CDN URL.
+ *
+ * @param string $code Inline JS content.
+ * @return bool
+ */
+function dc_swp_inline_uses_gcm_v2( $code ) { // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedFunctionFound
+	if ( ! preg_match_all( '/https?:\/\/([a-zA-Z0-9][a-zA-Z0-9.\-]+)/i', $code, $m ) ) {
+		return false;
+	}
+	foreach ( $m[1] as $host ) {
+		$host = strtolower( $host );
+		foreach ( dc_swp_get_gcm_v2_aware_services() as $service ) {
+			if ( false !== stripos( $host, $service ) ) {
+				return true;
+			}
+		}
+	}
+	return false;
+}
+
+/**
+ * Return true if an inline script body references the Meta/Facebook Pixel.
+ *
+ * Checks for connect.facebook.net or the fbevents script name that appears in
+ * the standard Meta Pixel inline snippet.
+ *
+ * @param string $code Inline JS content.
+ * @return bool
+ */
+function dc_swp_inline_is_meta( $code ) { // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedFunctionFound
+	return str_contains( $code, 'connect.facebook.net' ) || str_contains( $code, 'fbevents' );
+}
+
+/**
  * Return the list of Partytown include patterns from the admin option.
  *
  * @return string[]
@@ -1210,10 +1465,14 @@ function dc_swp_partytown_script_attrs( $attributes ) { // phpcs:ignore WordPres
 	}
 	foreach ( dc_swp_get_partytown_patterns() as $pattern ) {
 		if ( '' !== $pattern && str_contains( $src, $pattern ) ) {
-			// Consent granted → off-load via Partytown; no consent → block silently.
-			$attributes['type'] = dc_swp_has_marketing_consent() ? 'text/partytown' : 'text/plain';
-			unset( $attributes['async'] );
-			break;
+				// Per-service consent gate:
+				// • GCM v2-aware scripts always run when GCM v2 is enabled — they self-manage consent.
+				// • Meta Pixel always runs when Meta LDU is enabled — Meta uses its own consent API.
+				// • All other scripts gate on the marketing consent cookie.
+				$gcm_bypass         = dc_swp_is_consent_mode_enabled() && dc_swp_script_uses_gcm_v2( $src );
+				$ldu_bypass         = dc_swp_is_meta_ldu_enabled() && dc_swp_is_meta_script( $src );
+				$attributes['type'] = ( $gcm_bypass || $ldu_bypass || dc_swp_has_marketing_consent() ) ? 'text/partytown' : 'text/plain';
+				break; // First matched pattern wins — no need to continue.
 		}
 	}
 	return $attributes;
@@ -1454,14 +1713,24 @@ function dc_swp_partytown_buffer_rewrite( $html ) { // phpcs:ignore WordPress.Na
 					return $matches[0];
 				}
 
-				$new_type = dc_swp_has_marketing_consent() ? 'text/partytown' : 'text/plain';
+			// Per-service consent gate:
+			// • GCM v2-aware scripts always run when GCM v2 is enabled — they self-manage consent.
+			// • Meta Pixel always runs when Meta LDU is enabled — Meta uses its own consent API.
+			// • All other scripts gate on the marketing consent cookie.
+			$gcm_bypass = dc_swp_is_consent_mode_enabled() && dc_swp_script_uses_gcm_v2( $src );
+			$ldu_bypass = dc_swp_is_meta_ldu_enabled() && dc_swp_is_meta_script( $src );
+			$new_type   = ( $gcm_bypass || $ldu_bypass || dc_swp_has_marketing_consent() ) ? 'text/partytown' : 'text/plain';
+				$tag_inner = preg_replace( '/\s+async(?:=["\'][^"\']*["\'])?/i', '', $tag_inner );
 
+				// Inject or replace the type attribute so the browser sees the correct consent state.
+				// Critical: raw-echoed scripts bypass wp_script_attributes and arrive here with no type
+				// (or type="text/javascript"). Without this step they would execute on the main thread
+				// regardless of the consent decision above.
 				if ( preg_match( '/\btype=["\'][^"\']*["\']/i', $tag_inner ) ) {
 					$tag_inner = preg_replace( '/\btype=["\'][^"\']*["\']/i', 'type="' . $new_type . '"', $tag_inner );
 				} else {
-					$tag_inner = ' type="' . $new_type . '"' . $tag_inner;
+					$tag_inner .= ' type="' . $new_type . '"';
 				}
-				$tag_inner = preg_replace( '/\s+async(?:=["\'][^"\']*["\'])?/i', '', $tag_inner );
 
 				// Arm companion state only for services with a known inline companion.
 				$pending_companion = dc_swp_resolve_companion( $src, $new_type, $companion_map );
@@ -1738,23 +2007,28 @@ function dc_swp_output_inline_scripts() { // phpcs:ignore WordPress.NamingConven
 		return;
 	}
 
-	$pt_enabled = get_option( 'dampcig_pwa_sw_enabled', 'yes' ) === 'yes';
-	$consent    = dc_swp_has_marketing_consent();
-	$nonce      = dc_swp_get_csp_nonce();
-	$nonce_attr = '' !== $nonce ? ' nonce="' . esc_attr( $nonce ) . '"' : '';
+	$pt_enabled  = get_option( 'dampcig_pwa_sw_enabled', 'yes' ) === 'yes';
+	$consent     = dc_swp_has_marketing_consent();
+	$gcm_enabled = dc_swp_is_consent_mode_enabled();
+	$ldu_enabled = dc_swp_is_meta_ldu_enabled();
+	$nonce       = dc_swp_get_csp_nonce();
+	$nonce_attr  = '' !== $nonce ? ' nonce="' . esc_attr( $nonce ) . '"' : '';
 
 	if ( $pt_enabled ) {
-		// Partytown active — run in Web Worker, consent-gated.
-		$type = $consent ? 'text/partytown' : 'text/plain';
-		// Inline script blocks: same gate as src= scripts.
-		// • Recognised service in code (e.g. Meta Pixel) OR admin forced → worker.
-		// • Unknown → main thread, still consent-gated.
+		// Partytown active — per-block consent gate:
+		// • GCM v2-aware blocks bypass the cookie gate when GCM v2 is enabled (self-managed consent).
+		// • Meta Pixel blocks bypass when LDU mode is enabled (Meta's own consent API, not GCM v2).
+		// • All other blocks gate on the marketing consent cookie.
 		foreach ( $js_blocks as $blk ) {
-			$js = $blk['content'];
+			$js         = $blk['content'];
+			$blk_gcm    = $gcm_enabled && dc_swp_inline_uses_gcm_v2( $js );
+			$blk_ldu    = $ldu_enabled && dc_swp_inline_is_meta( $js );
+			$blk_bypass = $blk_gcm || $blk_ldu;
+			$blk_type   = ( $blk_bypass || $consent ) ? 'text/partytown' : 'text/plain';
 			if ( dc_swp_inline_matches_known_service( $js ) || $blk['force_partytown'] ) {
 				// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- admin-controlled inline JS.
-				echo '<script type="' . esc_attr( $type ) . '"' . $nonce_attr . ">\n" . $js . "\n</script>\n";
-			} elseif ( $consent ) {
+				echo '<script type="' . esc_attr( $blk_type ) . '"' . $nonce_attr . ">\n" . $js . "\n</script>\n";
+			} elseif ( $blk_bypass || $consent ) {
 				// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- admin-controlled inline JS.
 				echo '<script defer' . $nonce_attr . ">\n" . $js . "\n</script>\n";
 			} else {
@@ -1763,14 +2037,17 @@ function dc_swp_output_inline_scripts() { // phpcs:ignore WordPress.NamingConven
 			}
 		}
 		// External src= scripts from blocks:
-		// • Known service OR admin forced → run in worker, consent-gated.
-		// • Unknown, not forced → run on the main thread to avoid the about:srcdoc sandbox
-		// error, but still consent-gated: defer when consent is given, text/plain otherwise.
+		// • Known service OR admin forced → run in worker, per-service consent gate.
+		// • Unknown, not forced → run on the main thread; still consent-gated.
 		foreach ( $src_blocks as $blk ) {
+			$blk_gcm    = $gcm_enabled && dc_swp_script_uses_gcm_v2( $blk['src'] );
+			$blk_ldu    = $ldu_enabled && dc_swp_is_meta_script( $blk['src'] );
+			$blk_bypass = $blk_gcm || $blk_ldu;
+			$blk_type   = ( $blk_bypass || $consent ) ? 'text/partytown' : 'text/plain';
 			if ( dc_swp_url_matches_known_service( $blk['src'] ) || $blk['force_partytown'] ) {
 				// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped,WordPress.WP.EnqueuedResources.NonEnqueuedScript -- admin-controlled script src.
-				echo '<script type="' . esc_attr( $type ) . '" src="' . esc_url( $blk['src'] ) . '"' . $blk['extra'] . $nonce_attr . "></script>\n";
-			} elseif ( $consent ) {
+				echo '<script type="' . esc_attr( $blk_type ) . '" src="' . esc_url( $blk['src'] ) . '"' . $blk['extra'] . $nonce_attr . "></script>\n";
+			} elseif ( $blk_bypass || $consent ) {
 				// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped,WordPress.WP.EnqueuedResources.NonEnqueuedScript -- admin-controlled script src.
 				echo '<script defer src="' . esc_url( $blk['src'] ) . '"' . $blk['extra'] . $nonce_attr . "></script>\n";
 			} else {

@@ -28,6 +28,9 @@ function dc_swp_uninstall() { // phpcs:ignore WordPress.NamingConventions.Prefix
 		'dc_swp_partytown_scripts',
 		'dc_swp_inline_scripts',
 		'dc_swp_coi_headers',
+		'dc_swp_consent_mode',
+		'dc_swp_meta_ldu',
+		'dc_swp_debug_mode',
 	) as $dc_swp_opt ) {
 		delete_option( $dc_swp_opt );
 	}

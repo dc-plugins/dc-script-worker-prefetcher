@@ -5,7 +5,7 @@ Requires at least: 6.8
 Tested up to: 6.9
 Requires PHP: 8.0
 WC tested up to: 10.4.3
-Stable tag: 1.4.2
+Stable tag: 1.5.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -189,6 +189,32 @@ The administrator may freely add other services through the Partytown Script Lis
 3. DevTools showing Partytown service worker registered at `/~partytown/`.
 
 == Changelog ==
+
+= 1.5.0 =
+**Google Consent Mode v2 — per-service consent architecture**
+
+* Feature: Replaced the global GCM v2 bypass with a per-service consent gate. Six hostnames are now classified as GCM v2-aware (`googletagmanager.com`, `google-analytics.com`, `static.hotjar.com`, `script.hotjar.com`, `clarity.ms`, `snap.licdn.com`, `analytics.tiktok.com`): when GCM v2 is active these scripts always run as `type="text/partytown"` — each service reads the consent state and self-restricts data collection internally. Unrelated scripts (HubSpot, Intercom, Mixpanel, etc.) continue to gate on the marketing consent cookie as before.
+* Feature: Meta Pixel is intentionally excluded from GCM v2 — it uses its own Limited Data Use (LDU) consent API. The existing Meta LDU toggle is now the correct gate for Meta Pixel regardless of GCM v2 state. Both mechanisms are fully independent.
+* Feature: New helper API — `dc_swp_get_gcm_v2_aware_services()` (filterable via `dc_swp_gcm_v2_aware_services`), `dc_swp_script_uses_gcm_v2()`, `dc_swp_is_meta_script()`, `dc_swp_inline_uses_gcm_v2()`, `dc_swp_inline_is_meta()`. Developers can register additional GCM v2-aware services via the filter without modifying plugin code.
+* Feature: Per-service gate applied to all three consent-check locations: `wp_script_attributes` filter (priority 5), output-buffer rewriter, and inline Script Block output.
+* Feature: Consent Architecture info panel added to the admin settings page — collapsible `<details>` element showing three badge groups: GCM v2-aware services, Meta Pixel LDU, and CMP compatibility (8 CMPs). Badges use shields.io SVGs with a pure CSS fallback for offline/firewalled staging environments; the CSS pill renders from `data-label`/`data-msg` attributes and flips to the shields.io image via an `onload` swap — zero flash, no broken images.
+* Feature: CMP compatibility research completed and documented in the panel: Complianz, CookieYes, Cookiebot, Cookie Information, Borlabs Cookie, and WebToffee GDPR fire `gtag('consent','update',…)` natively without GTM; Moove GDPR requires the premium plan; Cookie Notice (free) cannot fire GCM v2 update signals and is marked as "fallback only".
+* Enhancement: Updated `consent_mode_desc` and `meta_ldu_desc` admin strings in both EN and DA to accurately describe the per-service architecture and distinguish the two consent mechanisms.
+
+**Bug fixes**
+
+* Fix: `dc_swp_partytown_buffer_rewrite()` was computing `$new_type` but never writing it into `$tag_inner`. Raw-echoed `<script src>` tags (e.g. analytics scripts added directly via `functions.php` rather than `wp_enqueue_script`) bypassed the consent gate entirely and executed on the main thread. The rewriter now injects or replaces the `type` attribute before returning the tag.
+* Fix: Added `break` after `$attributes['type']` is set in `dc_swp_partytown_script_attrs()`. The loop previously continued iterating all remaining patterns after a match, wasting cycles and allowing a later broader pattern to overwrite the type set by the more specific one.
+
+**Security**
+
+* Security: `sslverify => false` removed from the auto-detect AJAX handler (`dc_swp_ajax_detect_scripts`). Certificate verification is now always enabled — a self-signed cert in staging is no longer a reason to globally bypass SSL verification (OWASP A02).
+
+**Standards & housekeeping**
+
+* Standards: Plugin main-file header brought fully in line with blueprint §2: `License` changed to SPDX identifier `GPL-2.0-or-later`; `Update URI` added (prevents accidental WordPress.org auto-update overwrite); `WC tested up to: 10.4.3` added to the PHP header (was previously only in `readme.txt`).
+* i18n: Badge and force-Partytown UI strings (`badge_supported`, `badge_unsupported`, `force_pt_label`, `force_pt_notice`) were hardcoded English in `wp_localize_script`. Moved into `dc_swp_str()` with full Danish translations — the admin UI is now fully bilingual for all dynamic strings.
+* Cleanup: `dc_swp_debug_mode` option was the only plugin option not deleted on uninstall. Added to the `uninstall.php` cleanup list.
 
 = 1.4.2 =
 * Feature: Script Block compatibility badges — each block now shows a "✓ Supported / Partytown" or "⚠ Unsupported / Deferred" badge based on whether its scripts (src= or inline) reference a Partytown-verified service.

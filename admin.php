@@ -76,8 +76,24 @@ function dc_swp_str( $key ) { // phpcs:ignore WordPress.NamingConventions.Prefix
 			'product_base_label'         => 'Produkt-URL slug',
 			'product_base_desc'          => 'URL-segmentet der identificerer produktsider, f.eks. <code>/product/</code> eller <code>/produkt/</code>. Lad feltet være tomt for at bruge den auto-detekterede WooCommerce-indstilling.',
 			'product_base_detected'      => 'Auto-detekteret fra WooCommerce',
+			'consent_mode_label'         => 'Google Consent Mode v2',
+			'consent_mode_desc'          => 'Global samtykkemyndighed for alle GCM v2-kompatible tjenester. Injicerer et <code>gtag("consent","default",{...denied})</code>-kodestykke i &lt;head&gt; inden nogen scripts indlæses. Når aktivt, afvikles scripts for GCM v2-bevidste tjenester (Google Tag Manager, Hotjar, LinkedIn Insight, TikTok Pixel, Microsoft Clarity) altid som <code>text/partytown</code> — hver tjeneste læser GCM v2-tilstanden og begrænser selv dataindsamling, når samtykke er nægtet. Din CMP fyrer <code>gtag("consent","update",{...granted})</code>, når brugeren giver samtykke. Meta Pixel er undtaget (bruger sin egen LDU-mekanisme). <strong>Kræver GTM eller gtag.js samt en GCM v2-kompatibel CMP.</strong>',
+			'meta_ldu_label'             => 'Meta Pixel Limited Data Use (LDU)',
+			'meta_ldu_desc'              => 'Meta/Facebook Pixel understøtter ikke Google Consent Mode v2 — det bruger sin egen Limited Data Use (LDU) samtykke-API. Injicerer et fbq-stub + <code>fbq("dataProcessingOptions",["LDU"],0,0)</code> i &lt;head&gt; inden Partytown og Facebook Pixel-scripts indlæses. Meta Pixel afvikles altid som <code>text/partytown</code> — Meta anvender LDU-begrænsninger internt (ingen data brugt til annoncemålretning). Din CMP behøver ikke blokere scriptet via <code>text/plain</code>. Kræver at Meta Pixel er tilføjet via Partytown Script Liste eller en Inline Script Blok.',
 			'debug_label'                => 'Partytown Debug-tilstand',
 			'debug_desc'                 => 'Indlæser den uminificeret debug-version af Partytown og aktiverer alle log-flag. Log-output sendes via <code>console.debug()</code> — husk at aktivere <strong>Verbose</strong>-niveauet i DevTools-konsollen (standardfilter skjuler det). Worker-logge fra web workeren vises kun i <strong>Atomics Bridge</strong>-tilstand, som kræver at <em>COI-headers</em> er aktiveret ovenfor. <strong>Brug kun i staging eller lokalt udviklingsmiljø — åbner verbose-logging for alle besøgende.</strong>',
+			'consent_info_toggle'        => 'Samtykke-arkitektur & CMP-kompatibilitet',
+			'consent_info_services_title'=> 'GCM v2-bevidste tjenester',
+			'consent_info_services_desc' => 'Disse tjenester læser selv GCM v2-samtykketilstanden og begrænser dataindsamling internt — ingen text/plain-blokering er nødvendig, når GCM v2 er aktivt.',
+			'consent_info_meta_title'    => 'Meta Pixel — separat LDU-mekanisme',
+			'consent_info_meta_desc'     => 'Meta Pixel understøtter ikke GCM v2. Aktiver Meta Pixel LDU nedenfor — Meta anvender LDU-begrænsninger internt.',
+			'consent_info_cmp_title'     => 'CMP-kompatibilitet',
+			'consent_info_cmp_desc'      => 'Disse CMPs fyrer gtag(\'consent\',\'update\',…) nativt — ingen Google Tag Manager nødvendig. Aktivér GCM v2-tilstand i din CMPs egne indstillinger.',
+			'consent_info_cmp_note'      => '⚠️ Cookie Notice (gratis) kan ikke sende GCM v2-opdateringssignaler. Falder automatisk tilbage til detektion af marketingsamtykke-cookie.',
+			'badge_supported'            => '✓ Understøttet | Partytown',
+			'badge_unsupported'          => '⚠ Ikke understøttet | Udskudt',
+			'force_pt_label'             => 'Tving Partytown aktivt',
+			'force_pt_notice'            => 'Kører script med ukendt Partytown-kompatibilitet — test dit site i debug-tilstand for at bekræfte ingen renderingsfejl.',
 		) : array(
 			'page_title'                 => 'SW Prefetch Settings',
 			'saved'                      => 'Settings saved!',
@@ -130,8 +146,24 @@ function dc_swp_str( $key ) { // phpcs:ignore WordPress.NamingConventions.Prefix
 			'product_base_label'         => 'Product URL slug',
 			'product_base_desc'          => 'The URL segment that identifies product pages, e.g. <code>/product/</code> or <code>/shop/</code>. Leave blank to use the auto-detected WooCommerce setting.',
 			'product_base_detected'      => 'Auto-detected from WooCommerce',
+			'consent_mode_label'         => 'Google Consent Mode v2',
+			'consent_mode_desc'          => 'Global consent authority for all GCM v2-compatible services. Injects a <code>gtag("consent","default",{...denied})</code> snippet in &lt;head&gt; before any scripts load. When active, scripts for GCM v2-aware services (Google Tag Manager, Hotjar, LinkedIn Insight, TikTok Pixel, Microsoft Clarity) always run as <code>text/partytown</code> — each service reads the GCM v2 state and self-restricts data collection when consent is denied. Your CMP fires <code>gtag("consent","update",{...granted})</code> when the visitor grants consent. Meta Pixel is excluded (it uses its own LDU mechanism). <strong>Requires GTM or a gtag.js-based setup together with a GCM v2-compatible CMP.</strong>',
+			'meta_ldu_label'             => 'Meta Pixel Limited Data Use (LDU)',
+			'meta_ldu_desc'              => 'Meta/Facebook Pixel does not support Google Consent Mode v2 — it uses its own Limited Data Use (LDU) consent API. Injects an fbq stub + <code>fbq("dataProcessingOptions",["LDU"],0,0)</code> in &lt;head&gt; before Partytown and Facebook Pixel scripts load. The Meta Pixel always runs as <code>text/partytown</code> — Meta applies LDU restrictions internally (data not used for ad targeting). Your CMP does not need to block the script via <code>text/plain</code>. Requires Meta Pixel to be added via the Partytown Script List or an Inline Script Block.',
 			'debug_label'                => 'Partytown Debug Mode',
 			'debug_desc'                 => 'Loads the unminified debug build of Partytown and enables all log flags. Output is emitted via <code>console.debug()</code> — you must enable the <strong>Verbose</strong> level in the DevTools Console filter (hidden by default). Worker-side logs only appear in <strong>Atomics Bridge</strong> mode, which requires the <em>COI Headers</em> option above to be enabled. <strong>Use only in staging or local development — enables verbose logging for all visitors.</strong>',
+			'consent_info_toggle'        => 'Consent Architecture & CMP Compatibility',
+			'consent_info_services_title'=> 'GCM v2-Aware Services',
+			'consent_info_services_desc' => 'These services natively read the GCM v2 consent state and self-restrict data collection — no text/plain blocking is needed when GCM v2 is active.',
+			'consent_info_meta_title'    => 'Meta Pixel — Separate LDU Mechanism',
+			'consent_info_meta_desc'     => 'Meta Pixel does not implement GCM v2. Enable Meta Pixel LDU below — Meta applies Limited Data Use restrictions internally.',
+			'consent_info_cmp_title'     => 'CMP Compatibility',
+			'consent_info_cmp_desc'      => 'These CMPs fire gtag(\'consent\',\'update\',…) natively — no Google Tag Manager needed. Enable GCM v2 mode in your CMP\'s own settings.',
+			'consent_info_cmp_note'      => '⚠️ Cookie Notice (free) cannot fire GCM v2 update signals. Falls back to marketing consent cookie detection automatically.',
+			'badge_supported'            => '✓ Supported | Partytown',
+			'badge_unsupported'          => '⚠ Unsupported | Deferred',
+			'force_pt_label'             => 'Force Enable Partytown',
+			'force_pt_notice'            => 'Running script with unknown Partytown compatibility — test your site in debug mode to confirm no render errors.',
 		);
 	}
 	return $s[ $key ] ?? $key;
@@ -250,6 +282,32 @@ function dc_swp_enqueue_admin_assets( $hook ) { // phpcs:ignore WordPress.Naming
     .dc-swp-add-area { border:1px dashed #c3c4c7; padding:14px 14px 10px; border-radius:3px; background:#f6f7f7; margin-top:4px; }
     .dc-swp-add-area h4 { margin:0 0 9px; font-size:13px; font-weight:600; color:#1d2327; }
     .dc-swp-add-area textarea { font-family:Consolas,'Courier New',monospace; font-size:12px; }
+    /* ── Consent Architecture info panel ─────────────────────────────────── */
+    .dc-swp-consent-info { border:1px solid #dcdcde; border-radius:3px; margin-top:10px; background:#fff; }
+    .dc-swp-consent-info summary { padding:7px 11px; font-weight:600; cursor:pointer; color:#2271b1; font-size:12px; user-select:none; list-style:none; }
+    .dc-swp-consent-info summary::-webkit-details-marker { display:none; }
+    .dc-swp-consent-info summary::marker { display:none; }
+    .dc-swp-consent-info summary::before { content:'\25B6\00A0'; font-size:9px; vertical-align:1px; }
+    .dc-swp-consent-info[open] summary::before { content:'\25BC\00A0'; }
+    .dc-swp-consent-info-body { padding:10px 13px 12px; border-top:1px solid #dcdcde; background:#fcfcfd; }
+    .dc-swp-info-section { font-weight:600; font-size:11px; text-transform:uppercase; letter-spacing:.4px; color:#50575e; margin:12px 0 5px 0; }
+    .dc-swp-info-section:first-child { margin-top:0; }
+    .dc-swp-badges { display:flex; flex-wrap:wrap; gap:4px; margin:0 0 2px; }
+    /* CSS badge — always the visible default; shields.io img overlays it once loaded */
+    .dc-swp-badge { display:inline-flex; font-size:11px; font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif; border-radius:3px; overflow:hidden; line-height:18px; height:18px; vertical-align:middle; white-space:nowrap; }
+    .dc-swp-badge::before { content:attr(data-label); background:#555; color:#fff; padding:0 6px; display:flex; align-items:center; }
+    .dc-swp-badge::after  { content:attr(data-msg);   color:#fff; padding:0 6px; display:flex; align-items:center; }
+    .dc-swp-badge-blue::after  { background:#0075ca; }
+    .dc-swp-badge-green::after { background:#3cb034; }
+    .dc-swp-badge-amber::after { background:#e08a00; }
+    .dc-swp-badge-red::after   { background:#e05d44; }
+    .dc-swp-badge-meta::after  { background:#1877f2; }
+    /* When the shields.io img loads successfully, hide the CSS pseudo-content and show the img */
+    .dc-swp-badge img { display:none; height:18px; border:0; vertical-align:top; }
+    .dc-swp-badge.dc-swp-loaded { display:inline-block; height:auto; overflow:visible; }
+    .dc-swp-badge.dc-swp-loaded::before,
+    .dc-swp-badge.dc-swp-loaded::after { display:none; }
+    .dc-swp-badge.dc-swp-loaded img { display:block; }
     "
 	);
 	wp_enqueue_style( 'dc-swp-admin' );
@@ -312,6 +370,8 @@ function dc_swp_register_settings() { // phpcs:ignore WordPress.NamingConvention
 	// Inline script blocks — admin-only JS content stored as JSON; validated via dc_swp_sanitize_inline_scripts_option.
 	register_setting( 'dc-sw-prefetch-settings', 'dc_swp_inline_scripts', array( 'sanitize_callback' => 'dc_swp_sanitize_inline_scripts_option' ) );
 	register_setting( 'dc-sw-prefetch-settings', 'dc_swp_coi_headers', array( 'sanitize_callback' => 'sanitize_text_field' ) );
+	register_setting( 'dc-sw-prefetch-settings', 'dc_swp_consent_mode', array( 'sanitize_callback' => 'sanitize_text_field' ) );
+	register_setting( 'dc-sw-prefetch-settings', 'dc_swp_meta_ldu', array( 'sanitize_callback' => 'sanitize_text_field' ) );
 	register_setting( 'dc-sw-prefetch-settings', 'dc_swp_debug_mode', array( 'sanitize_callback' => 'sanitize_text_field' ) );
 }
 
@@ -357,6 +417,8 @@ function dc_swp_admin_page_html() { // phpcs:ignore WordPress.NamingConventions.
 		}
 		update_option( 'dc_swp_inline_scripts', wp_json_encode( $sanitized_blocks ) );
 		update_option( 'dc_swp_coi_headers', isset( $_POST['dc_swp_coi_headers'] ) ? 'yes' : 'no' );
+		update_option( 'dc_swp_consent_mode', isset( $_POST['dc_swp_consent_mode'] ) ? 'yes' : 'no' );
+		update_option( 'dc_swp_meta_ldu', isset( $_POST['dc_swp_meta_ldu'] ) ? 'yes' : 'no' );
 		update_option( 'dc_swp_debug_mode', isset( $_POST['dc_swp_debug_mode'] ) ? 'yes' : 'no' );
 		echo '<div class="notice notice-success"><p>' . esc_html( dc_swp_str( 'saved' ) ) . '</p></div>';
 	}
@@ -365,6 +427,8 @@ function dc_swp_admin_page_html() { // phpcs:ignore WordPress.NamingConventions.
 	$preload_products  = get_option( 'dampcig_pwa_preload_products', 'yes' ) === 'yes';
 	$disable_emoji     = get_option( 'dc_swp_disable_emoji', 'yes' ) === 'yes';
 	$coi_headers       = get_option( 'dc_swp_coi_headers', 'no' ) === 'yes';
+	$consent_mode      = get_option( 'dc_swp_consent_mode', 'no' ) === 'yes';
+	$meta_ldu          = get_option( 'dc_swp_meta_ldu', 'no' ) === 'yes';
 	$debug_mode        = get_option( 'dc_swp_debug_mode', 'no' ) === 'yes';
 	$partytown_scripts = get_option( 'dc_swp_partytown_scripts', '' );
 	// Inline script blocks — decode JSON; auto-migrate legacy plain-text format.
@@ -491,6 +555,90 @@ function dc_swp_admin_page_html() { // phpcs:ignore WordPress.NamingConventions.
 					</td>
 				</tr>
 				<tr valign="top">
+					<th scope="row"><?php echo esc_html( dc_swp_str( 'consent_mode_label' ) ); ?></th>
+					<td>
+						<label class="pwa-toggle">
+							<input type="checkbox" name="dc_swp_consent_mode" value="yes" <?php checked( $consent_mode, true ); ?>>
+							<span class="pwa-slider"></span>
+						</label>
+						<p class="description"><?php echo wp_kses_post( dc_swp_str( 'consent_mode_desc' ) ); ?></p>
+					<?php
+					// ── Consent Architecture info panel ─────────────────────────────────
+					// CSS badges are always rendered as the fallback (pure CSS ::before/::after).
+					// The shields.io <img> fires onload to swap in the real badge when available;
+					// offline / firewalled environments automatically keep the CSS version.
+					$_si = 'https://img.shields.io/badge/';
+					$_sq = '?style=flat-square';
+					// phpcs:disable WordPress.Security.EscapeOutput.OutputNotEscaped -- badge HTML built with fully-escaped values; onload handler is static JS, no user data.
+					$_badge = static function ( $label, $msg, $col, $url ) {
+						$onload = "this.closest('.dc-swp-badge').classList.add('dc-swp-loaded')";
+						return '<span class="dc-swp-badge dc-swp-badge-' . esc_attr( $col ) . '" '
+							. 'data-label="' . esc_attr( $label ) . '" '
+							. 'data-msg="' . esc_attr( $msg ) . '">'
+							. '<img src="' . esc_url( $url ) . '" '
+							. 'alt="' . esc_attr( $label . ' ' . $msg ) . '" '
+							. 'loading="lazy" decoding="async" '
+							. 'onload="' . esc_attr( $onload ) . '">'
+							. '</span>';
+					};
+					$_gcm = array(
+						array( 'Google Tag Manager', 'GCM v2', 'blue', $_si . 'Google%20Tag%20Manager-GCM%20v2-0075ca' . $_sq ),
+						array( 'Google Analytics',  'GCM v2', 'blue', $_si . 'Google%20Analytics-GCM%20v2-0075ca' . $_sq ),
+						array( 'Hotjar',            'GCM v2', 'blue', $_si . 'Hotjar-GCM%20v2-0075ca' . $_sq ),
+						array( 'MS Clarity',        'GCM v2', 'blue', $_si . 'MS%20Clarity-GCM%20v2-0075ca' . $_sq ),
+						array( 'LinkedIn Insight',  'GCM v2', 'blue', $_si . 'LinkedIn%20Insight-GCM%20v2-0075ca' . $_sq ),
+						array( 'TikTok Pixel',      'GCM v2', 'blue', $_si . 'TikTok%20Pixel-GCM%20v2-0075ca' . $_sq ),
+					);
+					$_cmp = array(
+						array( 'Complianz',          'native GCM v2',  'green', $_si . 'Complianz-native%20GCM%20v2-3cb034' . $_sq ),
+						array( 'CookieYes',          'native GCM v2',  'green', $_si . 'CookieYes-native%20GCM%20v2-3cb034' . $_sq ),
+						array( 'Cookiebot',          'native GCM v2',  'green', $_si . 'Cookiebot-native%20GCM%20v2-3cb034' . $_sq ),
+						array( 'Cookie Information', 'native GCM v2',  'green', $_si . 'Cookie%20Information-native%20GCM%20v2-3cb034' . $_sq ),
+						array( 'Borlabs Cookie',     'native GCM v2',  'green', $_si . 'Borlabs%20Cookie-native%20GCM%20v2-3cb034' . $_sq ),
+						array( 'WebToffee GDPR',     'native GCM v2',  'green', $_si . 'WebToffee%20GDPR-native%20GCM%20v2-3cb034' . $_sq ),
+						array( 'Moove GDPR',         'GCM v2 premium', 'amber', $_si . 'Moove%20GDPR-GCM%20v2%20premium-e08a00' . $_sq ),
+						array( 'Cookie Notice',      'fallback only',  'red',   $_si . 'Cookie%20Notice-fallback%20only-e05d44' . $_sq ),
+					);
+					// phpcs:enable
+					?>
+					<details class="dc-swp-consent-info">
+						<summary><?php echo esc_html( dc_swp_str( 'consent_info_toggle' ) ); ?></summary>
+						<div class="dc-swp-consent-info-body">
+
+							<p class="dc-swp-info-section"><?php echo esc_html( dc_swp_str( 'consent_info_services_title' ) ); ?></p>
+							<p class="description" style="margin-bottom:6px"><?php echo esc_html( dc_swp_str( 'consent_info_services_desc' ) ); ?></p>
+							<div class="dc-swp-badges">
+								<?php foreach ( $_gcm as $_b ) { echo $_badge( $_b[0], $_b[1], $_b[2], $_b[3] ); } // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
+							</div>
+
+							<p class="dc-swp-info-section"><?php echo esc_html( dc_swp_str( 'consent_info_meta_title' ) ); ?></p>
+							<p class="description" style="margin-bottom:6px"><?php echo esc_html( dc_swp_str( 'consent_info_meta_desc' ) ); ?></p>
+							<div class="dc-swp-badges">
+								<?php echo $_badge( 'Meta Pixel', 'LDU API', 'meta', $_si . 'Meta%20Pixel-LDU%20API-1877f2' . $_sq ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
+							</div>
+
+							<p class="dc-swp-info-section"><?php echo esc_html( dc_swp_str( 'consent_info_cmp_title' ) ); ?></p>
+							<p class="description" style="margin-bottom:6px"><?php echo esc_html( dc_swp_str( 'consent_info_cmp_desc' ) ); ?></p>
+							<div class="dc-swp-badges">
+								<?php foreach ( $_cmp as $_b ) { echo $_badge( $_b[0], $_b[1], $_b[2], $_b[3] ); } // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
+							</div>
+							<p class="description" style="margin-top:6px;font-style:italic"><?php echo esc_html( dc_swp_str( 'consent_info_cmp_note' ) ); ?></p>
+
+						</div>
+					</details>
+					</td>
+				</tr>
+				<tr valign="top">
+					<th scope="row"><?php echo esc_html( dc_swp_str( 'meta_ldu_label' ) ); ?></th>
+					<td>
+						<label class="pwa-toggle">
+							<input type="checkbox" name="dc_swp_meta_ldu" value="yes" <?php checked( $meta_ldu, true ); ?>>
+							<span class="pwa-slider"></span>
+						</label>
+						<p class="description"><?php echo wp_kses_post( dc_swp_str( 'meta_ldu_desc' ) ); ?></p>
+					</td>
+				</tr>
+				<tr valign="top">
 					<th scope="row"><?php echo esc_html( dc_swp_str( 'coi_label' ) ); ?></th>
 					<td>
 						<label class="pwa-toggle">
@@ -579,10 +727,10 @@ function dc_swp_admin_page_html() { // phpcs:ignore WordPress.NamingConventions.
 			'delMsg'           => dc_swp_str( 'inline_scripts_del_confirm' ),
 			'blocks'           => $inline_script_blocks,
 			'knownServices'    => dc_swp_get_known_services(),
-			'badgeSupported'   => '✓ Supported | Partytown',
-			'badgeUnsupported' => '⚠ Unsupported | Deferred',
-			'forcePtLabel'     => 'Force Enable Partytown',
-			'forcePtNotice'    => 'Running script with unknown Partytown compatibility — test your site in debug mode to confirm no render errors.',
+			'badgeSupported'   => dc_swp_str( 'badge_supported' ),
+			'badgeUnsupported' => dc_swp_str( 'badge_unsupported' ),
+			'forcePtLabel'     => dc_swp_str( 'force_pt_label' ),
+			'forcePtNotice'    => dc_swp_str( 'force_pt_notice' ),
 		)
 	);
 }
@@ -610,7 +758,7 @@ function dc_swp_ajax_detect_scripts() { // phpcs:ignore WordPress.NamingConventi
 		home_url( '/' ),
 		array(
 			'timeout'    => 15,
-			'sslverify'  => false,
+			'sslverify'  => true,
 			'user-agent' => 'Mozilla/5.0 (DCSwPrefetch/1.0; Auto-Detect)',
 		)
 	);

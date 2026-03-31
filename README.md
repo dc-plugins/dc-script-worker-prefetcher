@@ -2,7 +2,7 @@
 
 > Offload third-party scripts to a Web Worker via Partytown + consent-aware loading + WooCommerce prefetching.
 
-![Version](https://img.shields.io/badge/version-1.4.2-blue)
+![Version](https://img.shields.io/badge/version-1.5.0-blue)
 ![WordPress](https://img.shields.io/badge/WordPress-6.8%2B-21759b)
 ![PHP](https://img.shields.io/badge/PHP-8.0%2B-777bb4)
 ![WooCommerce](https://img.shields.io/badge/WooCommerce-10.4%2B-96588a)
@@ -20,22 +20,43 @@ Offload third-party scripts (GTM, Pixel, HubSpot…) to a Web Worker via Partyto
 
 2. **Viewport/pagination prefetching** — `IntersectionObserver` watches visible WooCommerce products and issues `<link rel="prefetch">` before the user clicks. The next-page link is also prefetched 2 s after page load.
 
-3. **Bonus performance** — WP emoji removal (saves ~76 KB + one DNS lookup), PHP fallback cache headers when W3 Total Cache is absent.
+3. **Google Consent Mode v2 (GCM v2) per-service gate** — Six GCM v2-aware services (Google Tag Manager, Google Analytics, Hotjar, Microsoft Clarity, LinkedIn Insight Tag, TikTok Pixel) always run as `type="text/partytown"` when GCM v2 is enabled; each service reads the consent state internally and restricts data collection without the plugin needing to read a CMP cookie. All other services continue to gate on the marketing-consent cookie. Meta Pixel is handled separately via its own **Limited Data Use (LDU)** toggle, injecting the `fbq('dataProcessingOptions',['LDU'],0,0)` stub before any Partytown scripts load.
+
+4. **Bonus performance** — WP emoji removal (saves ~76 KB + one DNS lookup), PHP fallback cache headers when W3 Total Cache is absent.
 
 ---
 
-## Supported consent plugins
+## Consent architecture
 
-| Plugin | Cookie read |
-|---|---|
-| Complianz | `cmplz_marketing = allow` |
-| Cookiebot (Cybot) | `CookieConsent` contains `marketing:true` |
-| CookieYes | `cookieyes-consent` contains `marketing:yes` |
-| Borlabs Cookie | `borlabs-cookie` JSON `.consents.marketing` |
-| Cookie Notice (dFactory) | `cookie_notice_accepted = true` |
-| WebToffee GDPR | `cookie_cat_marketing = accept` |
-| Cookie Information | `CookieInformationConsent` JSON consents array |
-| Moove GDPR | `moove_gdpr_popup` JSON `.thirdparty = 1` |
+The plugin uses a **per-service consent gate** so that each script class is handled by the most appropriate mechanism:
+
+| Script class | Condition | Output type |
+|---|---|---|
+| GCM v2-aware service | GCM v2 enabled | `text/partytown` (always — service self-restricts) |
+| Meta Pixel | Meta LDU enabled | `text/partytown` (always — fbq LDU stub injected) |
+| Any other service | Marketing consent cookie present | `text/partytown` |
+| Any other service | No consent cookie | `text/plain` (browser blocked) |
+
+### GCM v2-aware services
+
+These services implement the [Google Consent Mode v2](https://developers.google.com/tag-platform/security/concepts/consent-mode) API and adjust their own data collection when consent is denied. The plugin always loads them into the Partytown worker and lets them handle consent internally:
+
+`googletagmanager.com` · `google-analytics.com` · `static.hotjar.com` · `script.hotjar.com` · `clarity.ms` · `snap.licdn.com` (LinkedIn) · `analytics.tiktok.com`
+
+Developers can extend this list via the `dc_swp_gcm_v2_aware_services` filter.
+
+### CMP cookie support (for all other services)
+
+| Plugin | Cookie read | GCM v2 update signal |
+|---|---|---|
+| Complianz | `cmplz_marketing = allow` | ✅ Native |
+| CookieYes | `cookieyes-consent` contains `marketing:yes` | ✅ Native |
+| Cookiebot (Cybot) | `CookieConsent` contains `marketing:true` | ✅ Native |
+| Cookie Information | `CookieInformationConsent` JSON consents array | ✅ Native |
+| Borlabs Cookie | `borlabs-cookie` JSON `.consents.marketing` | ✅ Native |
+| WebToffee GDPR | `cookie_cat_marketing = accept` | ✅ Native |
+| Moove GDPR | `moove_gdpr_popup` JSON `.thirdparty = 1` | ⚠️ Premium plan |
+| Cookie Notice (dFactory) | `cookie_notice_accepted = true` | ❌ Fallback only |
 
 If no supported CMP cookie is found, scripts remain `type="text/plain"` — safe default.
 
@@ -56,9 +77,11 @@ If no supported CMP cookie is found, scripts remain `type="text/plain"` — safe
 
 ```
 Page request (PHP)
-  └─ dc_swp_has_marketing_consent()   ← reads CMP cookies
-       ├─ consent present  → type="text/partytown"  → Partytown SW runs it off-thread
-       └─ no consent       → type="text/plain"      → browser ignores it
+  └─ dc_swp_partytown_script_attrs()  ← per-service consent gate
+       ├─ GCM v2-aware service + GCM v2 enabled  → type="text/partytown" (service self-restricts)
+       ├─ Meta Pixel + Meta LDU enabled           → type="text/partytown" (fbq LDU stub active)
+       ├─ Other service + marketing consent       → type="text/partytown"
+       └─ Other service + no consent              → type="text/plain"  (browser blocked)
 ```
 
 ```
@@ -77,6 +100,8 @@ Product/page prefetch    DC Prefetch (IntersectionObserver)
 - **No npm / no build step** — Partytown lib files are vendored in `assets/partytown/`
 - **Auto-detect** — one-click scan in admin discovers external scripts on your homepage
 - **Pattern-based** — enter one URL pattern per line; full URLs and partial patterns both work
+- **GCM v2 per-service consent gate** — GCM v2-aware services always run in the worker and self-restrict; Meta Pixel uses LDU; all other services gate on the CMP marketing cookie
+- **Consent Architecture panel** — collapsible admin panel shows GCM v2-aware services, Meta LDU, and CMP compatibility badges (shields.io SVGs + offline CSS fallback)
 - **Bot-safe** — bots receive no Partytown JS (clean HTML for crawlers)
 - **Cart/checkout safe** — Partytown and prefetcher disabled on cart, checkout, account pages
 - **Bilingual admin** — English default, Danish auto-detected from WP locale
@@ -170,6 +195,24 @@ The administrator may configure additional services via the Partytown Script Lis
 ---
 
 ## Changelog
+
+### 1.5.0
+
+**Google Consent Mode v2 — per-service consent architecture**
+
+- Feature: Replaced the global GCM v2 bypass with a per-service consent gate. Six hostnames are classified GCM v2-aware (`googletagmanager.com`, `google-analytics.com`, `static.hotjar.com`, `script.hotjar.com`, `clarity.ms`, `snap.licdn.com`, `analytics.tiktok.com`): when GCM v2 is active these scripts always run as `type="text/partytown"` — each service reads the consent state and self-restricts data collection internally. Other scripts continue to gate on the CMP marketing cookie.
+- Feature: Meta Pixel excluded from GCM v2 — uses its own Limited Data Use (LDU) API. The Meta LDU toggle is the correct gate for Meta Pixel regardless of GCM v2 state.
+- Feature: New helper API — `dc_swp_get_gcm_v2_aware_services()` (filterable via `dc_swp_gcm_v2_aware_services`), `dc_swp_script_uses_gcm_v2()`, `dc_swp_is_meta_script()`, `dc_swp_inline_uses_gcm_v2()`, `dc_swp_inline_is_meta()`.
+- Feature: Per-service gate applied to all three consent-check locations: `wp_script_attributes` filter (priority 5), output-buffer rewriter, and Inline Script Block output.
+- Feature: Consent Architecture info panel in admin settings — collapsible `<details>` element with three badge groups: GCM v2-aware services, Meta Pixel LDU, and CMP compatibility (8 CMPs). Shields.io SVG badges with pure CSS offline fallback.
+- Feature: CMP research completed — Complianz, CookieYes, Cookiebot, Cookie Information, Borlabs, WebToffee fire `gtag('consent','update',…)` natively; Moove GDPR requires premium; Cookie Notice (free) cannot fire GCM v2 update signals.
+- Enhancement: `consent_mode_desc` and `meta_ldu_desc` admin strings updated in EN + DA to accurately describe the per-service architecture.
+- Fix: `dc_swp_partytown_buffer_rewrite()` was computing `$new_type` but never writing it into `$tag_inner`. Raw-echoed `<script src>` tags (e.g. scripts added directly via `functions.php`) bypassed the consent gate entirely and executed on the main thread.
+- Fix: Added `break` after type assignment in `dc_swp_partytown_script_attrs()` — loop now stops at the first matching pattern.
+- Security: `sslverify => false` removed from auto-detect AJAX handler; SSL verification is always on (OWASP A02).
+- Standards: Plugin header `License` updated to SPDX `GPL-2.0-or-later`; added `Update URI` and `WC tested up to: 10.4.3`.
+- i18n: Badge and force-Partytown UI strings moved into `dc_swp_str()` with Danish translations; 8 new consent panel strings added (EN + DA).
+- Cleanup: `dc_swp_debug_mode` option now removed on plugin uninstall.
 
 ### 1.4.2
 - Feature: Script Block compatibility badges — each block now shows a **Supported | Partytown** or **Unsupported | Deferred** badge based on whether its scripts (src= or inline) reference a Partytown-verified service. Inline scripts (e.g. Meta Pixel) are scanned for embedded service URLs.
