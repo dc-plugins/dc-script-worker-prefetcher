@@ -1133,7 +1133,7 @@ function dc_swp_is_valid_gtm_id( string $id ): bool {
  * Detect a Google Tag ID already installed by a known WordPress plugin.
  *
  * Checks (in order): Site Kit by Google (GTM + GA4 modules), GTM4WP,
- * MonsterInsights, CAOS, and Analytify.
+ * MonsterInsights, CAOS, Analytify, and Complianz (free & premium).
  *
  * @return array{id: string, plugin: string}|array{} Non-empty when a tag is found.
  */
@@ -1194,6 +1194,15 @@ function dc_swp_detect_existing_gtm_id(): array {
 		return array(
 			'id'     => sanitize_text_field( $analytify['id'] ),
 			'plugin' => 'Analytify',
+		);
+	}
+
+	// Complianz (free & premium) — stores settings in 'cmplz_options', key 'gtm_code'.
+	$cmplz = get_option( 'cmplz_options', array() );
+	if ( is_array( $cmplz ) && ! empty( $cmplz['gtm_code'] ) ) {
+		return array(
+			'id'     => sanitize_text_field( $cmplz['gtm_code'] ),
+			'plugin' => 'Complianz',
 		);
 	}
 
