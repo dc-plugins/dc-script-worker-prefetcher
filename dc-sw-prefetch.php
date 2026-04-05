@@ -1019,6 +1019,9 @@ function dc_swp_inject_consent_mode_default()  {
 		$consent_js .= ",\n  'wait_for_update':500";
 	}
 	$consent_js .= "\n});\n";
+	// Signal to GTM that the consent default stub has been set, so any GTM
+	// tags/triggers that depend on consent initialisation can fire correctly.
+	$consent_js .= "dataLayer.push({'event':'default_consent'});\n";
 
 	// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- fully static JS; nonce is pre-escaped via esc_attr.
 	echo '<script' . $nonce_attr . ">\n" . $consent_js . "</script>\n";
