@@ -1992,6 +1992,30 @@ function dc_swp_get_proxy_allowed_hosts() {
 	return $hosts;
 }
 
+/**
+ * Return patterns derived from the auto-detect GTM configuration.
+ *
+ * When the admin has selected "detect" mode and a valid Google Tag ID has been
+ * saved, the other plugin (Site Kit, GTM4WP, MonsterInsights, etc.) owns the
+ * script injection. We return 'googletagmanager.com' as a virtual pattern so
+ * that both wp_script_attributes and the output-buffer rewriter will intercept
+ * those scripts and rewrite them to type="text/partytown".
+ *
+ * Returns an empty array when detect mode is not active or no ID is saved.
+ *
+ * @return string[]
+ */
+function dc_swp_get_auto_detect_patterns(): array {
+	if ( get_option( 'dc_swp_gtm_mode', 'off' ) !== 'detect' ) {
+		return array();
+	}
+	$id = sanitize_text_field( get_option( 'dc_swp_gtm_id', '' ) );
+	if ( empty( $id ) || ! dc_swp_is_valid_gtm_id( $id ) ) {
+		return array();
+	}
+	return array( 'googletagmanager.com' );
+}
+
 add_filter( 'wp_script_attributes', 'dc_swp_partytown_script_attrs', 5 );
 
 /**
@@ -2030,16 +2054,17 @@ function dc_swp_partytown_script_attrs( $attributes ) {
 	if ( '' !== $current_type && 'text/javascript' !== $current_type ) {
 		return $attributes;
 	}
-	foreach ( dc_swp_get_partytown_patterns() as $pattern ) {
+	$all_patterns = array_merge( dc_swp_get_partytown_patterns(), dc_swp_get_auto_detect_patterns() );
+	foreach ( $all_patterns as $pattern ) {
 		if ( '' !== $pattern && str_contains( $src, $pattern ) ) {
-				// Per-service consent gate:
-				// • GCM v2-aware scripts always run when GCM v2 is enabled — they self-manage consent.
-				// • Meta Pixel always runs when Meta LDU is enabled — Meta uses its own consent API.
-				// • All other scripts gate on the marketing consent cookie.
-				$gcm_bypass         = dc_swp_is_consent_mode_enabled() && dc_swp_script_uses_gcm_v2( $src );
-				$ldu_bypass         = dc_swp_is_meta_ldu_enabled() && dc_swp_is_meta_script( $src );
-				$attributes['type'] = ( $gcm_bypass || $ldu_bypass || dc_swp_has_marketing_consent() ) ? 'text/partytown' : 'text/plain';
-				break; // First matched pattern wins — no need to continue.
+			// Per-service consent gate:
+			// • GCM v2-aware scripts always run when GCM v2 is enabled — they self-manage consent.
+			// • Meta Pixel always runs when Meta LDU is enabled — Meta uses its own consent API.
+			// • All other scripts gate on the marketing consent cookie.
+			$gcm_bypass         = dc_swp_is_consent_mode_enabled() && dc_swp_script_uses_gcm_v2( $src );
+			$ldu_bypass         = dc_swp_is_meta_ldu_enabled() && dc_swp_is_meta_script( $src );
+			$attributes['type'] = ( $gcm_bypass || $ldu_bypass || dc_swp_has_marketing_consent() ) ? 'text/partytown' : 'text/plain';
+			break; // First matched pattern wins — no need to continue.
 		}
 	}
 	return $attributes;
@@ -2181,7 +2206,10 @@ function dc_swp_partytown_buffer_end() {
  * @return string Modified HTML.
  */
 function dc_swp_partytown_buffer_rewrite( $html ) {
-	$patterns = dc_swp_get_partytown_patterns();
+	// Merge user-configured patterns with auto-detect GTM patterns so the buffer
+	// rewriter also catches GTM scripts injected by other plugins when detect mode
+	// is active — even if the user's Script List is empty.
+	$patterns = array_merge( dc_swp_get_partytown_patterns(), dc_swp_get_auto_detect_patterns() );
 	if ( empty( $patterns ) ) {
 		return $html;
 	}
