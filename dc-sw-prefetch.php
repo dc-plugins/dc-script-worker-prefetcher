@@ -983,90 +983,38 @@ function dc_swp_inject_consent_mode_default() {
 	$nonce      = dc_swp_get_csp_nonce();
 	$nonce_attr = '' !== $nonce ? ' nonce="' . esc_attr( $nonce ) . '"' : '';
 
-	$url_passthrough    = get_option( 'dc_swp_url_passthrough', 'no' ) === 'yes';
-	$ads_data_redaction = get_option( 'dc_swp_ads_data_redaction', 'no' ) === 'yes';
+	// PHP settings are passed to the JS as window.dcSwpConsentData via wp_json_encode.
+	// Cookie-reading and consent evaluation happen entirely in the browser (cache-safe).
+	$data = wp_json_encode(
+		array(
+			'urlPassthrough'   => get_option( 'dc_swp_url_passthrough', 'no' ) === 'yes',
+			'adsDataRedaction' => get_option( 'dc_swp_ads_data_redaction', 'no' ) === 'yes',
+		)
+	);
 
-	$consent_js  = "window.dataLayer=window.dataLayer||[];\n";
-	$consent_js .= "function gtag(){dataLayer.push(arguments);}\n";
-	if ( $url_passthrough ) {
-		$consent_js .= "gtag('set','url_passthrough',true);\n";
+	// Read the consent-init JS from assets via WP_Filesystem (WordPress-idiomatic file read).
+	global $wp_filesystem;
+	if ( empty( $wp_filesystem ) ) {
+		require_once ABSPATH . 'wp-admin/includes/file.php';
+		WP_Filesystem();
 	}
-	if ( $ads_data_redaction ) {
-		$consent_js .= "gtag('set','ads_data_redaction',true);\n";
+	if ( empty( $wp_filesystem ) ) {
+		return;
 	}
-	// Consent values are determined by CMP cookies read in the browser at
-	// runtime — not in PHP — so full-page caching (W3 Total Cache, WP Rocket,
-	// etc.) never serves a cached 'granted' state to unconsented visitors.
-	// Supports: Complianz (opt-in + opt-out), CookieYes, Borlabs,
-	// Cookie Notice, WebToffee, Cookiebot, Cookie Information, Moove GDPR.
-	$consent_js .= "(function(){\n";
-	// Cookie helper: split on '; name=' to avoid regex escaping complexity.
-	$consent_js .= "  function _dcCk(n){var v='; '+document.cookie,p=v.split('; '+n+'=');if(p.length===2)return decodeURIComponent(p.pop().split(';')[0]);return null;}\n";
-	// Opt-out detection: Complianz cmplz_consenttype contains 'optout';
-	// CookieYes 'type:lss' or 'type:no-consent' means implicit consent.
-	$consent_js .= "  var _cy=_dcCk('cookieyes-consent')||'',_cc=_dcCk('CookieConsent')||'',_oo=false;\n";
-	$consent_js .= "  var _ct=_dcCk('cmplz_consenttype');if(_ct&&_ct.indexOf('optout')!==-1)_oo=true;\n";
-	$consent_js .= "  if(_cy.indexOf('type:lss')!==-1||_cy.indexOf('type:no-consent')!==-1)_oo=true;\n";
-	// JSON-cookie CMPs: parse once, fall back to empty object on error.
-	$consent_js .= "  function _dcJ(n){try{var v=_dcCk(n);return v?JSON.parse(v):{}}catch(e){return {};}}\n";
-	$consent_js .= "  var _bl=_dcJ('borlabs-cookie'),_ci=_dcJ('CookieInformationConsent'),_mg=_dcJ('moove_gdpr_popup');\n";
-	$consent_js .= "  var _ca=(_ci.consents_approved||[]);\n";
-	// Marketing consent → ad_storage, ad_user_data, ad_personalization.
-	$consent_js .= "  function _dcMkt(){\n";
-	$consent_js .= "    if(_oo){var v=_dcCk('cmplz_marketing');return v===null||v!=='deny';}\n";
-	$consent_js .= "    if(_dcCk('cmplz_marketing')==='allow')return true;\n";
-	$consent_js .= "    if(_cy.indexOf('marketing:yes')!==-1)return true;\n";
-	$consent_js .= "    if(_bl.consents&&_bl.consents.marketing)return true;\n";
-	$consent_js .= "    if(_dcCk('cookie_notice_accepted')==='true')return true;\n";
-	$consent_js .= "    if(_dcCk('cookie_cat_marketing')==='accept')return true;\n";
-	$consent_js .= "    if(_cc.indexOf('marketing:true')!==-1)return true;\n";
-	$consent_js .= "    if(_ca.indexOf('cookie_cat_marketing')!==-1)return true;\n";
-	$consent_js .= "    if(parseInt((_mg.thirdparty||0),10)===1)return true;\n";
-	$consent_js .= "    return false;\n";
-	$consent_js .= "  }\n";
-	// Statistics consent → analytics_storage.
-	$consent_js .= "  function _dcStat(){\n";
-	$consent_js .= "    if(_oo){var v=_dcCk('cmplz_statistics');return v===null||v!=='deny';}\n";
-	$consent_js .= "    if(_dcCk('cmplz_statistics')==='allow')return true;\n";
-	$consent_js .= "    if(_cy.indexOf('analytics:yes')!==-1)return true;\n";
-	$consent_js .= "    if(_bl.consents&&_bl.consents.statistics)return true;\n";
-	$consent_js .= "    if(_dcCk('cookie_notice_accepted')==='true')return true;\n";
-	$consent_js .= "    if(_dcCk('cookie_cat_analytics')==='accept')return true;\n";
-	$consent_js .= "    if(_cc.indexOf('statistics:true')!==-1)return true;\n";
-	$consent_js .= "    if(_ca.indexOf('cookie_cat_statistic')!==-1)return true;\n";
-	$consent_js .= "    if(parseInt((_mg.analytics||0),10)===1)return true;\n";
-	$consent_js .= "    return false;\n";
-	$consent_js .= "  }\n";
-	// Preferences consent → personalization_storage.
-	$consent_js .= "  function _dcPref(){\n";
-	$consent_js .= "    if(_oo){var v=_dcCk('cmplz_preferences');return v===null||v!=='deny';}\n";
-	$consent_js .= "    if(_dcCk('cmplz_preferences')==='allow')return true;\n";
-	$consent_js .= "    if(_cy.indexOf('preferences:yes')!==-1)return true;\n";
-	$consent_js .= "    if(_bl.consents&&_bl.consents.preferences)return true;\n";
-	$consent_js .= "    if(_dcCk('cookie_notice_accepted')==='true')return true;\n";
-	$consent_js .= "    if(_cc.indexOf('preferences:true')!==-1)return true;\n";
-	$consent_js .= "    if(_ca.indexOf('cookie_cat_functional')!==-1)return true;\n";
-	$consent_js .= "    return false;\n";
-	$consent_js .= "  }\n";
-	$consent_js .= "  var mkt=_dcMkt(),stat=_dcStat(),pref=_dcPref();\n";
-	$consent_js .= "  gtag('consent','default',{\n";
-	$consent_js .= "    'security_storage':'granted',\n";
-	$consent_js .= "    'functionality_storage':'granted',\n";
-	$consent_js .= "    'personalization_storage':pref?'granted':'denied',\n";
-	$consent_js .= "    'analytics_storage':stat?'granted':'denied',\n";
-	$consent_js .= "    'ad_storage':mkt?'granted':'denied',\n";
-	$consent_js .= "    'ad_user_data':mkt?'granted':'denied',\n";
-	$consent_js .= "    'ad_personalization':mkt?'granted':'denied',\n";
-	// 500 ms grace period for the CMP's deferred JS to call the update command
-	// on first-visit pages where no consent cookie exists yet.
-	$consent_js .= "    'wait_for_update':500\n";
-	$consent_js .= "  });\n";
-	// Signal to GTM that the consent default stub has been set.
-	$consent_js .= "  dataLayer.push({'event':'default_consent'});\n";
-	$consent_js .= "})();\n";
+	$js_file = plugin_dir_path( __FILE__ ) . 'assets/js/consent-init.js';
+	if ( ! file_exists( $js_file ) ) {
+		return;
+	}
+	$consent_js = $wp_filesystem->get_contents( $js_file );
+	if ( false === $consent_js || '' === $consent_js ) {
+		return;
+	}
 
-	// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- fully static JS; nonce is pre-escaped via esc_attr.
-	echo '<script' . $nonce_attr . ">\n" . $consent_js . "</script>\n";
+	// Prepend the data object so the JS file can read window.dcSwpConsentData.
+	$output = 'window.dcSwpConsentData=' . $data . "\n" . $consent_js;
+
+	// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- JS read from assets/js/consent-init.js via WP_Filesystem; nonce is pre-escaped via esc_attr.
+	echo '<script' . $nonce_attr . ">\n" . $output . "</script>\n";
 }
 
 // ============================================================
@@ -1116,25 +1064,25 @@ function dc_swp_inject_gcm_revoke_listener() {
 	$nonce      = dc_swp_get_csp_nonce();
 	$nonce_attr = '' !== $nonce ? ' nonce="' . esc_attr( $nonce ) . '"' : '';
 
-	$revoke_js  = "(function(){\n";
-	$revoke_js .= "  function dcSwpRevokeAll(){\n";
-	$revoke_js .= "    if(typeof window.gtag==='function'){\n";
-	$revoke_js .= "      window.gtag('consent','update',{\n";
-	$revoke_js .= "        'security_storage':'granted',\n";
-	$revoke_js .= "        'functionality_storage':'granted',\n";
-	$revoke_js .= "        'personalization_storage':'denied',\n";
-	$revoke_js .= "        'analytics_storage':'denied',\n";
-	$revoke_js .= "        'ad_storage':'denied',\n";
-	$revoke_js .= "        'ad_user_data':'denied',\n";
-	$revoke_js .= "        'ad_personalization':'denied'\n";
-	$revoke_js .= "      });\n";
-	$revoke_js .= "    }\n";
-	$revoke_js .= "  }\n";
-	$revoke_js .= "  document.addEventListener('cmplz_revoke',dcSwpRevokeAll);\n";
-	$revoke_js .= "  document.addEventListener('dc_swp_consent_revoke',dcSwpRevokeAll);\n";
-	$revoke_js .= "})();\n";
+	// Read the consent-revoke JS from assets via WP_Filesystem (WordPress-idiomatic file read).
+	global $wp_filesystem;
+	if ( empty( $wp_filesystem ) ) {
+		require_once ABSPATH . 'wp-admin/includes/file.php';
+		WP_Filesystem();
+	}
+	if ( empty( $wp_filesystem ) ) {
+		return;
+	}
+	$js_file = plugin_dir_path( __FILE__ ) . 'assets/js/consent-revoke.js';
+	if ( ! file_exists( $js_file ) ) {
+		return;
+	}
+	$revoke_js = $wp_filesystem->get_contents( $js_file );
+	if ( false === $revoke_js || '' === $revoke_js ) {
+		return;
+	}
 
-	// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- fully static JS; nonce is pre-escaped via esc_attr.
+	// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- fully static JS from assets/js/consent-revoke.js; nonce is pre-escaped via esc_attr.
 	echo '<script' . $nonce_attr . ">\n" . $revoke_js . "</script>\n";
 }
 
