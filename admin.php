@@ -50,7 +50,7 @@ function dc_swp_str( $key ) {
 			'benefit_7'                   => 'Tredjeparts-scripts auto-detekteres og offloades til Partytown med ét klik',
 			'benefit_8'                   => 'Samtykke-bevidst: scripts blokeres (text/plain) indtil marketingcookien er sat — understøtter Complianz, Cookiebot, CookieYes, Borlabs, Cookie Notice, WebToffee, Cookie Information og Moove GDPR',
 			'partytown_scripts_label'     => 'Partytown Script Liste',
-			'partytown_scripts_desc'      => 'Angiv én URL eller søgestreng per linje. Matcher mod script src. Kun officielt testede tjenester anbefales: <strong>Google Tag Manager</strong> (<code>googletagmanager.com</code>), <strong>Facebook Pixel</strong> (<code>connect.facebook.net</code>), <strong>HubSpot</strong>, <strong>Intercom</strong>, <strong>Klaviyo</strong>, <strong>TikTok Pixel</strong>, <strong>Mixpanel</strong>, <strong>FullStory</strong> (<code>fullstory.com</code>). <a href="https://partytown.qwik.dev/common-services/" target="_blank" rel="noopener">Fuld liste ↗</a>',
+			'partytown_scripts_desc'      => 'Angiv én URL eller søgestreng per linje. Matcher mod script src. Kun officielt testede tjenester anbefales: <strong>HubSpot</strong>, <strong>Intercom</strong>, <strong>Klaviyo</strong>, <strong>TikTok Pixel</strong>, <strong>Mixpanel</strong>, <strong>FullStory</strong> (<code>fullstory.com</code>). <a href="https://partytown.qwik.dev/common-services/" target="_blank" rel="noopener">Fuld liste ↗</a>',
 			'partytown_autodetect_btn'    => '🔍 Auto-Detekter Tredjeparts-Scripts',
 			'partytown_autodetect_none'   => 'Ingen eksterne scripts fundet på forsiden.',
 			'partytown_autodetect_add'    => 'Tilføj Valgte til Liste',
@@ -155,7 +155,7 @@ function dc_swp_str( $key ) {
 			'benefit_7'                   => 'Third-party scripts auto-detected and offloaded to Partytown in one click',
 			'benefit_8'                   => 'Consent-aware: scripts blocked (text/plain) until marketing consent cookie is set — supports Complianz, Cookiebot, CookieYes, Borlabs, Cookie Notice, WebToffee, Cookie Information & Moove GDPR',
 			'partytown_scripts_label'     => 'Partytown Script List',
-			'partytown_scripts_desc'      => 'Enter one URL or pattern per line. Matched against the script <code>src</code> attribute. Only officially tested services are recommended: <strong>Google Tag Manager</strong> (<code>googletagmanager.com</code>), <strong>Facebook Pixel</strong> (<code>connect.facebook.net</code>), <strong>HubSpot</strong>, <strong>Intercom</strong>, <strong>Klaviyo</strong>, <strong>TikTok Pixel</strong>, <strong>Mixpanel</strong>, <strong>FullStory</strong> (<code>fullstory.com</code>). <a href="https://partytown.qwik.dev/common-services/" target="_blank" rel="noopener">Full list ↗</a>',
+			'partytown_scripts_desc'      => 'Enter one URL or pattern per line. Matched against the script <code>src</code> attribute. Only officially tested services are recommended: <strong>HubSpot</strong>, <strong>Intercom</strong>, <strong>Klaviyo</strong>, <strong>TikTok Pixel</strong>, <strong>Mixpanel</strong>, <strong>FullStory</strong> (<code>fullstory.com</code>). <a href="https://partytown.qwik.dev/common-services/" target="_blank" rel="noopener">Full list ↗</a>',
 			'partytown_autodetect_btn'    => '🔍 Auto-Detect Third-Party Scripts',
 			'partytown_autodetect_none'   => 'No external scripts found on the homepage.',
 			'partytown_autodetect_add'    => 'Add Selected to List',
@@ -613,7 +613,7 @@ function dc_swp_admin_page_html() {
 					<th scope="row"><?php echo esc_html( dc_swp_str( 'partytown_scripts_label' ) ); ?></th>
 					<td>
 						<textarea name="dc_swp_partytown_scripts" rows="5" class="large-text code"
-							placeholder="e.g. analytics.ahrefs.com&#10;https://www.googletagmanager.com/gtag/js"
+							placeholder="e.g. analytics.ahrefs.com&#10;static.klaviyo.com&#10;fullstory.com"
 						><?php echo esc_textarea( $partytown_scripts ); ?></textarea>
 						<p class="description"><?php echo wp_kses_post( dc_swp_str( 'partytown_scripts_desc' ) ); ?></p>
 						<p style="margin-top:8px;">
