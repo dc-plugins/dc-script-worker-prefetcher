@@ -237,6 +237,13 @@ function dc_swp_is_optout_cmp_active() {
  * according to any of the common CMP cookie conventions.
  */
 function dc_swp_has_marketing_consent() {
+	// WP Consent API (optional integration) — delegates to the standardized API when active.
+	// CMPs that integrate with WP Consent API correctly handle opt-in/opt-out and write the
+	// wp_consent_marketing cookie; on sites without the API our direct cookie reads take over.
+	if ( function_exists( 'wp_has_consent' ) ) {
+		return wp_has_consent( 'marketing' );
+	}
+
 	// Complianz — opt-out mode: absent cookie means granted; explicit 'deny' means denied.
 	if ( dc_swp_is_optout_cmp_active() ) {
 		if ( ! isset( $_COOKIE['cmplz_marketing'] ) ) {
@@ -318,6 +325,11 @@ function dc_swp_has_marketing_consent() {
  * @return bool
  */
 function dc_swp_has_statistics_consent() {
+	// WP Consent API (optional integration).
+	if ( function_exists( 'wp_has_consent' ) ) {
+		return wp_has_consent( 'statistics' );
+	}
+
 	// Complianz — opt-out mode.
 	if ( dc_swp_is_optout_cmp_active() ) {
 		if ( ! isset( $_COOKIE['cmplz_statistics'] ) ) {
@@ -399,6 +411,11 @@ function dc_swp_has_statistics_consent() {
  * @return bool
  */
 function dc_swp_has_preferences_consent() {
+	// WP Consent API (optional integration).
+	if ( function_exists( 'wp_has_consent' ) ) {
+		return wp_has_consent( 'preferences' );
+	}
+
 	// Complianz — opt-out mode.
 	if ( dc_swp_is_optout_cmp_active() ) {
 		if ( ! isset( $_COOKIE['cmplz_preferences'] ) ) {
@@ -456,6 +473,10 @@ function dc_swp_has_preferences_consent() {
 
 	return false;
 }
+
+// Register dc-sw-prefetch as compliant with WP Consent API (shows in Site Health when the plugin is active).
+// phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedHooknameFound -- WP Consent API's own filter convention.
+add_filter( 'wp_consent_api_registered_dc-sw-prefetch/dc-sw-prefetch.php', '__return_true' );
 
 /**
  * Return true if Google Consent Mode v2 is enabled in settings.
@@ -983,64 +1004,48 @@ function dc_swp_inject_consent_mode_default() {
 	$nonce      = dc_swp_get_csp_nonce();
 	$nonce_attr = '' !== $nonce ? ' nonce="' . esc_attr( $nonce ) . '"' : '';
 
-	// PHP settings are passed to the JS as window.dcSwpConsentData via wp_json_encode.
-	// Cookie-reading and consent evaluation happen entirely in the browser (cache-safe).
-	$data = wp_json_encode(
-		array(
-			'urlPassthrough'   => get_option( 'dc_swp_url_passthrough', 'no' ) === 'yes',
-			'adsDataRedaction' => get_option( 'dc_swp_ads_data_redaction', 'no' ) === 'yes',
-		)
-	);
+	// Fully static GCM v2 default stub — always all-denied.
+	// Safe for full-page caching: no cookie reading, no server-side logic.
+	// The external consent-update.js listens to CMP events (WP Consent API,
+	// Complianz cmplz_fire_categories / cmplz_revoke) and calls
+	// gtag('consent','update',{...}) once actual consent is known.
+	$stub  = "window.dataLayer=window.dataLayer||[];\n";
+	$stub .= "function gtag(){dataLayer.push(arguments);}\n";
+	$stub .= "gtag('consent','default',{\n";
+	$stub .= "\tsecurity_storage:'granted',\n";
+	$stub .= "\tfunctionality_storage:'granted',\n";
+	$stub .= "\tpersonalization_storage:'denied',\n";
+	$stub .= "\tanalytics_storage:'denied',\n";
+	$stub .= "\tad_storage:'denied',\n";
+	$stub .= "\tad_user_data:'denied',\n";
+	$stub .= "\tad_personalization:'denied',\n";
+	$stub .= "\twait_for_update:500\n";
+	$stub .= "});\n";
+	$stub .= "dataLayer.push({event:'default_consent'});\n";
 
-	// Read the consent-init JS from assets via WP_Filesystem (WordPress-idiomatic file read).
-	global $wp_filesystem;
-	if ( empty( $wp_filesystem ) ) {
-		require_once ABSPATH . 'wp-admin/includes/file.php';
-		WP_Filesystem();
-	}
-	if ( empty( $wp_filesystem ) ) {
-		return;
-	}
-	$js_file = plugin_dir_path( __FILE__ ) . 'assets/js/consent-init.js';
-	if ( ! file_exists( $js_file ) ) {
-		return;
-	}
-	$consent_js = $wp_filesystem->get_contents( $js_file );
-	if ( false === $consent_js || '' === $consent_js ) {
-		return;
-	}
-
-	// Prepend the data object so the JS file can read window.dcSwpConsentData.
-	$output = 'window.dcSwpConsentData=' . $data . "\n" . $consent_js;
-
-	// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- JS read from assets/js/consent-init.js via WP_Filesystem; nonce is pre-escaped via esc_attr.
-	echo '<script' . $nonce_attr . ">\n" . $output . "</script>\n";
+	// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- fully static JS stub; nonce is pre-escaped via esc_attr.
+	echo '<script' . $nonce_attr . ">\n" . $stub . "</script>\n";
 }
 
 // ============================================================
-// GCM v2 CONSENT REVOKE LISTENER
-// Injects a small JS snippet that fires gtag('consent','update',
-// {…denied}) when the visitor withdraws consent via their CMP.
-// Hooked at priority 2 — after the default stub at priority 1,
-// so gtag() is guaranteed to exist when the listener is parsed.
-//
-// Events handled:
-// cmplz_revoke         — Complianz (CustomEvent on document)
-// dc_swp_consent_revoke — generic; any CMP can dispatch this
+// GCM v2 CONSENT UPDATE LISTENER (external enqueued script)
+// consent-update.js listens to cmplz_fire_categories (Complianz),
+// wp_listen_for_consent_change (WP Consent API), and cmplz_revoke
+// and calls gtag('consent','update',{...}) accordingly.
+// Enqueued by dc_swp_enqueue_consent_scripts() below.
 // ============================================================
 
-add_action( 'wp_head', 'dc_swp_inject_gcm_revoke_listener', 2 );
+add_action( 'wp_enqueue_scripts', 'dc_swp_enqueue_consent_scripts', 1 );
 
 /**
- * Inject a lightweight JS revoke listener into <head>.
+ * Enqueue the GCM v2 consent update script.
  *
- * Fires gtag('consent','update',{…denied}) when the visitor withdraws
- * consent so GCM v2-aware services immediately stop collecting data
- * without waiting for the next page load.
+ * Listens to WP Consent API and Complianz events and translates
+ * them into gtag('consent','update',...) calls — no cookie reading.
  *
  * @return void
  */
-function dc_swp_inject_gcm_revoke_listener() {
+function dc_swp_enqueue_consent_scripts() {
 	if ( dc_swp_is_bot_request() ) {
 		return;
 	}
@@ -1061,29 +1066,28 @@ function dc_swp_inject_gcm_revoke_listener() {
 		return;
 	}
 
-	$nonce      = dc_swp_get_csp_nonce();
-	$nonce_attr = '' !== $nonce ? ' nonce="' . esc_attr( $nonce ) . '"' : '';
+	wp_register_script(
+		'dc-swp-consent-update',
+		plugins_url( 'assets/js/consent-update.js', __FILE__ ),
+		array(),
+		DC_SWP_VERSION,
+		array( 'in_footer' => false )
+	);
+	wp_enqueue_script( 'dc-swp-consent-update' );
 
-	// Read the consent-revoke JS from assets via WP_Filesystem (WordPress-idiomatic file read).
-	global $wp_filesystem;
-	if ( empty( $wp_filesystem ) ) {
-		require_once ABSPATH . 'wp-admin/includes/file.php';
-		WP_Filesystem();
+	// Stamp the CSP nonce so strict-dynamic CSP allows the script.
+	$nonce = dc_swp_get_csp_nonce();
+	if ( '' !== $nonce ) {
+		add_filter(
+			'wp_script_attributes',
+			static function ( array $attrs ) use ( $nonce ) {
+				if ( ( $attrs['id'] ?? '' ) === 'dc-swp-consent-update-js' ) {
+					$attrs['nonce'] = $nonce;
+				}
+				return $attrs;
+			}
+		);
 	}
-	if ( empty( $wp_filesystem ) ) {
-		return;
-	}
-	$js_file = plugin_dir_path( __FILE__ ) . 'assets/js/consent-revoke.js';
-	if ( ! file_exists( $js_file ) ) {
-		return;
-	}
-	$revoke_js = $wp_filesystem->get_contents( $js_file );
-	if ( false === $revoke_js || '' === $revoke_js ) {
-		return;
-	}
-
-	// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- fully static JS from assets/js/consent-revoke.js; nonce is pre-escaped via esc_attr.
-	echo '<script' . $nonce_attr . ">\n" . $revoke_js . "</script>\n";
 }
 
 // ============================================================
