@@ -1471,7 +1471,12 @@ function dc_swp_partytown_config() {
 		return;
 	}
 
-	$snippet = file_get_contents( $snippet_file ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents
+	global $wp_filesystem;
+	if ( empty( $wp_filesystem ) ) {
+		require_once ABSPATH . 'wp-admin/includes/file.php';
+		WP_Filesystem();
+	}
+	$snippet = $wp_filesystem->get_contents( $snippet_file );
 
 	// Build the Partytown config as a PHP structure so it is always valid JSON.
 	// forward list — only officially tested services from https://partytown.qwik.dev/common-services/
