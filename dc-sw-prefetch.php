@@ -2074,6 +2074,7 @@ function dc_swp_partytown_script_attrs( $attributes ) {
 			$gcm_bypass         = dc_swp_is_consent_mode_enabled() && dc_swp_script_uses_gcm_v2( $src );
 			$ldu_bypass         = dc_swp_is_meta_ldu_enabled() && dc_swp_is_meta_script( $src );
 			$attributes['type'] = ( $gcm_bypass || $ldu_bypass || dc_swp_has_marketing_consent() ) ? 'text/partytown' : 'text/plain';
+			unset( $attributes['async'] ); // async is meaningless for Partytown scripts and must be removed.
 			break; // First matched pattern wins — no need to continue.
 		}
 	}
@@ -2310,8 +2311,9 @@ function dc_swp_partytown_buffer_rewrite( $html ) {
 				// wp_script_attributes already set text/partytown — honour it and
 				// still arm the companion state in case this src has a known companion.
 				if ( 'text/partytown' === $existing_type_val ) {
+					$tag_inner         = preg_replace( '/\s+async(?:=["\'][^"\']*["\'])?/i', '', $tag_inner );
 					$pending_companion = dc_swp_resolve_companion( $src, 'text/partytown', $companion_map );
-					return $matches[0];
+					return '<script' . $tag_inner . '>' . $body . '</script>';
 				}
 
 				// GDPR guard: CMP has blocked this script — leave untouched entirely.
