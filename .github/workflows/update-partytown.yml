@@ -80,5 +80,5 @@ jobs:
             **Review checklist:**
             - [ ] [Partytown changelog](https://github.com/QwikDev/partytown/releases/tag/v${{ steps.version.outputs.target }}) reviewed
             - [ ] Tested on staging before merging to `main`
-          labels: dependencies, automated
+          labels: enhancement
           draft: false
