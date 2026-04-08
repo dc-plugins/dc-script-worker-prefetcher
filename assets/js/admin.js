@@ -565,3 +565,76 @@ jQuery( function ( $ ) {
 		}
 	} );
 } )( jQuery );
+
+// ── GCM v2 conflict + WP Consent API check ─────────────────────────────────
+// Fired when the user enables the GCM v2 toggle, and on page load when it
+// is already enabled. Fetches the homepage via AJAX and warns if another
+// plugin's gtag('consent','default',...) stub is detected, or if the
+// WP Consent API plugin is not installed.
+( function ( $ ) {
+	const gcmStr    = ( dcSwpAdminData.gcm || {} );
+	const $checkbox = $( 'input[name="dc_swp_consent_mode"]' );
+	const $notices  = $( '#dc-swp-gcm-notices' );
+
+	if ( ! $checkbox.length || ! $notices.length ) {
+		return;
+	}
+
+	function renderNotices( data ) {
+		$notices.empty();
+
+		if ( data.conflict ) {
+			$notices.append(
+				'<div class="notice notice-warning inline" style="margin:8px 0 0;padding:8px 12px">' +
+				'<p><strong>' + $( '<span>' ).text( gcmStr.conflictTitle || '\u26a0 Existing GCM v2 stub detected' ).html() + '</strong> \u2014 ' +
+				$( '<span>' ).text( gcmStr.conflictBody || 'Another plugin already outputs a GCM v2 default stub. Disable it before enabling this one.' ).html() +
+				'</p></div>'
+			);
+		}
+
+		if ( ! data.wp_consent_api ) {
+			const linkText = gcmStr.noConsentApiLink || 'Install WP Consent API \u2197';
+			const linkUrl  = gcmStr.wpConsentApiUrl  || '';
+			$notices.append(
+				'<div class="notice notice-info inline" style="margin:8px 0 0;padding:8px 12px">' +
+				'<p><strong>' + $( '<span>' ).text( gcmStr.noConsentApiTitle || 'WP Consent API not installed' ).html() + '</strong> \u2014 ' +
+				$( '<span>' ).text( gcmStr.noConsentApiBody || 'Required for reliable consent signal delivery.' ).html() +
+				' <a href="' + linkUrl + '" target="_blank" rel="noopener">' + $( '<span>' ).text( linkText ).html() + '</a>' +
+				'</p></div>'
+			);
+		}
+	}
+
+	function runCheck() {
+		if ( ! $checkbox.is( ':checked' ) ) {
+			$notices.empty();
+			return;
+		}
+
+		$notices.html(
+			'<p class="description" style="margin:6px 0;color:#50575e;font-style:italic">' +
+			$( '<span>' ).text( gcmStr.checking || 'Checking for GCM v2 conflicts\u2026' ).html() +
+			' <span class="spinner" style="float:none;margin:-3px 0 0 4px;vertical-align:middle;visibility:visible"></span></p>'
+		);
+
+		$.post(
+			ajaxurl,
+			{ action: 'dc_swp_check_gcm_conflict', nonce: dcSwpAdminData.nonce },
+			function ( r ) {
+				if ( r.success ) {
+					renderNotices( r.data );
+				} else {
+					$notices.empty();
+				}
+			}
+		).fail( function () { $notices.empty(); } );
+	}
+
+	// Trigger on toggle change.
+	$checkbox.on( 'change', runCheck );
+
+	// Run on page load if GCM v2 is already enabled.
+	if ( $checkbox.is( ':checked' ) ) {
+		runCheck();
+	}
+} )( jQuery );

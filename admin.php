@@ -94,6 +94,12 @@ function dc_swp_str( $key ) {
 			'consent_info_cmp_title'      => 'CMP-kompatibilitet',
 			'consent_info_cmp_desc'       => 'Disse CMPs fyrer gtag(\'consent\',\'update\',…) nativt — ingen Google Tag Manager nødvendig. Aktivér GCM v2-tilstand i din CMPs egne indstillinger.',
 			'consent_info_cmp_note'       => '⚠️ Cookie Notice (gratis) kan ikke sende GCM v2-opdateringssignaler. Falder automatisk tilbage til detektion af marketingsamtykke-cookie.',
+			'gcm_conflict_checking'       => 'Søger efter GCM v2-konflikter…',
+			'gcm_conflict_title'          => '⚠ Eksisterende GCM v2-stub fundet',
+			'gcm_conflict_body'           => 'Et andet plugin eller tema på dit site outputter allerede et gtag(\'consent\',\'default\',...)-kald. To GCM v2-stubs kan ikke køre samtidig — hvem der fyrer sidst vinder, og det er ikke-deterministisk. Deaktiver Google Consent Mode i det andet plugin, inden du aktiverer det her.',
+			'gcm_no_consent_api_title'    => 'WP Consent API er ikke installeret',
+			'gcm_no_consent_api_body'     => 'Vores GCM v2-opdateringsscript læser samtykkestatus via WP Consent API-pluginnet. Uden det kan samtykkesignaler ikke sendes pålideligt til Google på tværs af CMP-plugins.',
+			'gcm_no_consent_api_link'     => 'Installer WP Consent API ↗',
 			'badge_supported'             => '✓ Understøttet | Partytown',
 			'badge_unsupported'           => '⚠ Ikke understøttet | Udskudt',
 			'force_pt_label'              => 'Tving Partytown aktivt',
@@ -200,6 +206,12 @@ function dc_swp_str( $key ) {
 			'consent_info_cmp_title'      => 'CMP Compatibility',
 			'consent_info_cmp_desc'       => 'These CMPs fire gtag(\'consent\',\'update\',…) natively — no Google Tag Manager needed. Enable GCM v2 mode in your CMP\'s own settings.',
 			'consent_info_cmp_note'       => '⚠️ Cookie Notice (free) cannot fire GCM v2 update signals. Falls back to marketing consent cookie detection automatically.',
+			'gcm_conflict_checking'       => 'Checking for GCM v2 conflicts…',
+			'gcm_conflict_title'          => '⚠ Existing GCM v2 stub detected',
+			'gcm_conflict_body'           => 'Another plugin or theme on your site already outputs a gtag(\'consent\',\'default\',...) call. Running two GCM v2 stubs simultaneously causes unpredictable consent behaviour — whichever fires last wins, non-deterministically. Disable Google Consent Mode in the other plugin before enabling it here.',
+			'gcm_no_consent_api_title'    => 'WP Consent API not installed',
+			'gcm_no_consent_api_body'     => 'Our GCM v2 update script reads consent state via the WP Consent API plugin. Without it, consent signals cannot be delivered reliably to Google across different CMP plugins.',
+			'gcm_no_consent_api_link'     => 'Install WP Consent API ↗',
 			'badge_supported'             => '✓ Supported | Partytown',
 			'badge_unsupported'           => '⚠ Unsupported | Deferred',
 			'force_pt_label'              => 'Force Enable Partytown',
@@ -792,6 +804,7 @@ function dc_swp_admin_page_html() {
 							<span class="pwa-slider"></span>
 						</label>
 						<p class="description"><?php echo wp_kses_post( dc_swp_str( 'consent_mode_desc' ) ); ?></p>
+					<div id="dc-swp-gcm-notices"></div>
 					<?php
 					// ── Consent Architecture info panel ─────────────────────────────────
 					// CSS badges are always rendered as the fallback (pure CSS ::before/::after).
@@ -996,6 +1009,15 @@ function dc_swp_admin_page_html() {
 				'active'       => dc_swp_str( 'gtm_detect_active' ),
 				'saved'        => dc_swp_str( 'gtm_wizard_saved' ),
 			),
+			'gcm'              => array(
+				'checking'          => dc_swp_str( 'gcm_conflict_checking' ),
+				'conflictTitle'     => dc_swp_str( 'gcm_conflict_title' ),
+				'conflictBody'      => dc_swp_str( 'gcm_conflict_body' ),
+				'noConsentApiTitle' => dc_swp_str( 'gcm_no_consent_api_title' ),
+				'noConsentApiBody'  => dc_swp_str( 'gcm_no_consent_api_body' ),
+				'noConsentApiLink'  => dc_swp_str( 'gcm_no_consent_api_link' ),
+				'wpConsentApiUrl'   => admin_url( 'plugin-install.php?s=wp-consent-api&tab=search&type=term' ),
+			),
 		)
 	);
 }
@@ -1103,4 +1125,72 @@ function dc_swp_ajax_detect_scripts() {
 	}
 
 	wp_send_json_success( array( 'scripts' => $scripts ) );
+}
+
+// ============================================================
+// AJAX — Check for conflicting GCM v2 stubs on the homepage
+// ============================================================
+
+add_action( 'wp_ajax_dc_swp_check_gcm_conflict', 'dc_swp_ajax_check_gcm_conflict' );
+/**
+ * AJAX handler: fetch the homepage and detect any GCM v2 default stub
+ * not produced by this plugin.
+ *
+ * Strategy: scan for gtag('consent','default',...) and exclude matches
+ * that contain 'default_consent' nearby — that string is the exclusive
+ * fingerprint of our own stub (dataLayer.push({event:'default_consent'})).
+ * Also reports whether the WP Consent API plugin is active so the admin
+ * UI can prompt the user to install it if missing.
+ *
+ * @since 1.9.0
+ * @return void
+ */
+function dc_swp_ajax_check_gcm_conflict() {
+	if ( ! current_user_can( 'manage_options' ) ) {
+		wp_send_json_error( 'Unauthorized', 403 );
+	}
+	if ( ! isset( $_POST['nonce'] ) || ! wp_verify_nonce( sanitize_text_field( wp_unslash( $_POST['nonce'] ) ), 'dc_swp_detect_nonce' ) ) {
+		wp_send_json_error( 'Invalid nonce' );
+	}
+
+	$response = wp_remote_get(
+		home_url( '/' ),
+		array(
+			'timeout'    => 15,
+			'sslverify'  => true,
+			'user-agent' => 'Mozilla/5.0 (DCSwPrefetch/1.0; GCM-Conflict-Check)',
+		)
+	);
+
+	if ( is_wp_error( $response ) ) {
+		wp_send_json_error( $response->get_error_message() );
+	}
+
+	$body         = wp_remote_retrieve_body( $response );
+	$has_conflict = false;
+
+	/*
+	 * Find every gtag('consent','default',...) call in the page source.
+	 * Our own stub always emits `dataLayer.push({event:'default_consent'})`
+	 * immediately after — use that as the exclusion fingerprint so we never
+	 * flag our own output as a conflict.
+	 */
+	if ( preg_match_all( "/gtag\s*\(\s*['\"]consent['\"]\s*,\s*['\"]default['\"]/i", $body, $m, PREG_OFFSET_CAPTURE ) ) {
+		foreach ( $m[0] as $hit ) {
+			// Capture 850 chars starting 50 chars before the match to cover the full stub.
+			$snippet = substr( $body, max( 0, $hit[1] - 50 ), 850 );
+			// Absence of our fingerprint → foreign stub → conflict.
+			if ( false === strpos( $snippet, 'default_consent' ) ) {
+				$has_conflict = true;
+				break;
+			}
+		}
+	}
+
+	wp_send_json_success(
+		array(
+			'conflict'       => $has_conflict,
+			'wp_consent_api' => function_exists( 'wp_has_consent' ),
+		)
+	);
 }
