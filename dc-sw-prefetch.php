@@ -1135,80 +1135,68 @@ function dc_swp_is_valid_gtm_id( string $id ): bool {
 }
 
 /**
- * Detect a Google Tag ID already installed by a known WordPress plugin.
+ * Detect a live Google Tag ID by fetching and parsing the homepage HTML.
  *
- * Checks (in order): Site Kit by Google (GTM + GA4 modules), GTM4WP,
- * MonsterInsights, CAOS, Analytify, and Complianz (free & premium).
+ * Fetches the site's homepage via wp_remote_get() and scans the rendered
+ * HTML for actual Google Tag script elements — GTM containers, GA4
+ * measurement IDs, and legacy UA IDs. This detects what is truly active
+ * on the front-end, regardless of which plugin injected it.
  *
- * @return array{id: string, plugin: string}|array{} Non-empty when a tag is found.
+ * @return array{id: string, source: string}|array{} Non-empty when a tag is found.
  */
 function dc_swp_detect_existing_gtm_id(): array {
-	// Site Kit by Google — GTM module.
-	$sitekit = get_option( 'googlesitekit_modules', array() );
-	if ( is_array( $sitekit ) ) {
-		$sk_gtm = $sitekit['tagmanager']['settings']['containerID'] ?? '';
-		if ( ! empty( $sk_gtm ) ) {
+	$response = wp_remote_get(
+		home_url( '/' ),
+		array(
+			'timeout'    => 15,
+			'sslverify'  => true,
+			'user-agent' => 'Mozilla/5.0 (DCSwPrefetch/1.0; GTM-Detect)',
+			'cookies'    => array(),
+		)
+	);
+	if ( is_wp_error( $response ) ) {
+		return array();
+	}
+
+	$body = wp_remote_retrieve_body( $response );
+	if ( empty( $body ) ) {
+		return array();
+	}
+
+	// 1. GTM container — <script … src="…googletagmanager.com/gtm.js?id=GTM-XXXXXXX">
+	if ( preg_match( '/googletagmanager\.com\/gtm\.js\?id=(GTM-[A-Z0-9]{4,10})/i', $body, $m ) ) {
+		return array(
+			'id'     => strtoupper( sanitize_text_field( $m[1] ) ),
+			'source' => 'gtm.js (Google Tag Manager)',
+		);
+	}
+
+	// 2. GA4 / gtag.js — <script … src="…googletagmanager.com/gtag/js?id=G-XXXXXXXXXX">
+	if ( preg_match( '/googletagmanager\.com\/gtag\/js\?id=(G-[A-Z0-9]{6,})/i', $body, $m ) ) {
+		return array(
+			'id'     => strtoupper( sanitize_text_field( $m[1] ) ),
+			'source' => 'gtag.js (GA4)',
+		);
+	}
+
+	// 3. Legacy Universal Analytics — UA-XXXXXX-X anywhere in a gtag/analytics context.
+	if ( preg_match( '/google(?:tagmanager|-analytics)\.com\/(?:gtag\/js|analytics\.js)\?id=(UA-\d{4,}-\d+)/i', $body, $m ) ) {
+		return array(
+			'id'     => strtoupper( sanitize_text_field( $m[1] ) ),
+			'source' => 'analytics.js (Universal Analytics)',
+		);
+	}
+
+	// 4. Inline gtag('config','G-…') or gtag('config','UA-…') without a matching src.
+	if ( preg_match( '/gtag\s*\(\s*["\']config["\']\s*,\s*["\']((?:G|UA)-[A-Z0-9-]+)["\']/i', $body, $m ) ) {
+		$tag = strtoupper( sanitize_text_field( $m[1] ) );
+		if ( dc_swp_is_valid_gtm_id( $tag ) ) {
+			$label = str_starts_with( $tag, 'G-' ) ? 'gtag config (GA4)' : 'gtag config (UA)';
 			return array(
-				'id'     => sanitize_text_field( $sk_gtm ),
-				'plugin' => 'Site Kit by Google',
+				'id'     => $tag,
+				'source' => $label,
 			);
 		}
-		// Site Kit — GA4 / analytics-4 module.
-		$sk_ga4 = $sitekit['analytics-4']['settings']['measurementID'] ?? '';
-		if ( ! empty( $sk_ga4 ) ) {
-			return array(
-				'id'     => sanitize_text_field( $sk_ga4 ),
-				'plugin' => 'Site Kit by Google (GA4)',
-			);
-		}
-	}
-
-	// GTM4WP — Thomas Geiger.
-	$gtm4wp = get_option( 'gtm4wp_options', array() );
-	if ( is_array( $gtm4wp ) && ! empty( $gtm4wp['gtm-id'] ) ) {
-		return array(
-			'id'     => sanitize_text_field( $gtm4wp['gtm-id'] ),
-			'plugin' => 'GTM4WP',
-		);
-	}
-
-	// MonsterInsights — GTM ID or GA4 measurement ID.
-	$monster = get_option( 'monsterinsights_settings', array() );
-	if ( is_array( $monster ) ) {
-		$mid = $monster['gtm_id'] ?? $monster['ga4_id'] ?? $monster['ua_id'] ?? '';
-		if ( ! empty( $mid ) ) {
-			return array(
-				'id'     => sanitize_text_field( $mid ),
-				'plugin' => 'MonsterInsights',
-			);
-		}
-	}
-
-	// CAOS — Host Analytics Locally.
-	$caos = get_option( 'caos_analytics_tracking_id', '' );
-	if ( ! empty( $caos ) ) {
-		return array(
-			'id'     => sanitize_text_field( $caos ),
-			'plugin' => 'CAOS',
-		);
-	}
-
-	// Analytify.
-	$analytify = get_option( 'pa_google_analytics_settings', array() );
-	if ( is_array( $analytify ) && ! empty( $analytify['id'] ) ) {
-		return array(
-			'id'     => sanitize_text_field( $analytify['id'] ),
-			'plugin' => 'Analytify',
-		);
-	}
-
-	// Complianz (free & premium) — stores settings in 'cmplz_options', key 'gtm_code'.
-	$cmplz = get_option( 'cmplz_options', array() );
-	if ( is_array( $cmplz ) && ! empty( $cmplz['gtm_code'] ) ) {
-		return array(
-			'id'     => sanitize_text_field( $cmplz['gtm_code'] ),
-			'plugin' => 'Complianz',
-		);
 	}
 
 	return array();
@@ -1313,7 +1301,7 @@ function dc_swp_inject_gtm_body() {
 add_action( 'wp_ajax_dc_swp_detect_gtm', 'dc_swp_ajax_detect_gtm' );
 
 /**
- * AJAX handler: detect an existing Google Tag ID installed by a known plugin.
+ * AJAX handler: detect a live Google Tag ID by scanning the homepage HTML.
  *
  * @return void
  */

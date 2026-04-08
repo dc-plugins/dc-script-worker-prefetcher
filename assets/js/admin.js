@@ -487,7 +487,7 @@ jQuery( function ( $ ) {
 				$spin.hide();
 				if ( r.success && r.data && r.data.id ) {
 					const safeId     = $( '<span>' ).text( r.data.id ).html();
-					const safePlugin = $( '<span>' ).text( r.data.plugin ).html();
+					const safeSource = $( '<span>' ).text( r.data.source || r.data.plugin || '' ).html();
 
 					// If googletagmanager.com is already in the Partytown Script List,
 					// auto-switch to detect mode — the tag is already being offloaded.
@@ -501,7 +501,7 @@ jQuery( function ( $ ) {
 						syncId( r.data.id );
 						$res.html(
 							'<p style="color:#3cb034">\u2714 ' + ( gtmStr.detected || 'Detected' ) +
-							': <strong><code>' + safeId + '</code></strong> (' + safePlugin + ')</p>' +
+							': <strong><code>' + safeId + '</code></strong> (' + safeSource + ')</p>' +
 							'<p style="color:#3cb034;font-size:12px">' +
 							( gtmStr.autoSwitched || '\u2714 Auto-Detect selected \u2014 tag is already in the Partytown Script List.' ) +
 							'</p>'
@@ -509,7 +509,7 @@ jQuery( function ( $ ) {
 					} else {
 						$res.html(
 							'<p style="color:#3cb034">\u2714 ' + ( gtmStr.detected || 'Detected' ) +
-							': <strong><code>' + safeId + '</code></strong> (' + safePlugin + ')</p>' +
+							': <strong><code>' + safeId + '</code></strong> (' + safeSource + ')</p>' +
 							'<button type="button" class="button button-secondary" id="dc-swp-use-detected" data-id="' + safeId + '">' +
 							( gtmStr.use || 'Use This ID' ) + '</button>'
 						);
