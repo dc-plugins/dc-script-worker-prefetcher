@@ -1,6 +1,6 @@
 # DC Script Worker Prefetcher
 
-> Offload third-party scripts to a Web Worker via Partytown + consent-aware loading + WooCommerce prefetching.
+> Offload third-party scripts to a Web Worker via Partytown + consent-aware loading.
 
 ![Version](https://img.shields.io/badge/version-1.8.2-blue)
 ![WordPress](https://img.shields.io/badge/WordPress-6.8%2B-21759b)
@@ -8,7 +8,7 @@
 ![WooCommerce](https://img.shields.io/badge/WooCommerce-10.4%2B-96588a)
 ![License](https://img.shields.io/badge/license-GPL--2.0%2B-green)
 
-Offload third-party scripts (GTM, Pixel, HubSpot…) to a Web Worker via Partytown + consent-aware loading + viewport/pagination prefetching for WooCommerce. Fully vendored — no npm required.
+Offload third-party scripts (GTM, Pixel, HubSpot…) to a Web Worker via Partytown + consent-aware loading. Fully vendored — no npm required.
 
 ---
 
@@ -18,11 +18,9 @@ Offload third-party scripts (GTM, Pixel, HubSpot…) to a Web Worker via Partyto
 
 > **Note:** Partytown is currently in beta. It is not guaranteed to work in every scenario. Review the [trade-offs](https://partytown.qwik.dev/trade-offs) before enabling on production.
 
-2. **Viewport/pagination prefetching** — `IntersectionObserver` watches visible WooCommerce products and issues `<link rel="prefetch">` before the user clicks. The next-page link is also prefetched 2 s after page load.
+2. **Google Consent Mode v2 (GCM v2) per-service gate** — Six GCM v2-aware services (Google Tag Manager, Google Analytics, Hotjar, Microsoft Clarity, LinkedIn Insight Tag, TikTok Pixel) always run as `type="text/partytown"` when GCM v2 is enabled; each service reads the consent state internally and restricts data collection without the plugin needing to read a CMP cookie. All other services continue to gate on the marketing-consent cookie. Meta Pixel is handled separately via its own **Limited Data Use (LDU)** toggle, injecting the `fbq('dataProcessingOptions',['LDU'],0,0)` stub before any Partytown scripts load.
 
-3. **Google Consent Mode v2 (GCM v2) per-service gate** — Six GCM v2-aware services (Google Tag Manager, Google Analytics, Hotjar, Microsoft Clarity, LinkedIn Insight Tag, TikTok Pixel) always run as `type="text/partytown"` when GCM v2 is enabled; each service reads the consent state internally and restricts data collection without the plugin needing to read a CMP cookie. All other services continue to gate on the marketing-consent cookie. Meta Pixel is handled separately via its own **Limited Data Use (LDU)** toggle, injecting the `fbq('dataProcessingOptions',['LDU'],0,0)` stub before any Partytown scripts load.
-
-4. **Bonus performance** — WP emoji removal (saves ~76 KB + one DNS lookup), PHP fallback cache headers when W3 Total Cache is absent.
+3. **Bonus performance** — PHP fallback cache headers when W3 Total Cache is absent.
 
 ---
 
@@ -90,7 +88,6 @@ Layer                    Handled by
 Third-party scripts      Partytown Web Worker
 Main-thread sync bridge  Atomics (COI) or SW relay (fallback)
 HTML page caching        W3 Total Cache (or PHP fallback)
-Product/page prefetch    DC Prefetch (IntersectionObserver)
 ```
 
 ---
@@ -103,7 +100,7 @@ Product/page prefetch    DC Prefetch (IntersectionObserver)
 - **GCM v2 per-service consent gate** — GCM v2-aware services always run in the worker and self-restrict; Meta Pixel uses LDU; all other services gate on the CMP marketing cookie
 - **Consent Architecture panel** — collapsible admin panel shows GCM v2-aware services, Meta LDU, and CMP compatibility badges (shields.io SVGs + offline CSS fallback)
 - **Bot-safe** — bots receive no Partytown JS (clean HTML for crawlers)
-- **Cart/checkout safe** — Partytown and prefetcher disabled on cart, checkout, account pages
+- **Cart/checkout safe** — Partytown disabled on cart, checkout, and account pages
 - **Bilingual admin** — English default, Danish auto-detected from WP locale
 - **Weekly auto-updates** — GitHub Actions workflow opens a PR when a new Partytown release is detected
 

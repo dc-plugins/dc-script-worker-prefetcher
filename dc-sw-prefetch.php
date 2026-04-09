@@ -5,7 +5,7 @@
  * @wordpress-plugin
  * Plugin Name: DC Script Worker Prefetcher
  * Plugin URI:  https://github.com/dc-plugins/dc-sw-prefetch
- * Description: Partytown service worker with viewport/pagination prefetching for WooCommerce. Offloads third-party scripts via Partytown and pre-fetches visible products & next pages.
+ * Description: Offloads third-party scripts (GTM, Pixel, Analytics…) to a Web Worker via Partytown with consent-aware loading. Fully vendored — no build step required.
  * Version:     1.8.2
  * Author:      lennilg
  * Author URI:  https://github.com/lennilg
@@ -41,10 +41,8 @@ if ( ! defined( 'ABSPATH' ) ) {
  */
 function dc_swp_migrate_options() {
 	$migrations = array(
-		'dampcig_pwa_sw_enabled'       => 'dc_swp_sw_enabled',
-		'dampcig_pwa_preload_products' => 'dc_swp_preload_products',
-		'dampcig_pwa_product_base'     => 'dc_swp_product_base',
-		'dampcig_pwa_footer_credit'    => 'dc_swp_footer_credit',
+		'dampcig_pwa_sw_enabled'    => 'dc_swp_sw_enabled',
+		'dampcig_pwa_footer_credit' => 'dc_swp_footer_credit',
 	);
 	foreach ( $migrations as $old => $new ) {
 		if ( false !== get_option( $old ) && false === get_option( $new ) ) {

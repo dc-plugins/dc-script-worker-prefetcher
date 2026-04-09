@@ -9,7 +9,7 @@ Stable tag: 1.8.2
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
-Offload third-party scripts (GTM, Pixel, HubSpot…) to a web worker via Partytown + consent-aware loading + WooCommerce prefetching. Vendored.
+Offload third-party scripts (GTM, Pixel, HubSpot…) to a web worker via Partytown + consent-aware loading. Vendored.
 
 == Description ==
 
@@ -21,8 +21,6 @@ The key distinction from `async`/`defer`: those attributes delay *when* a script
 
 Officially tested compatible services: **Google Tag Manager** (GA4), **Facebook Pixel**, **HubSpot**, **Intercom**, **Klaviyo**, **TikTok Pixel**, and **Mixpanel**. See [partytown.qwik.dev/common-services](https://partytown.qwik.dev/common-services/) for the full reference list.
 
-On top of Partytown, the plugin ships its own viewport/pagination prefetcher: products visible in the viewport are prefetched via `<link rel="prefetch">` so clicking a product loads it instantly from W3TC or the browser cache.
-
 = Key features =
 
 * **Partytown Web Worker execution** — unlike `async`/`defer` (which still execute on the main thread and can block `window.onload`), Partytown lazy-loads and executes third-party scripts entirely in a Web Worker. Officially tested: Google Tag Manager, Facebook Pixel, HubSpot, Intercom, Klaviyo, TikTok Pixel, Mixpanel.
@@ -32,14 +30,11 @@ On top of Partytown, the plugin ships its own viewport/pagination prefetcher: pr
 * **Exclusion list** — built-in exclusions for Trustpilot, Stripe, PayPal, Braintree, Facebook SDK, Google Maps, and Reamaze; add your own patterns as needed.
 * **Vendored lib** — Partytown's `lib/` files are bundled in `assets/partytown/`; no npm or build step needed on the server.
 * **Automatic Partytown updates** — a weekly GitHub Actions workflow detects new Partytown releases and opens a PR with the updated vendor files.
-* **Viewport prefetching** — IntersectionObserver watches visible products and issues `<link rel="prefetch">` before the user clicks.
-* **Pagination prefetch** — next-page link is prefetched 2 s after page load.
-* **WP emoji removal** — dequeues the emoji detection script and CSS (76 KB round-trip to s.w.org eliminated).
-* **Bot detection** — bots never receive Partytown or prefetch JS, keeping crawl budget clean.
+* **Bot detection** — bots never receive Partytown JS, keeping crawl budget clean.
 * **W3TC compatible** — HTML pages are cached by W3TC; Partytown handles only script execution.
 * **Standalone mode** — when W3TC is absent, PHP fallback cache headers keep browsers and CDNs caching correctly.
-* **Cart/checkout safe** — Partytown and the prefetcher are skipped on cart, checkout, and account pages.
-* **Admin UI** — toggle Partytown, control viewport prefetch, see the vendored Partytown version at a glance.
+* **Cart/checkout safe** — Partytown is skipped on cart, checkout, and account pages.
+* **Admin UI** — toggle Partytown, see the vendored Partytown version at a glance.
 * **Bilingual** — EN/DA auto-detection.
 * **Optional footer credit** — easily disabled.
 
@@ -49,7 +44,6 @@ On top of Partytown, the plugin ships its own viewport/pagination prefetcher: pr
 |---|---|
 | Third-party scripts (GA, Pixel…) | Partytown service worker |
 | HTML page caching | W3 Total Cache (or PHP fallback headers) |
-| Product/pagination prefetch | DC Prefetch (IntersectionObserver) |
 
 = How Partytown works =
 
@@ -98,7 +92,7 @@ The `window.partytown.forward` array is pre-configured for all officially tested
 1. Upload the `dc-sw-prefetch` folder to `/wp-content/plugins/`.
 2. Activate the plugin from the **Plugins** screen.
 3. Go to **SW Prefetch** in the admin menu.
-4. Enable Partytown and/or Viewport Preloading and save.
+4. Enable Partytown and save.
 
 == Frequently Asked Questions ==
 
@@ -106,7 +100,7 @@ The `window.partytown.forward` array is pre-configured for all officially tested
 Yes. Partytown is in beta. While it works well for the [officially tested services](https://partytown.qwik.dev/common-services/), some scripts may not be compatible — particularly those that rely on APIs not yet proxied by Partytown, use synchronous `document.write()`, or require persistent event listeners on the main thread. Test in staging before enabling on production. See the [Partytown trade-offs page](https://partytown.qwik.dev/trade-offs) for a full list of known limitations.
 
 = Will this interfere with WooCommerce cart/checkout? =
-No. Partytown and the prefetcher are completely disabled on cart, checkout, and account pages.
+No. Partytown is completely disabled on cart, checkout, and account pages.
 
 = Does it work without W3 Total Cache? =
 Yes. PHP fallback cache headers are emitted for public pages when W3TC is not active.
