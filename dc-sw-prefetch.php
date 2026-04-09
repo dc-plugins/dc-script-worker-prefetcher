@@ -1774,7 +1774,7 @@ function dc_swp_get_script_list_entries( bool $reset = false ) {
 				if ( '' === $pattern ) {
 					continue;
 				}
-				$cat = $item['category'] ?? '';
+				$cat       = $item['category'] ?? '';
 				$entries[] = array(
 					'pattern'  => $pattern,
 					'category' => in_array( $cat, $valid_cats, true ) ? $cat : 'marketing',
@@ -2373,6 +2373,540 @@ function dc_swp_resolve_companion( $src, $type, $companion_map ) {
 	}
 	return null;
 }
+
+
+// ============================================================
+// SERVER-SIDE GA4 (SSGA4) — MEASUREMENT PROTOCOL V2
+// Sends WooCommerce ecommerce events to GA4 from PHP using the
+// Measurement Protocol, bypassing browser consent rejection.
+// ============================================================
+
+/**
+ * Determine the GA4 Measurement Protocol collect endpoint.
+ *
+ * Uses the EU endpoint (region1.google-analytics.com) when the
+ * WordPress timezone is set to a European or Atlantic zone.
+ *
+ * @since 2.0.0
+ * @return string Full URL to the /mp/collect endpoint.
+ */
+function dc_swp_ssga4_get_endpoint(): string {
+	$tz     = wp_timezone_string();
+	$is_eu  = str_starts_with( $tz, 'Europe/' ) || str_starts_with( $tz, 'Atlantic/' );
+	$domain = $is_eu ? 'region1.google-analytics.com' : 'www.google-analytics.com';
+	return 'https://' . $domain . '/mp/collect';
+}
+
+/**
+ * Check whether a specific SSGA4 event is enabled in settings.
+ *
+ * @since 2.0.0
+ * @param string $event_name GA4 event name (e.g. 'purchase').
+ * @return bool
+ */
+function dc_swp_ssga4_is_event_enabled( string $event_name ): bool {
+	if ( 'yes' !== get_option( 'dc_swp_ssga4_enabled', 'no' ) ) {
+		return false;
+	}
+	$events = json_decode( get_option( 'dc_swp_ssga4_events', '{}' ), true );
+	if ( ! is_array( $events ) ) {
+		return false;
+	}
+	return ! empty( $events[ $event_name ] );
+}
+
+/**
+ * Resolve the GA client ID from the _ga cookie or generate one.
+ *
+ * The _ga cookie format is: GA1.1.<client_id> or GA1.2.<client_id>
+ * where <client_id> is <random>.<timestamp>.
+ *
+ * @since 2.0.0
+ * @return string Client ID in <random>.<timestamp> format.
+ */
+function dc_swp_ssga4_get_client_id(): string {
+	if ( ! empty( $_COOKIE['_ga'] ) ) {
+		$parts = explode( '.', sanitize_text_field( wp_unslash( $_COOKIE['_ga'] ) ) );
+		// GA1.1.123456789.1234567890 → 123456789.1234567890.
+		if ( count( $parts ) >= 4 ) {
+			return $parts[2] . '.' . $parts[3];
+		}
+	}
+	// Fallback: generate a random client ID.
+	return wp_rand( 1000000000, 2147483647 ) . '.' . time();
+}
+
+/**
+ * Resolve a GA4 session ID from the _ga_<MID> cookie or generate one.
+ *
+ * @since 2.0.0
+ * @return string Numeric session ID.
+ */
+function dc_swp_ssga4_get_session_id(): string {
+	$mid     = get_option( 'dc_swp_ssga4_measurement_id', '' );
+	$mid_key = str_replace( 'G-', '', strtoupper( $mid ) );
+	$cookie  = '_ga_' . $mid_key;
+	if ( ! empty( $_COOKIE[ $cookie ] ) ) {
+		$parts = explode( '.', sanitize_text_field( wp_unslash( $_COOKIE[ $cookie ] ) ) );
+		// GS1.1.<session_id>.<count>… → session_id is parts[2].
+		if ( count( $parts ) >= 3 && is_numeric( $parts[2] ) ) {
+			return $parts[2];
+		}
+	}
+	return (string) time();
+}
+
+/**
+ * Build an items array from WooCommerce order items.
+ *
+ * @since 2.0.0
+ * @param \WC_Order $order WooCommerce order object.
+ * @return array<int, array<string, mixed>> GA4 items array.
+ */
+function dc_swp_ssga4_build_items( \WC_Order $order ): array {
+	$items = array();
+	$index = 0;
+	foreach ( $order->get_items() as $item ) {
+		$product = $item->get_product();
+		if ( ! $product ) {
+			continue;
+		}
+		$sku      = $product->get_sku();
+		$cats     = wp_get_post_terms( $product->get_id(), 'product_cat', array( 'fields' => 'names' ) );
+		$category = is_array( $cats ) && ! empty( $cats ) ? $cats[0] : '';
+
+		$items[] = array(
+			'item_id'       => $sku ? $sku : (string) $product->get_id(),
+			'item_name'     => $product->get_name(),
+			'item_category' => $category,
+			'quantity'      => $item->get_quantity(),
+			'price'         => (float) $order->get_item_total( $item, false ),
+			'index'         => $index,
+		);
+		++$index;
+	}
+	return $items;
+}
+
+/**
+ * Build an items array from WooCommerce cart contents.
+ *
+ * @since 2.0.0
+ * @return array<int, array<string, mixed>> GA4 items array.
+ */
+function dc_swp_ssga4_build_cart_items(): array {
+	if ( ! function_exists( 'WC' ) || is_null( WC()->cart ) ) {
+		return array();
+	}
+	$items = array();
+	$index = 0;
+	foreach ( WC()->cart->get_cart() as $cart_item ) {
+		$product = $cart_item['data'];
+		if ( ! $product ) {
+			continue;
+		}
+		$sku      = $product->get_sku();
+		$cats     = wp_get_post_terms( $product->get_id(), 'product_cat', array( 'fields' => 'names' ) );
+		$category = is_array( $cats ) && ! empty( $cats ) ? $cats[0] : '';
+
+		$items[] = array(
+			'item_id'       => $sku ? $sku : (string) $product->get_id(),
+			'item_name'     => $product->get_name(),
+			'item_category' => $category,
+			'quantity'      => $cart_item['quantity'],
+			'price'         => (float) $product->get_price(),
+			'index'         => $index,
+		);
+		++$index;
+	}
+	return $items;
+}
+
+/**
+ * Send an event to GA4 via Measurement Protocol v2.
+ *
+ * @since 2.0.0
+ * @param string               $event_name Event name (e.g. 'purchase').
+ * @param array<string, mixed> $params     Event parameters.
+ * @param bool                 $blocking   Whether to wait for the response (true for purchase/refund).
+ * @return bool True on success or non-blocking dispatch, false on failure.
+ */
+function dc_swp_ssga4_send( string $event_name, array $params = array(), bool $blocking = false ): bool {
+	$measurement_id = get_option( 'dc_swp_ssga4_measurement_id', '' );
+	$api_secret     = get_option( 'dc_swp_ssga4_api_secret', '' );
+
+	if ( empty( $measurement_id ) || empty( $api_secret ) ) {
+		return false;
+	}
+
+	$endpoint = dc_swp_ssga4_get_endpoint();
+	$url      = add_query_arg(
+		array(
+			'measurement_id' => $measurement_id,
+			'api_secret'     => $api_secret,
+		),
+		$endpoint
+	);
+
+	$client_id  = dc_swp_ssga4_get_client_id();
+	$session_id = dc_swp_ssga4_get_session_id();
+
+	// Merge session ID and engagement time into event params.
+	$params['session_id']           = $session_id;
+	$params['engagement_time_msec'] = 100;
+
+	$payload = array(
+		'client_id'            => $client_id,
+		'non_personalized_ads' => true,
+		'consent'              => array(
+			'ad_user_data'       => 'DENIED',
+			'ad_personalization' => 'DENIED',
+		),
+		'events'               => array(
+			array(
+				'name'   => $event_name,
+				'params' => $params,
+			),
+		),
+	);
+
+	$response = wp_remote_post(
+		$url,
+		array(
+			'timeout'  => $blocking ? 5 : 1,
+			'blocking' => $blocking,
+			'headers'  => array( 'Content-Type' => 'application/json' ),
+			'body'     => wp_json_encode( $payload ),
+		)
+	);
+
+	if ( $blocking && is_wp_error( $response ) ) {
+		return false;
+	}
+
+	return true;
+}
+
+// ============================================================
+// SSGA4 — WOOCOMMERCE EVENT HOOKS
+// ============================================================
+
+/**
+ * SSGA4: purchase event — fires on thank-you page.
+ *
+ * Uses _dc_swp_ga4_purchase_tracked meta to prevent double-firing.
+ * Also honours legacy _ga4_purchase_tracked from the theme version.
+ *
+ * @since 2.0.0
+ * @param int $order_id WooCommerce order ID.
+ * @return void
+ */
+function dc_swp_ssga4_purchase( int $order_id ): void {
+	if ( ! dc_swp_ssga4_is_event_enabled( 'purchase' ) ) {
+		return;
+	}
+
+	$order = wc_get_order( $order_id );
+	if ( ! $order ) {
+		return;
+	}
+
+	// Prevent double-fire: check both new and legacy meta keys.
+	if ( $order->get_meta( '_dc_swp_ga4_purchase_tracked' ) || $order->get_meta( '_ga4_purchase_tracked' ) ) {
+		return;
+	}
+
+	$params = array(
+		'transaction_id' => $order->get_order_number(),
+		'value'          => (float) $order->get_total(),
+		'currency'       => $order->get_currency(),
+		'tax'            => (float) $order->get_total_tax(),
+		'shipping'       => (float) $order->get_shipping_total(),
+		'items'          => dc_swp_ssga4_build_items( $order ),
+	);
+
+	$coupon_codes = $order->get_coupon_codes();
+	if ( ! empty( $coupon_codes ) ) {
+		$params['coupon'] = implode( ',', $coupon_codes );
+	}
+
+	if ( dc_swp_ssga4_send( 'purchase', $params, true ) ) {
+		$order->update_meta_data( '_dc_swp_ga4_purchase_tracked', '1' );
+		$order->save();
+	}
+}
+add_action( 'woocommerce_thankyou', 'dc_swp_ssga4_purchase', 20 );
+
+/**
+ * SSGA4: refund event — fires when an order is fully refunded.
+ *
+ * @since 2.0.0
+ * @param int $order_id WooCommerce order ID.
+ * @param int $refund_id WooCommerce refund ID.
+ * @return void
+ */
+function dc_swp_ssga4_refund( int $order_id, int $refund_id ): void {
+	if ( ! dc_swp_ssga4_is_event_enabled( 'refund' ) ) {
+		return;
+	}
+
+	$order = wc_get_order( $order_id );
+	if ( ! $order ) {
+		return;
+	}
+
+	$refund = wc_get_order( $refund_id );
+	$amount = $refund ? (float) $refund->get_amount() : (float) $order->get_total();
+
+	dc_swp_ssga4_send(
+		'refund',
+		array(
+			'transaction_id' => $order->get_order_number(),
+			'value'          => $amount,
+			'currency'       => $order->get_currency(),
+		),
+		true
+	);
+}
+add_action( 'woocommerce_order_refunded', 'dc_swp_ssga4_refund', 20, 2 );
+
+/**
+ * SSGA4: begin_checkout event.
+ *
+ * @since 2.0.0
+ * @return void
+ */
+function dc_swp_ssga4_begin_checkout(): void {
+	if ( ! dc_swp_ssga4_is_event_enabled( 'begin_checkout' ) ) {
+		return;
+	}
+	if ( ! function_exists( 'WC' ) || is_null( WC()->cart ) ) {
+		return;
+	}
+
+	dc_swp_ssga4_send(
+		'begin_checkout',
+		array(
+			'value'    => (float) WC()->cart->get_total( 'edit' ),
+			'currency' => get_woocommerce_currency(),
+			'items'    => dc_swp_ssga4_build_cart_items(),
+		)
+	);
+}
+add_action( 'woocommerce_before_checkout_form', 'dc_swp_ssga4_begin_checkout', 20 );
+
+/**
+ * SSGA4: add_to_cart event.
+ *
+ * @since 2.0.0
+ * @param string $cart_item_key Cart item key.
+ * @param int    $product_id    Product ID.
+ * @param int    $quantity      Quantity added.
+ * @return void
+ */
+function dc_swp_ssga4_add_to_cart( string $cart_item_key, int $product_id, int $quantity ): void {
+	if ( ! dc_swp_ssga4_is_event_enabled( 'add_to_cart' ) ) {
+		return;
+	}
+
+	$product = wc_get_product( $product_id );
+	if ( ! $product ) {
+		return;
+	}
+
+	$cats     = wp_get_post_terms( $product->get_id(), 'product_cat', array( 'fields' => 'names' ) );
+	$category = is_array( $cats ) && ! empty( $cats ) ? $cats[0] : '';
+
+	dc_swp_ssga4_send(
+		'add_to_cart',
+		array(
+			'value'    => (float) $product->get_price() * $quantity,
+			'currency' => get_woocommerce_currency(),
+			'items'    => array(
+				array(
+					'item_id'       => $product->get_sku() ? $product->get_sku() : (string) $product->get_id(),
+					'item_name'     => $product->get_name(),
+					'item_category' => $category,
+					'quantity'      => $quantity,
+					'price'         => (float) $product->get_price(),
+				),
+			),
+		)
+	);
+}
+add_action( 'woocommerce_add_to_cart', 'dc_swp_ssga4_add_to_cart', 20, 3 );
+
+/**
+ * SSGA4: remove_from_cart event.
+ *
+ * @since 2.0.0
+ * @param string   $cart_item_key Cart item key.
+ * @param \WC_Cart $cart           WooCommerce cart object.
+ * @return void
+ */
+function dc_swp_ssga4_remove_from_cart( string $cart_item_key, \WC_Cart $cart ): void {
+	if ( ! dc_swp_ssga4_is_event_enabled( 'remove_from_cart' ) ) {
+		return;
+	}
+
+	$item = $cart->get_cart_item( $cart_item_key );
+	if ( empty( $item ) ) {
+		return;
+	}
+
+	$product = $item['data'];
+	if ( ! $product ) {
+		return;
+	}
+
+	$cats     = wp_get_post_terms( $product->get_id(), 'product_cat', array( 'fields' => 'names' ) );
+	$category = is_array( $cats ) && ! empty( $cats ) ? $cats[0] : '';
+
+	dc_swp_ssga4_send(
+		'remove_from_cart',
+		array(
+			'value'    => (float) $product->get_price() * $item['quantity'],
+			'currency' => get_woocommerce_currency(),
+			'items'    => array(
+				array(
+					'item_id'       => $product->get_sku() ? $product->get_sku() : (string) $product->get_id(),
+					'item_name'     => $product->get_name(),
+					'item_category' => $category,
+					'quantity'      => $item['quantity'],
+					'price'         => (float) $product->get_price(),
+				),
+			),
+		)
+	);
+}
+add_action( 'woocommerce_remove_cart_item', 'dc_swp_ssga4_remove_from_cart', 20, 2 );
+
+/**
+ * SSGA4: view_item event — single product page.
+ *
+ * @since 2.0.0
+ * @return void
+ */
+function dc_swp_ssga4_view_item(): void {
+	if ( ! dc_swp_ssga4_is_event_enabled( 'view_item' ) ) {
+		return;
+	}
+	if ( ! is_product() ) {
+		return;
+	}
+
+	global $product;
+	if ( ! $product instanceof \WC_Product ) {
+		return;
+	}
+
+	$cats     = wp_get_post_terms( $product->get_id(), 'product_cat', array( 'fields' => 'names' ) );
+	$category = is_array( $cats ) && ! empty( $cats ) ? $cats[0] : '';
+
+	dc_swp_ssga4_send(
+		'view_item',
+		array(
+			'value'    => (float) $product->get_price(),
+			'currency' => get_woocommerce_currency(),
+			'items'    => array(
+				array(
+					'item_id'       => $product->get_sku() ? $product->get_sku() : (string) $product->get_id(),
+					'item_name'     => $product->get_name(),
+					'item_category' => $category,
+					'quantity'      => 1,
+					'price'         => (float) $product->get_price(),
+				),
+			),
+		)
+	);
+}
+add_action( 'woocommerce_after_single_product', 'dc_swp_ssga4_view_item', 20 );
+
+/**
+ * SSGA4: view_cart event.
+ *
+ * @since 2.0.0
+ * @return void
+ */
+function dc_swp_ssga4_view_cart(): void {
+	if ( ! dc_swp_ssga4_is_event_enabled( 'view_cart' ) ) {
+		return;
+	}
+	if ( ! function_exists( 'WC' ) || is_null( WC()->cart ) ) {
+		return;
+	}
+
+	dc_swp_ssga4_send(
+		'view_cart',
+		array(
+			'value'    => (float) WC()->cart->get_total( 'edit' ),
+			'currency' => get_woocommerce_currency(),
+			'items'    => dc_swp_ssga4_build_cart_items(),
+		)
+	);
+}
+add_action( 'woocommerce_before_cart', 'dc_swp_ssga4_view_cart', 20 );
+
+/**
+ * SSGA4: add_payment_info event.
+ *
+ * @since 2.0.0
+ * @return void
+ */
+function dc_swp_ssga4_add_payment_info(): void {
+	if ( ! dc_swp_ssga4_is_event_enabled( 'add_payment_info' ) ) {
+		return;
+	}
+	if ( ! function_exists( 'WC' ) || is_null( WC()->cart ) ) {
+		return;
+	}
+
+	$chosen = WC()->session ? WC()->session->get( 'chosen_payment_method' ) : '';
+
+	dc_swp_ssga4_send(
+		'add_payment_info',
+		array(
+			'value'        => (float) WC()->cart->get_total( 'edit' ),
+			'currency'     => get_woocommerce_currency(),
+			'payment_type' => $chosen ? $chosen : 'unknown',
+			'items'        => dc_swp_ssga4_build_cart_items(),
+		)
+	);
+}
+add_action( 'woocommerce_checkout_after_order_review', 'dc_swp_ssga4_add_payment_info', 20 );
+
+/**
+ * SSGA4: add_shipping_info event.
+ *
+ * @since 2.0.0
+ * @return void
+ */
+function dc_swp_ssga4_add_shipping_info(): void {
+	if ( ! dc_swp_ssga4_is_event_enabled( 'add_shipping_info' ) ) {
+		return;
+	}
+	if ( ! function_exists( 'WC' ) || is_null( WC()->cart ) ) {
+		return;
+	}
+
+	$packages = WC()->shipping()->get_packages();
+	$method   = '';
+	if ( ! empty( $packages ) ) {
+		$chosen = WC()->session ? WC()->session->get( 'chosen_shipping_methods' ) : array();
+		$method = ! empty( $chosen[0] ) ? $chosen[0] : '';
+	}
+
+	dc_swp_ssga4_send(
+		'add_shipping_info',
+		array(
+			'value'         => (float) WC()->cart->get_total( 'edit' ),
+			'currency'      => get_woocommerce_currency(),
+			'shipping_tier' => $method ? $method : 'unknown',
+			'items'         => dc_swp_ssga4_build_cart_items(),
+		)
+	);
+}
+add_action( 'woocommerce_checkout_after_customer_details', 'dc_swp_ssga4_add_shipping_info', 20 );
 
 
 // ============================================================

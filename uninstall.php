@@ -35,6 +35,10 @@ function dc_swp_uninstall() {
 		'dc_swp_debug_mode',
 		'dc_swp_gtm_mode',
 		'dc_swp_gtm_id',
+		'dc_swp_ssga4_enabled',
+		'dc_swp_ssga4_measurement_id',
+		'dc_swp_ssga4_api_secret',
+		'dc_swp_ssga4_events',
 		// Legacy names (pre-1.6.0) — remove if migration never ran.
 		'dampcig_pwa_sw_enabled',
 		'dampcig_pwa_footer_credit',

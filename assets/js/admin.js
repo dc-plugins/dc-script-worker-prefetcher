@@ -783,3 +783,104 @@ jQuery( function ( $ ) {
 		$( '.dc-swp-sl-cat' ).toggle( on );
 	} );
 } )( jQuery );
+
+// ── Server-Side GA4 (SSGA4) — toggle, detect, test, event sync ──────────────
+( function ( $ ) {
+	const ssga4 = dcSwpAdminData.ssga4 || {};
+	const MID_REGEX = /^G-[A-Z0-9]{6,}$/i;
+
+	// Master toggle — show/hide detail fields.
+	function syncSsga4Visibility() {
+		const on = $( '#dc_swp_ssga4_enabled' ).is( ':checked' );
+		$( 'form.pwa-cache-settings' ).toggleClass( 'dc-swp-ssga4-active', on );
+	}
+	$( '#dc_swp_ssga4_enabled' ).on( 'change', syncSsga4Visibility );
+	syncSsga4Visibility();
+
+	// Measurement ID live validation.
+	$( '#dc_swp_ssga4_measurement_id' ).on( 'input', function () {
+		const val = $( this ).val().trim();
+		const $st = $( '#dc-swp-ssga4-mid-status' );
+		if ( ! val ) { $st.hide(); return; }
+		if ( MID_REGEX.test( val ) ) {
+			$st.text( '\u2714' ).css( 'color', '#00a32a' ).show();
+		} else {
+			$st.text( '\u26a0' ).css( 'color', '#d63638' ).show();
+		}
+	} );
+
+	// Auto-detect Measurement ID button.
+	$( '#dc-swp-ssga4-detect-btn' ).on( 'click', function () {
+		const $btn  = $( this );
+		const $spin = $( '#dc-swp-ssga4-detect-spinner' );
+		const $res  = $( '#dc-swp-ssga4-detect-result' );
+		$btn.prop( 'disabled', true );
+		$spin.css( 'display', 'inline-block' );
+		$res.empty();
+
+		$.post( ajaxurl, { action: 'dc_swp_detect_ga4_mid', nonce: dcSwpAdminData.nonce }, function ( r ) {
+			$btn.prop( 'disabled', false );
+			$spin.hide();
+			if ( r.success && r.data && r.data.id ) {
+				$( '#dc_swp_ssga4_measurement_id' ).val( r.data.id ).trigger( 'input' );
+				$res.html( '<span style="color:#00a32a">\u2714 ' +
+					$( '<span>' ).text( ( ssga4.detectFound || 'Found' ) + ': ' + r.data.id ).html() +
+					'</span>' );
+			} else {
+				$res.html( '<span style="color:#787c82"><em>' +
+					$( '<span>' ).text( ssga4.detectNone || 'No GA4 Measurement ID detected.' ).html() +
+					'</em></span>' );
+			}
+		} ).fail( function () { $btn.prop( 'disabled', false ); $spin.hide(); } );
+	} );
+
+	// Test connection button.
+	$( '#dc-swp-ssga4-test-btn' ).on( 'click', function () {
+		const $btn  = $( this );
+		const $res  = $( '#dc-swp-ssga4-test-result' );
+		const mid   = $( '#dc_swp_ssga4_measurement_id' ).val().trim();
+		const secret = $( '#dc_swp_ssga4_api_secret' ).val().trim();
+
+		if ( ! mid || ! secret ) {
+			$res.html( '<span style="color:#d63638">\u26a0 Enter Measurement ID &amp; API Secret first.</span>' );
+			return;
+		}
+
+		$btn.prop( 'disabled', true );
+		$res.html( '<span class="spinner" style="float:none;visibility:visible;margin:0 4px 0 0"></span>' );
+
+		$.post( ajaxurl, {
+			action: 'dc_swp_test_ssga4',
+			nonce: dcSwpAdminData.nonce,
+			measurement_id: mid,
+			api_secret: secret,
+		}, function ( r ) {
+			$btn.prop( 'disabled', false );
+			if ( r.success && r.data && r.data.valid ) {
+				$res.html( '<span style="color:#00a32a;font-weight:600">\u2714 ' +
+					$( '<span>' ).text( ssga4.testSuccess || 'Connection successful!' ).html() +
+					'</span>' );
+			} else {
+				let msg = ssga4.testFail || 'Connection failed.';
+				if ( r.data && r.data.messages && r.data.messages.length ) {
+					msg += ' — ' + r.data.messages.map( function ( m ) { return m.description || m.validationCode; } ).join( '; ' );
+				}
+				$res.html( '<span style="color:#d63638">\u2718 ' +
+					$( '<span>' ).text( msg ).html() +
+					'</span>' );
+			}
+		} ).fail( function () {
+			$btn.prop( 'disabled', false );
+			$res.html( '<span style="color:#d63638">\u2718 Request failed.</span>' );
+		} );
+	} );
+
+	// Sync events checkboxes to hidden JSON field on submit.
+	$( 'form.pwa-cache-settings' ).on( 'submit', function () {
+		var events = {};
+		$( '.dc-swp-ssga4-event-cb' ).each( function () {
+			events[ $( this ).val() ] = $( this ).is( ':checked' );
+		} );
+		$( '#dc_swp_ssga4_events_json' ).val( JSON.stringify( events ) );
+	} );
+} )( jQuery );

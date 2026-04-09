@@ -136,6 +136,29 @@ function dc_swp_str( $key ) {
 			'gtm_desc_own'                => 'Angiv dit GTM Container-ID eller GA4 Measurement ID. Pluginnet injicerer kodestykket i <code>&lt;head&gt;</code> i korrekt rækkefølge — efter GCM v2-samtykkestandarden men før alle andre scripts.',
 			'gtm_desc_detect'             => 'Henter sidens HTML-kildekode og scanner for aktive Google Tags (GTM, GA4, UA). Detekterer kun tags der faktisk er synlige i kildekoden — ikke plugin-indstillinger. GCM v2-samtykkestandarden aktiveres automatisk inden det detekterede tag.',
 			'gtm_desc_managed'            => 'Følg trin-for-trin-guiden for at oprette din GTM-container og lad dette plugin injicere og administrere kodestykket.',
+			'ssga4_section_label'         => 'Server-Side GA4 Events',
+			'ssga4_desc'                  => 'Sender WooCommerce e-handels-events direkte fra serveren til GA4 via Measurement Protocol v2 — uafhængigt af browsersamtykke og ad-blockers. Events fyres fra PHP; besøgendes consent-afvisning påvirker ikke datakvaliteten. <strong>Kræver et GA4 Measurement ID (G-XXXXXXXXXX) og en API Secret.</strong>',
+			'ssga4_enabled_label'         => 'Aktiver Server-Side GA4',
+			'ssga4_enabled_desc'          => 'Når aktiveret, sender pluginnet WooCommerce-events direkte til Google Analytics 4 fra serveren. Events tæller selv når besøgende afviser cookies eller bruger ad-blockers.',
+			'ssga4_mid_label'             => 'Measurement ID',
+			'ssga4_mid_placeholder'       => 'G-XXXXXXXXXX',
+			'ssga4_mid_desc'              => 'Dit GA4 Measurement ID (format: <code>G-XXXXXXXXXX</code>). Findes i GA4 Admin → Datastrømme → din Web-strøm.',
+			'ssga4_secret_label'          => 'API Secret',
+			'ssga4_secret_placeholder'    => 'Indsæt din Measurement Protocol API Secret',
+			'ssga4_secret_desc'           => 'Opret i GA4 Admin → Datastrømme → Measurement Protocol API Secrets → Opret. <a href="https://support.google.com/analytics/answer/13195510" target="_blank" rel="noopener">Vejledning ↗</a>',
+			'ssga4_detect_btn'            => '🔍 Auto-Detekter Measurement ID',
+			'ssga4_detect_none'           => 'Intet GA4 Measurement ID fundet i sidens kildekode.',
+			'ssga4_detect_found'          => 'Fundet',
+			'ssga4_events_label'          => 'Server-Side Events',
+			'ssga4_events_desc'           => 'Vælg hvilke WooCommerce-events der skal sendes server-side. Revenue-events (purchase, refund) anbefales altid aktiveret.',
+			'ssga4_endpoint_label'        => 'Endpoint',
+			'ssga4_endpoint_eu'           => '🇪🇺 EU Endpoint (region1.google-analytics.com)',
+			'ssga4_endpoint_global'       => '🌐 Globalt Endpoint (google-analytics.com)',
+			'ssga4_endpoint_desc'         => 'Auto-detekteret fra WordPress-tidszonen. Europæiske tidszoner bruger EU-endpointet.',
+			'ssga4_test_btn'              => '🧪 Test Forbindelse',
+			'ssga4_test_success'          => '✔ Forbindelse OK — GA4 accepterede testhændelsen.',
+			'ssga4_test_fail'             => '⚠ Forbindelsesfejl — kontrollér Measurement ID og API Secret.',
+			'ssga4_no_wc'                 => '⚠ WooCommerce er ikke aktivt. Server-Side GA4 Events kræver WooCommerce.',
 		) : array(
 			'page_title'                  => 'SW Proxy Settings',
 			'saved'                       => 'Settings saved!',
@@ -248,6 +271,29 @@ function dc_swp_str( $key ) {
 			'gtm_desc_own'                => 'Enter your GTM Container ID or GA4 Measurement ID. The plugin injects the snippet in <code>&lt;head&gt;</code> at the correct position — after the GCM v2 consent default but before any other scripts.',
 			'gtm_desc_detect'             => 'Fetches the page HTML source and scans for active Google Tags (GTM, GA4, UA). Only detects tags actually present in the rendered source — not plugin settings. GCM v2 consent mode fires automatically before the detected tag.',
 			'gtm_desc_managed'            => 'Follow the step-by-step guide to create your GTM container and let this plugin inject and manage the snippet.',
+			'ssga4_section_label'         => 'Server-Side GA4 Events',
+			'ssga4_desc'                  => 'Sends WooCommerce ecommerce events directly from the server to GA4 via Measurement Protocol v2 — independent of browser consent and ad-blockers. Events fire from PHP; visitor consent rejection does not affect data quality. <strong>Requires a GA4 Measurement ID (G-XXXXXXXXXX) and an API Secret.</strong>',
+			'ssga4_enabled_label'         => 'Enable Server-Side GA4',
+			'ssga4_enabled_desc'          => 'When enabled, the plugin sends WooCommerce events directly to Google Analytics 4 from the server. Events are counted even when visitors reject cookies or use ad-blockers.',
+			'ssga4_mid_label'             => 'Measurement ID',
+			'ssga4_mid_placeholder'       => 'G-XXXXXXXXXX',
+			'ssga4_mid_desc'              => 'Your GA4 Measurement ID (format: <code>G-XXXXXXXXXX</code>). Found in GA4 Admin → Data Streams → your Web stream.',
+			'ssga4_secret_label'          => 'API Secret',
+			'ssga4_secret_placeholder'    => 'Paste your Measurement Protocol API Secret',
+			'ssga4_secret_desc'           => 'Create in GA4 Admin → Data Streams → Measurement Protocol API Secrets → Create. <a href="https://support.google.com/analytics/answer/13195510" target="_blank" rel="noopener">Instructions ↗</a>',
+			'ssga4_detect_btn'            => '🔍 Auto-Detect Measurement ID',
+			'ssga4_detect_none'           => 'No GA4 Measurement ID found in page source.',
+			'ssga4_detect_found'          => 'Detected',
+			'ssga4_events_label'          => 'Server-Side Events',
+			'ssga4_events_desc'           => 'Choose which WooCommerce events to send server-side. Revenue events (purchase, refund) are always recommended.',
+			'ssga4_endpoint_label'        => 'Endpoint',
+			'ssga4_endpoint_eu'           => '🇪🇺 EU Endpoint (region1.google-analytics.com)',
+			'ssga4_endpoint_global'       => '🌐 Global Endpoint (google-analytics.com)',
+			'ssga4_endpoint_desc'         => 'Auto-detected from WordPress timezone. European timezones use the EU endpoint.',
+			'ssga4_test_btn'              => '🧪 Test Connection',
+			'ssga4_test_success'          => '✔ Connection OK — GA4 accepted the test event.',
+			'ssga4_test_fail'             => '⚠ Connection failed — check Measurement ID and API Secret.',
+			'ssga4_no_wc'                 => '⚠ WooCommerce is not active. Server-Side GA4 Events require WooCommerce.',
 		);
 	}
 	return $s[ $key ] ?? $key;
@@ -404,6 +450,11 @@ function dc_swp_enqueue_admin_assets( $hook ) {
     .dc-swp-wizard-step { display:none; }
     .dc-swp-wizard-step.dc-swp-active { display:block; }
     .dc-swp-wizard-nav { display:flex; gap:8px; align-items:center; margin-top:14px; }
+    /* ── SSGA4 conditional visibility ─────────────────────────────────────── */
+    .dc-swp-ssga4-field { display:none; }
+    .dc-swp-ssga4-active .dc-swp-ssga4-field { display:table-row; }
+    .dc-swp-ssga4-valid   { color:#3cb034; font-weight:600; font-size:12px; margin-left:6px; }
+    .dc-swp-ssga4-invalid { color:#d63638; font-weight:600; font-size:12px; margin-left:6px; }
     "
 	);
 	wp_enqueue_style( 'dc-swp-admin' );
@@ -489,6 +540,10 @@ function dc_swp_register_settings() {
 	register_setting( 'dc-sw-prefetch-settings', 'dc_swp_debug_mode', array( 'sanitize_callback' => 'sanitize_text_field' ) );
 	register_setting( 'dc-sw-prefetch-settings', 'dc_swp_gtm_mode', array( 'sanitize_callback' => 'sanitize_text_field' ) );
 	register_setting( 'dc-sw-prefetch-settings', 'dc_swp_gtm_id', array( 'sanitize_callback' => 'sanitize_text_field' ) );
+	register_setting( 'dc-sw-prefetch-settings', 'dc_swp_ssga4_enabled', array( 'sanitize_callback' => 'sanitize_text_field' ) );
+	register_setting( 'dc-sw-prefetch-settings', 'dc_swp_ssga4_measurement_id', array( 'sanitize_callback' => 'sanitize_text_field' ) );
+	register_setting( 'dc-sw-prefetch-settings', 'dc_swp_ssga4_api_secret', array( 'sanitize_callback' => 'sanitize_text_field' ) );
+	register_setting( 'dc-sw-prefetch-settings', 'dc_swp_ssga4_events', array( 'sanitize_callback' => 'sanitize_text_field' ) );
 }
 
 // Admin page HTML.
@@ -506,9 +561,9 @@ function dc_swp_admin_page_html() {
 		update_option( 'dc_swp_sw_enabled', isset( $_POST['dc_swp_sw_enabled'] ) ? 'yes' : 'no' );
 		update_option( 'dc_swp_footer_credit', isset( $_POST['dc_swp_footer_credit'] ) ? 'yes' : 'no' );
 		// Partytown Script List — JSON array of {pattern, category} objects managed by JS.
-		$_raw_entries    = wp_unslash( $_POST['dc_swp_partytown_entries_json'] ?? '' ); // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- JSON envelope; each field sanitized individually below.
-		$_valid_cats_sl  = array( 'marketing', 'statistics', 'statistics-anonymous', 'functional', 'preferences' );
-		$_clean_entries  = array();
+		$_raw_entries   = wp_unslash( $_POST['dc_swp_partytown_entries_json'] ?? '' ); // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- JSON envelope; each field sanitized individually below.
+		$_valid_cats_sl = array( 'marketing', 'statistics', 'statistics-anonymous', 'functional', 'preferences' );
+		$_clean_entries = array();
 		if ( '' !== $_raw_entries ) {
 			$_decoded_entries = json_decode( $_raw_entries, true );
 			if ( is_array( $_decoded_entries ) ) {
@@ -520,7 +575,7 @@ function dc_swp_admin_page_html() {
 					if ( '' === $_pat ) {
 						continue;
 					}
-					$_cat_e          = sanitize_text_field( $_entry['category'] ?? 'marketing' );
+					$_cat_e           = sanitize_text_field( $_entry['category'] ?? 'marketing' );
 					$_clean_entries[] = array(
 						'pattern'  => $_pat,
 						'category' => in_array( $_cat_e, $_valid_cats_sl, true ) ? $_cat_e : 'marketing',
@@ -571,19 +626,61 @@ function dc_swp_admin_page_html() {
 		$_gtm_id_raw = sanitize_text_field( wp_unslash( $_POST['dc_swp_gtm_id'] ?? '' ) );
 		// Accept empty string (disables injection) or a valid tag ID format.
 		update_option( 'dc_swp_gtm_id', ( '' === $_gtm_id_raw || preg_match( '/^(GTM-[A-Z0-9]{4,10}|G-[A-Z0-9]{6,}|UA-\d{4,}-\d+)$/i', $_gtm_id_raw ) ) ? strtoupper( $_gtm_id_raw ) : '' );
+		// ── Server-Side GA4 Events ────────────────────────────────────────
+		update_option( 'dc_swp_ssga4_enabled', isset( $_POST['dc_swp_ssga4_enabled'] ) ? 'yes' : 'no' );
+		$_ssga4_mid_raw = sanitize_text_field( wp_unslash( $_POST['dc_swp_ssga4_measurement_id'] ?? '' ) );
+		update_option( 'dc_swp_ssga4_measurement_id', ( '' === $_ssga4_mid_raw || preg_match( '/^G-[A-Z0-9]{6,}$/i', $_ssga4_mid_raw ) ) ? strtoupper( $_ssga4_mid_raw ) : '' );
+		update_option( 'dc_swp_ssga4_api_secret', sanitize_text_field( wp_unslash( $_POST['dc_swp_ssga4_api_secret'] ?? '' ) ) );
+		$_ssga4_valid_events = array( 'purchase', 'refund', 'begin_checkout', 'add_to_cart', 'remove_from_cart', 'view_item', 'view_cart', 'add_payment_info', 'add_shipping_info' );
+		$_ssga4_events_raw   = json_decode( wp_unslash( $_POST['dc_swp_ssga4_events_json'] ?? '{}' ), true ); // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- JSON envelope; each key validated below.
+		$_ssga4_events_clean = array();
+		if ( is_array( $_ssga4_events_raw ) ) {
+			foreach ( $_ssga4_valid_events as $_evt ) {
+				$_ssga4_events_clean[ $_evt ] = ! empty( $_ssga4_events_raw[ $_evt ] );
+			}
+		}
+		update_option( 'dc_swp_ssga4_events', wp_json_encode( $_ssga4_events_clean ) );
 		echo '<div class="notice notice-success"><p>' . esc_html( dc_swp_str( 'saved' ) ) . '</p></div>';
 	}
 
-	$sw_enabled         = get_option( 'dc_swp_sw_enabled', 'yes' ) === 'yes';
-	$coi_headers        = get_option( 'dc_swp_coi_headers', 'no' ) === 'yes';
-	$consent_mode       = get_option( 'dc_swp_consent_mode', 'no' ) === 'yes';
-	$url_passthrough    = get_option( 'dc_swp_url_passthrough', 'no' ) === 'yes';
-	$ads_data_redaction = get_option( 'dc_swp_ads_data_redaction', 'no' ) === 'yes';
-	$meta_ldu           = get_option( 'dc_swp_meta_ldu', 'no' ) === 'yes';
-	$consent_gate       = get_option( 'dc_swp_consent_gate', 'no' ) === 'yes';
+	$sw_enabled          = get_option( 'dc_swp_sw_enabled', 'yes' ) === 'yes';
+	$coi_headers         = get_option( 'dc_swp_coi_headers', 'no' ) === 'yes';
+	$consent_mode        = get_option( 'dc_swp_consent_mode', 'no' ) === 'yes';
+	$url_passthrough     = get_option( 'dc_swp_url_passthrough', 'no' ) === 'yes';
+	$ads_data_redaction  = get_option( 'dc_swp_ads_data_redaction', 'no' ) === 'yes';
+	$meta_ldu            = get_option( 'dc_swp_meta_ldu', 'no' ) === 'yes';
+	$consent_gate        = get_option( 'dc_swp_consent_gate', 'no' ) === 'yes';
 	$script_list_entries = dc_swp_get_script_list_entries();
-	$debug_mode         = get_option( 'dc_swp_debug_mode', 'no' ) === 'yes';
-	$gtm_mode           = get_option( 'dc_swp_gtm_mode', 'off' );
+	$debug_mode          = get_option( 'dc_swp_debug_mode', 'no' ) === 'yes';
+	$gtm_mode            = get_option( 'dc_swp_gtm_mode', 'off' );
+	// Server-Side GA4 Events.
+	$ssga4_enabled        = get_option( 'dc_swp_ssga4_enabled', 'no' ) === 'yes';
+	$ssga4_measurement_id = get_option( 'dc_swp_ssga4_measurement_id', '' );
+	$ssga4_api_secret     = get_option( 'dc_swp_ssga4_api_secret', '' );
+	$ssga4_events_raw     = json_decode( get_option( 'dc_swp_ssga4_events', '' ), true );
+	$ssga4_events_default = array(
+		'purchase'          => true,
+		'refund'            => true,
+		'begin_checkout'    => true,
+		'add_to_cart'       => false,
+		'remove_from_cart'  => false,
+		'view_item'         => false,
+		'view_cart'         => false,
+		'add_payment_info'  => false,
+		'add_shipping_info' => false,
+	);
+	$ssga4_events         = is_array( $ssga4_events_raw ) ? array_merge( $ssga4_events_default, $ssga4_events_raw ) : $ssga4_events_default;
+	// Fallback to GTM ID if dedicated SSGA4 measurement ID is empty.
+	if ( '' === $ssga4_measurement_id ) {
+		$_gtm_id_val = get_option( 'dc_swp_gtm_id', '' );
+		if ( str_starts_with( strtoupper( $_gtm_id_val ), 'G-' ) ) {
+			$ssga4_measurement_id = $_gtm_id_val;
+		}
+	}
+	// Determine EU endpoint from WordPress timezone.
+	$_ssga4_tz       = wp_timezone_string();
+	$_ssga4_is_eu    = str_starts_with( $_ssga4_tz, 'Europe/' ) || str_starts_with( $_ssga4_tz, 'Atlantic/' );
+	$_ssga4_endpoint = $_ssga4_is_eu ? dc_swp_str( 'ssga4_endpoint_eu' ) : dc_swp_str( 'ssga4_endpoint_global' );
 	// Inline script blocks — decode JSON; auto-migrate legacy plain-text format.
 	$inline_scripts_raw   = get_option( 'dc_swp_inline_scripts', '' );
 	$inline_script_blocks = array();
@@ -928,6 +1025,101 @@ function dc_swp_admin_page_html() {
 				</tr>
 			</table>
 
+			<!-- ── Server-Side GA4 Events ──────────────────────────────────── -->
+			<h2><?php echo esc_html( dc_swp_str( 'ssga4_section_label' ) ); ?></h2>
+			<p><?php echo wp_kses_post( dc_swp_str( 'ssga4_desc' ) ); ?></p>
+			<?php if ( ! class_exists( 'WooCommerce' ) ) : ?>
+				<div class="notice notice-warning inline" style="margin:8px 0;padding:8px 12px">
+					<p><?php echo esc_html( dc_swp_str( 'ssga4_no_wc' ) ); ?></p>
+				</div>
+			<?php endif; ?>
+			<table class="form-table">
+				<tr valign="top">
+					<th scope="row"><?php echo esc_html( dc_swp_str( 'ssga4_enabled_label' ) ); ?></th>
+					<td>
+						<label class="pwa-toggle">
+							<input type="checkbox" id="dc_swp_ssga4_enabled" name="dc_swp_ssga4_enabled" value="yes" <?php checked( $ssga4_enabled, true ); ?>>
+							<span class="pwa-slider"></span>
+						</label>
+						<p class="description"><?php echo esc_html( dc_swp_str( 'ssga4_enabled_desc' ) ); ?></p>
+					</td>
+				</tr>
+				<tr valign="top" class="dc-swp-ssga4-field">
+					<th scope="row"><?php echo esc_html( dc_swp_str( 'ssga4_mid_label' ) ); ?></th>
+					<td>
+						<input type="text" id="dc-swp-ssga4-mid" name="dc_swp_ssga4_measurement_id"
+							class="regular-text" style="font-family:monospace"
+							value="<?php echo esc_attr( $ssga4_measurement_id ); ?>"
+							placeholder="<?php echo esc_attr( dc_swp_str( 'ssga4_mid_placeholder' ) ); ?>">
+						<span id="dc-swp-ssga4-mid-status"></span>
+						<br>
+						<button type="button" id="dc-swp-ssga4-detect-btn" class="button button-secondary" style="margin-top:6px">
+							<?php echo esc_html( dc_swp_str( 'ssga4_detect_btn' ) ); ?>
+						</button>
+						<span id="dc-swp-ssga4-detect-spinner" class="spinner" style="float:none;margin-left:4px;display:none;"></span>
+						<span id="dc-swp-ssga4-detect-result" style="margin-left:6px"></span>
+						<p class="description" style="margin-top:6px"><?php echo wp_kses_post( dc_swp_str( 'ssga4_mid_desc' ) ); ?></p>
+					</td>
+				</tr>
+				<tr valign="top" class="dc-swp-ssga4-field">
+					<th scope="row"><?php echo esc_html( dc_swp_str( 'ssga4_secret_label' ) ); ?></th>
+					<td>
+						<input type="text" id="dc-swp-ssga4-secret" name="dc_swp_ssga4_api_secret"
+							class="regular-text" style="font-family:monospace"
+							value="<?php echo esc_attr( $ssga4_api_secret ); ?>"
+							placeholder="<?php echo esc_attr( dc_swp_str( 'ssga4_secret_placeholder' ) ); ?>"
+							autocomplete="off">
+						<p class="description" style="margin-top:6px"><?php echo wp_kses_post( dc_swp_str( 'ssga4_secret_desc' ) ); ?></p>
+					</td>
+				</tr>
+				<tr valign="top" class="dc-swp-ssga4-field">
+					<th scope="row"><?php echo esc_html( dc_swp_str( 'ssga4_events_label' ) ); ?></th>
+					<td>
+						<input type="hidden" id="dc_swp_ssga4_events_json" name="dc_swp_ssga4_events_json" value="">
+						<div style="display:grid;grid-template-columns:repeat(3,auto);gap:4px 18px;max-width:520px">
+						<?php
+						$_ssga4_event_labels = array(
+							'purchase'          => 'purchase',
+							'refund'            => 'refund',
+							'begin_checkout'    => 'begin_checkout',
+							'add_to_cart'       => 'add_to_cart',
+							'remove_from_cart'  => 'remove_from_cart',
+							'view_item'         => 'view_item',
+							'view_cart'         => 'view_cart',
+							'add_payment_info'  => 'add_payment_info',
+							'add_shipping_info' => 'add_shipping_info',
+						);
+						foreach ( $_ssga4_event_labels as $_ek => $_el ) :
+							?>
+							<label style="white-space:nowrap">
+								<input type="checkbox" class="dc-swp-ssga4-event-cb" data-event="<?php echo esc_attr( $_ek ); ?>"
+									<?php checked( ! empty( $ssga4_events[ $_ek ] ) ); ?>>
+								<code><?php echo esc_html( $_el ); ?></code>
+							</label>
+						<?php endforeach; ?>
+						</div>
+						<p class="description" style="margin-top:8px"><?php echo esc_html( dc_swp_str( 'ssga4_events_desc' ) ); ?></p>
+					</td>
+				</tr>
+				<tr valign="top" class="dc-swp-ssga4-field">
+					<th scope="row"><?php echo esc_html( dc_swp_str( 'ssga4_endpoint_label' ) ); ?></th>
+					<td>
+						<code><?php echo esc_html( $_ssga4_endpoint ); ?></code>
+						<p class="description"><?php echo esc_html( dc_swp_str( 'ssga4_endpoint_desc' ) ); ?></p>
+					</td>
+				</tr>
+				<tr valign="top" class="dc-swp-ssga4-field">
+					<th scope="row"><?php echo esc_html( dc_swp_str( 'ssga4_test_btn' ) ); ?></th>
+					<td>
+						<button type="button" id="dc-swp-ssga4-test-btn" class="button button-secondary">
+							<?php echo esc_html( dc_swp_str( 'ssga4_test_btn' ) ); ?>
+						</button>
+						<span id="dc-swp-ssga4-test-spinner" class="spinner" style="float:none;margin-left:4px;display:none;"></span>
+						<span id="dc-swp-ssga4-test-result" style="margin-left:6px"></span>
+					</td>
+				</tr>
+			</table>
+
 			<h2><?php echo esc_html( dc_swp_str( 'strategy_title' ) ); ?></h2>
 			<table class="form-table">
 				<tr>
@@ -976,23 +1168,23 @@ function dc_swp_admin_page_html() {
 		'dcSwpAdminData',
 		array(
 			'nonce'              => wp_create_nonce( 'dc_swp_detect_nonce' ),
-			'noScriptsMsg'        => dc_swp_str( 'partytown_autodetect_none' ),
-			'unknownMsg'          => dc_swp_str( 'partytown_autodetect_warn' ),
-			'knownMsg'            => dc_swp_str( 'partytown_autodetect_known' ),
-			'noBlocksMsg'         => dc_swp_str( 'inline_scripts_empty' ),
-			'noEntriesMsg'        => esc_attr__( 'No patterns added yet. Click “+ Add Pattern” or use Auto-Detect.', 'dc-sw-prefetch' ),
-			'delMsg'              => dc_swp_str( 'inline_scripts_del_confirm' ),
-			'blocks'              => $inline_script_blocks,
-			'scriptListEntries'   => $script_list_entries,
-			'knownServices'       => dc_swp_get_known_services(),
-			'hostCategoryMap'     => dc_swp_get_service_category_map(),
-			'badgeSupported'      => dc_swp_str( 'badge_supported' ),
-			'badgeUnsupported'    => dc_swp_str( 'badge_unsupported' ),
-			'forcePtLabel'        => dc_swp_str( 'force_pt_label' ),
-			'forcePtNotice'       => dc_swp_str( 'force_pt_notice' ),
-			'blockCategoryLabel'  => dc_swp_str( 'block_category_label' ),
-			'consentGateEnabled'  => $consent_gate,
-			'consentCategories'   => array( 'marketing', 'statistics', 'statistics-anonymous', 'functional', 'preferences' ),
+			'noScriptsMsg'       => dc_swp_str( 'partytown_autodetect_none' ),
+			'unknownMsg'         => dc_swp_str( 'partytown_autodetect_warn' ),
+			'knownMsg'           => dc_swp_str( 'partytown_autodetect_known' ),
+			'noBlocksMsg'        => dc_swp_str( 'inline_scripts_empty' ),
+			'noEntriesMsg'       => esc_attr__( 'No patterns added yet. Click “+ Add Pattern” or use Auto-Detect.', 'dc-sw-prefetch' ),
+			'delMsg'             => dc_swp_str( 'inline_scripts_del_confirm' ),
+			'blocks'             => $inline_script_blocks,
+			'scriptListEntries'  => $script_list_entries,
+			'knownServices'      => dc_swp_get_known_services(),
+			'hostCategoryMap'    => dc_swp_get_service_category_map(),
+			'badgeSupported'     => dc_swp_str( 'badge_supported' ),
+			'badgeUnsupported'   => dc_swp_str( 'badge_unsupported' ),
+			'forcePtLabel'       => dc_swp_str( 'force_pt_label' ),
+			'forcePtNotice'      => dc_swp_str( 'force_pt_notice' ),
+			'blockCategoryLabel' => dc_swp_str( 'block_category_label' ),
+			'consentGateEnabled' => $consent_gate,
+			'consentCategories'  => array( 'marketing', 'statistics', 'statistics-anonymous', 'functional', 'preferences' ),
 			'gtm'                => array(
 				'valid'        => dc_swp_str( 'gtm_id_valid' ),
 				'invalid'      => dc_swp_str( 'gtm_id_invalid' ),
@@ -1012,6 +1204,14 @@ function dc_swp_admin_page_html() {
 				'noConsentApiBody'  => dc_swp_str( 'gcm_no_consent_api_body' ),
 				'noConsentApiLink'  => dc_swp_str( 'gcm_no_consent_api_link' ),
 				'wpConsentApiUrl'   => admin_url( 'plugin-install.php?tab=plugin-information&plugin=wp-consent-api' ),
+			),
+			'ssga4'              => array(
+				'enabled'     => $ssga4_enabled,
+				'detectNone'  => dc_swp_str( 'ssga4_detect_none' ),
+				'detectFound' => dc_swp_str( 'ssga4_detect_found' ),
+				'testSuccess' => dc_swp_str( 'ssga4_test_success' ),
+				'testFail'    => dc_swp_str( 'ssga4_test_fail' ),
+				'events'      => $ssga4_events,
 			),
 		)
 	);
@@ -1186,6 +1386,121 @@ function dc_swp_ajax_check_gcm_conflict() {
 		array(
 			'conflict'       => $has_conflict,
 			'wp_consent_api' => function_exists( 'wp_has_consent' ),
+		)
+	);
+}
+
+// ============================================================
+// AJAX — Auto-detect GA4 Measurement ID for Server-Side GA4
+// ============================================================
+
+add_action( 'wp_ajax_dc_swp_detect_ga4_mid', 'dc_swp_ajax_detect_ga4_mid' );
+/**
+ * AJAX handler: detect GA4 Measurement ID from homepage source.
+ *
+ * Reuses dc_swp_detect_existing_gtm_id() and filters to G- prefix only.
+ *
+ * @since 2.0.0
+ * @return void
+ */
+function dc_swp_ajax_detect_ga4_mid() {
+	if ( ! current_user_can( 'manage_options' ) ) {
+		wp_send_json_error( 'Unauthorized', 403 );
+	}
+	if ( ! isset( $_POST['nonce'] ) || ! wp_verify_nonce( sanitize_text_field( wp_unslash( $_POST['nonce'] ) ), 'dc_swp_detect_nonce' ) ) {
+		wp_send_json_error( 'Invalid nonce' );
+	}
+
+	$detected = dc_swp_detect_existing_gtm_id();
+	if ( ! empty( $detected['id'] ) && str_starts_with( strtoupper( $detected['id'] ), 'G-' ) ) {
+		wp_send_json_success( $detected );
+	}
+
+	wp_send_json_success( array() );
+}
+
+// ============================================================
+// AJAX — Test SSGA4 Measurement Protocol connection
+// ============================================================
+
+add_action( 'wp_ajax_dc_swp_test_ssga4', 'dc_swp_ajax_test_ssga4' );
+/**
+ * AJAX handler: send a test event to GA4 Measurement Protocol debug endpoint.
+ *
+ * Uses the /debug/mp/collect endpoint which validates the payload and returns
+ * any validation messages without actually recording the event.
+ *
+ * @since 2.0.0
+ * @return void
+ */
+function dc_swp_ajax_test_ssga4() {
+	if ( ! current_user_can( 'manage_options' ) ) {
+		wp_send_json_error( 'Unauthorized', 403 );
+	}
+	if ( ! isset( $_POST['nonce'] ) || ! wp_verify_nonce( sanitize_text_field( wp_unslash( $_POST['nonce'] ) ), 'dc_swp_detect_nonce' ) ) {
+		wp_send_json_error( 'Invalid nonce' );
+	}
+
+	$measurement_id = sanitize_text_field( wp_unslash( $_POST['measurement_id'] ?? '' ) );
+	$api_secret     = sanitize_text_field( wp_unslash( $_POST['api_secret'] ?? '' ) );
+
+	if ( empty( $measurement_id ) || empty( $api_secret ) ) {
+		wp_send_json_error( 'Missing measurement_id or api_secret' );
+	}
+
+	if ( ! preg_match( '/^G-[A-Z0-9]{6,}$/i', $measurement_id ) ) {
+		wp_send_json_error( 'Invalid Measurement ID format' );
+	}
+
+	$endpoint = dc_swp_ssga4_get_endpoint();
+	// Use the debug endpoint for validation — does not record the event.
+	$debug_url = str_replace( '/mp/collect', '/debug/mp/collect', $endpoint );
+	$url       = add_query_arg(
+		array(
+			'measurement_id' => $measurement_id,
+			'api_secret'     => $api_secret,
+		),
+		$debug_url
+	);
+
+	$payload = array(
+		'client_id'            => sprintf( '%d.%d', wp_rand( 1000000000, 2147483647 ), time() ),
+		'non_personalized_ads' => true,
+		'events'               => array(
+			array(
+				'name'   => 'dc_swp_connection_test',
+				'params' => array(
+					'engagement_time_msec' => 1,
+					'session_id'           => (string) wp_rand( 1000000000, 2147483647 ),
+				),
+			),
+		),
+	);
+
+	$response = wp_remote_post(
+		$url,
+		array(
+			'timeout' => 10,
+			'headers' => array( 'Content-Type' => 'application/json' ),
+			'body'    => wp_json_encode( $payload ),
+		)
+	);
+
+	if ( is_wp_error( $response ) ) {
+		wp_send_json_error( $response->get_error_message() );
+	}
+
+	$code = wp_remote_retrieve_response_code( $response );
+	$body = json_decode( wp_remote_retrieve_body( $response ), true );
+
+	// The debug endpoint returns validationMessages — empty array means success.
+	$valid = 200 === $code && ( empty( $body['validationMessages'] ) || 0 === count( $body['validationMessages'] ) );
+
+	wp_send_json_success(
+		array(
+			'valid'    => $valid,
+			'code'     => $code,
+			'messages' => $body['validationMessages'] ?? array(),
 		)
 	);
 }
