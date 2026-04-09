@@ -25,7 +25,7 @@ function dc_swp_str( $key ) {
 	if ( null === $s ) {
 		$da = strncmp( get_locale(), 'da_', 3 ) === 0;
 		$s  = $da ? array(
-			'page_title'                  => 'SW Prefetch Indstillinger',
+			'page_title'                  => 'SW Proxy Indstillinger',
 			'saved'                       => 'Indstillinger gemt!',
 			'info_title'                  => 'Partytown Integration',
 			'info_body'                   => 'I modsætning til async/defer — som kun forsinker indlæsning, men stadig kører scripts på main-tråden — afvikler Partytown tredjeparts-scripts i en Web Worker. Browser main-tråden berøres aldrig: ingen layout-jank, ingen TBT-straf, ingen konkurrence med brugerinteraktioner. Officielt testede og kompatible tjenester: Google Tag Manager, Facebook Pixel, HubSpot, Intercom, Klaviyo, TikTok Pixel og Mixpanel. Aktivér Samtykkeporten for at blokere scripts indtil besøgende har givet samtykke via WP Consent API.',
@@ -89,7 +89,7 @@ function dc_swp_str( $key ) {
 			'consent_info_meta_title'     => 'Meta Pixel — separat LDU-mekanisme',
 			'consent_info_meta_desc'      => 'Meta Pixel understøtter ikke GCM v2. Aktiver Meta Pixel LDU nedenfor — Meta anvender LDU-begrænsninger internt.',
 			'consent_gate_label'          => 'Samtykkeport (WP Consent API)',
-			'consent_gate_desc'           => 'Når aktiveret, blokeres scripts som <code>type="text/plain"</code> indtil besøgende har givet samtykke via WP Consent API. Kræver et CMP-plugin der integrerer med <a href="https://wordpress.org/plugins/wp-consent-api/" target="_blank" rel="noopener">WP Consent API</a>. Når deaktiveret (standard), indlæses alle scripts ubetinget.',
+			'consent_gate_desc'           => 'Når aktiveret, blokeres scripts som <code>type="text/plain"</code> indtil besøgende har givet samtykke via WP Consent API. Kræver et CMP-plugin der integrerer med <a href="' . esc_url( admin_url( 'plugin-install.php?tab=plugin-information&plugin=wp-consent-api' ) ) . '" target="_blank" rel="noopener">WP Consent API</a>. Når deaktiveret (standard), indlæses alle scripts ubetinget.',
 			'consent_gate_notice'         => '⚠️ Samtykkeport er aktiveret, men WP Consent API-pluginnet er ikke installeret. Scripts vil blive blokeret for alle besøgende.',
 			'script_list_category_label'  => 'Script Liste standardkategori',
 			'script_list_category_desc'   => 'WP Consent API-kategorien der bruges til at gatekeeper Script Liste-poster.',
@@ -137,7 +137,7 @@ function dc_swp_str( $key ) {
 			'gtm_desc_detect'             => 'Henter sidens HTML-kildekode og scanner for aktive Google Tags (GTM, GA4, UA). Detekterer kun tags der faktisk er synlige i kildekoden — ikke plugin-indstillinger. GCM v2-samtykkestandarden aktiveres automatisk inden det detekterede tag.',
 			'gtm_desc_managed'            => 'Følg trin-for-trin-guiden for at oprette din GTM-container og lad dette plugin injicere og administrere kodestykket.',
 		) : array(
-			'page_title'                  => 'SW Prefetch Settings',
+			'page_title'                  => 'SW Proxy Settings',
 			'saved'                       => 'Settings saved!',
 			'info_title'                  => 'Partytown Integration',
 			'info_body'                   => 'Unlike async/defer — which only delay loading but still execute scripts on the main thread — Partytown runs third-party scripts entirely in a Web Worker. The browser main thread is never touched: no layout jank, no TBT penalty, no competition with user interactions. Officially tested compatible services: Google Tag Manager, Facebook Pixel, HubSpot, Intercom, Klaviyo, TikTok Pixel, and Mixpanel. Enable the Consent Gate to block scripts until visitor consent is granted via the WP Consent API.',
@@ -201,7 +201,7 @@ function dc_swp_str( $key ) {
 			'consent_info_meta_title'     => 'Meta Pixel — Separate LDU Mechanism',
 			'consent_info_meta_desc'      => 'Meta Pixel does not implement GCM v2. Enable Meta Pixel LDU below — Meta applies Limited Data Use restrictions internally.',
 			'consent_gate_label'          => 'Consent Gate (WP Consent API)',
-			'consent_gate_desc'           => 'When enabled, scripts are blocked as <code>type="text/plain"</code> until the visitor grants consent via WP Consent API. Requires a CMP plugin that integrates with <a href="https://wordpress.org/plugins/wp-consent-api/" target="_blank" rel="noopener">WP Consent API</a>. When disabled (default), all scripts load unconditionally.',
+			'consent_gate_desc'           => 'When enabled, scripts are blocked as <code>type="text/plain"</code> until the visitor grants consent via WP Consent API. Requires a CMP plugin that integrates with <a href="' . esc_url( admin_url( 'plugin-install.php?tab=plugin-information&plugin=wp-consent-api' ) ) . '" target="_blank" rel="noopener">WP Consent API</a>. When disabled (default), all scripts load unconditionally.',
 			'consent_gate_notice'         => '⚠️ Consent Gate is enabled but the WP Consent API plugin is not installed. Scripts will be blocked for all visitors.',
 			'script_list_category_label'  => 'Script List default category',
 			'script_list_category_desc'   => 'WP Consent API category used to gate Script List entries.',
@@ -281,7 +281,7 @@ add_action( 'admin_menu', 'dc_swp_setup_menu' );
 function dc_swp_setup_menu() {
 	add_menu_page(
 		dc_swp_str( 'page_title' ),
-		'SW Prefetch',
+		'SW Proxy',
 		'manage_options',
 		'dc-sw-prefetch',
 		'dc_swp_admin_page_html',
@@ -506,9 +506,9 @@ function dc_swp_admin_page_html() {
 		update_option( 'dc_swp_sw_enabled', isset( $_POST['dc_swp_sw_enabled'] ) ? 'yes' : 'no' );
 		update_option( 'dc_swp_footer_credit', isset( $_POST['dc_swp_footer_credit'] ) ? 'yes' : 'no' );
 		// Partytown Script List — JSON array of {pattern, category} objects managed by JS.
-		$_raw_entries   = wp_unslash( $_POST['dc_swp_partytown_entries_json'] ?? '' ); // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- JSON envelope; each field sanitized individually below.
-		$_valid_cats_sl = array( 'marketing', 'statistics', 'statistics-anonymous', 'functional', 'preferences' );
-		$_clean_entries = array();
+		$_raw_entries    = wp_unslash( $_POST['dc_swp_partytown_entries_json'] ?? '' ); // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- JSON envelope; each field sanitized individually below.
+		$_valid_cats_sl  = array( 'marketing', 'statistics', 'statistics-anonymous', 'functional', 'preferences' );
+		$_clean_entries  = array();
 		if ( '' !== $_raw_entries ) {
 			$_decoded_entries = json_decode( $_raw_entries, true );
 			if ( is_array( $_decoded_entries ) ) {
@@ -520,7 +520,7 @@ function dc_swp_admin_page_html() {
 					if ( '' === $_pat ) {
 						continue;
 					}
-					$_cat_e           = sanitize_text_field( $_entry['category'] ?? 'marketing' );
+					$_cat_e          = sanitize_text_field( $_entry['category'] ?? 'marketing' );
 					$_clean_entries[] = array(
 						'pattern'  => $_pat,
 						'category' => in_array( $_cat_e, $_valid_cats_sl, true ) ? $_cat_e : 'marketing',
@@ -529,6 +529,10 @@ function dc_swp_admin_page_html() {
 			}
 		}
 		update_option( 'dc_swp_partytown_scripts', wp_json_encode( $_clean_entries ) );
+		// Bust the per-request static + object cache so the page renders fresh data
+		// immediately after save (the wp_script_attributes filter populates the static
+		// early during admin_head, before this save handler runs).
+		dc_swp_get_script_list_entries( true );
 		// Inline script blocks: decode the JS-managed JSON accordion payload.
 		$raw_json_blocks  = wp_unslash( $_POST['dc_swp_inline_scripts_json'] ?? '' ); // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- JSON envelope; each field sanitized individually below.
 		$sanitized_blocks = array();
@@ -570,16 +574,16 @@ function dc_swp_admin_page_html() {
 		echo '<div class="notice notice-success"><p>' . esc_html( dc_swp_str( 'saved' ) ) . '</p></div>';
 	}
 
-	$sw_enabled          = get_option( 'dc_swp_sw_enabled', 'yes' ) === 'yes';
-	$coi_headers         = get_option( 'dc_swp_coi_headers', 'no' ) === 'yes';
-	$consent_mode        = get_option( 'dc_swp_consent_mode', 'no' ) === 'yes';
-	$url_passthrough     = get_option( 'dc_swp_url_passthrough', 'no' ) === 'yes';
-	$ads_data_redaction  = get_option( 'dc_swp_ads_data_redaction', 'no' ) === 'yes';
-	$meta_ldu            = get_option( 'dc_swp_meta_ldu', 'no' ) === 'yes';
-	$consent_gate        = get_option( 'dc_swp_consent_gate', 'no' ) === 'yes';
+	$sw_enabled         = get_option( 'dc_swp_sw_enabled', 'yes' ) === 'yes';
+	$coi_headers        = get_option( 'dc_swp_coi_headers', 'no' ) === 'yes';
+	$consent_mode       = get_option( 'dc_swp_consent_mode', 'no' ) === 'yes';
+	$url_passthrough    = get_option( 'dc_swp_url_passthrough', 'no' ) === 'yes';
+	$ads_data_redaction = get_option( 'dc_swp_ads_data_redaction', 'no' ) === 'yes';
+	$meta_ldu           = get_option( 'dc_swp_meta_ldu', 'no' ) === 'yes';
+	$consent_gate       = get_option( 'dc_swp_consent_gate', 'no' ) === 'yes';
 	$script_list_entries = dc_swp_get_script_list_entries();
-	$debug_mode          = get_option( 'dc_swp_debug_mode', 'no' ) === 'yes';
-	$gtm_mode            = get_option( 'dc_swp_gtm_mode', 'off' );
+	$debug_mode         = get_option( 'dc_swp_debug_mode', 'no' ) === 'yes';
+	$gtm_mode           = get_option( 'dc_swp_gtm_mode', 'off' );
 	// Inline script blocks — decode JSON; auto-migrate legacy plain-text format.
 	$inline_scripts_raw   = get_option( 'dc_swp_inline_scripts', '' );
 	$inline_script_blocks = array();
@@ -972,23 +976,23 @@ function dc_swp_admin_page_html() {
 		'dcSwpAdminData',
 		array(
 			'nonce'              => wp_create_nonce( 'dc_swp_detect_nonce' ),
-			'noScriptsMsg'       => dc_swp_str( 'partytown_autodetect_none' ),
-			'unknownMsg'         => dc_swp_str( 'partytown_autodetect_warn' ),
-			'knownMsg'           => dc_swp_str( 'partytown_autodetect_known' ),
-			'noBlocksMsg'        => dc_swp_str( 'inline_scripts_empty' ),
-			'noEntriesMsg'       => esc_attr__( 'No patterns added yet. Click \u201c+ Add Pattern\u201d or use Auto-Detect.', 'dc-sw-prefetch' ),
-			'delMsg'             => dc_swp_str( 'inline_scripts_del_confirm' ),
-			'blocks'             => $inline_script_blocks,
-			'scriptListEntries'  => $script_list_entries,
-			'knownServices'      => dc_swp_get_known_services(),
-			'hostCategoryMap'    => dc_swp_get_service_category_map(),
-			'badgeSupported'     => dc_swp_str( 'badge_supported' ),
-			'badgeUnsupported'   => dc_swp_str( 'badge_unsupported' ),
-			'forcePtLabel'       => dc_swp_str( 'force_pt_label' ),
-			'forcePtNotice'      => dc_swp_str( 'force_pt_notice' ),
-			'blockCategoryLabel' => dc_swp_str( 'block_category_label' ),
-			'consentGateEnabled' => $consent_gate,
-			'consentCategories'  => array( 'marketing', 'statistics', 'statistics-anonymous', 'functional', 'preferences' ),
+			'noScriptsMsg'        => dc_swp_str( 'partytown_autodetect_none' ),
+			'unknownMsg'          => dc_swp_str( 'partytown_autodetect_warn' ),
+			'knownMsg'            => dc_swp_str( 'partytown_autodetect_known' ),
+			'noBlocksMsg'         => dc_swp_str( 'inline_scripts_empty' ),
+			'noEntriesMsg'        => esc_attr__( 'No patterns added yet. Click “+ Add Pattern” or use Auto-Detect.', 'dc-sw-prefetch' ),
+			'delMsg'              => dc_swp_str( 'inline_scripts_del_confirm' ),
+			'blocks'              => $inline_script_blocks,
+			'scriptListEntries'   => $script_list_entries,
+			'knownServices'       => dc_swp_get_known_services(),
+			'hostCategoryMap'     => dc_swp_get_service_category_map(),
+			'badgeSupported'      => dc_swp_str( 'badge_supported' ),
+			'badgeUnsupported'    => dc_swp_str( 'badge_unsupported' ),
+			'forcePtLabel'        => dc_swp_str( 'force_pt_label' ),
+			'forcePtNotice'       => dc_swp_str( 'force_pt_notice' ),
+			'blockCategoryLabel'  => dc_swp_str( 'block_category_label' ),
+			'consentGateEnabled'  => $consent_gate,
+			'consentCategories'   => array( 'marketing', 'statistics', 'statistics-anonymous', 'functional', 'preferences' ),
 			'gtm'                => array(
 				'valid'        => dc_swp_str( 'gtm_id_valid' ),
 				'invalid'      => dc_swp_str( 'gtm_id_invalid' ),
@@ -1007,7 +1011,7 @@ function dc_swp_admin_page_html() {
 				'noConsentApiTitle' => dc_swp_str( 'gcm_no_consent_api_title' ),
 				'noConsentApiBody'  => dc_swp_str( 'gcm_no_consent_api_body' ),
 				'noConsentApiLink'  => dc_swp_str( 'gcm_no_consent_api_link' ),
-				'wpConsentApiUrl'   => admin_url( 'plugin-install.php?s=wp-consent-api&tab=search&type=term' ),
+				'wpConsentApiUrl'   => admin_url( 'plugin-install.php?tab=plugin-information&plugin=wp-consent-api' ),
 			),
 		)
 	);

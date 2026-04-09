@@ -1745,8 +1745,12 @@ function dc_swp_inline_is_meta( $code ) {
  *
  * @return array<int, array{pattern: string, category: string}>
  */
-function dc_swp_get_script_list_entries() {
+function dc_swp_get_script_list_entries( bool $reset = false ) {
 	static $entries = null;
+	if ( $reset ) {
+		$entries = null;
+		wp_cache_delete( 'script_list_entries', 'dc_swp' );
+	}
 	if ( null !== $entries ) {
 		return $entries;
 	}
@@ -1770,7 +1774,7 @@ function dc_swp_get_script_list_entries() {
 				if ( '' === $pattern ) {
 					continue;
 				}
-				$cat       = $item['category'] ?? '';
+				$cat = $item['category'] ?? '';
 				$entries[] = array(
 					'pattern'  => $pattern,
 					'category' => in_array( $cat, $valid_cats, true ) ? $cat : 'marketing',
