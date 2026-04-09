@@ -255,7 +255,7 @@ jQuery( function ( $ ) {
 			'</div>',
 			'<div class="dc-swp-blk-body">',
 			'<div class="dc-swp-blk-force-notice" style="display:none;margin-bottom:8px;padding:8px 10px;background:#fefce8;border-left:3px solid #ca8a04;font-size:12px;color:#92400e">' + noticeHtml + '</div>',
-			'<div style="margin-bottom:8px"><label style="font-size:12px;font-weight:600;margin-right:6px">' + catLabel + '</label><select class="dc-swp-blk-category">' + catOpts + '</select></div>',
+			'<div class="dc-swp-blk-cat-wrap" style="margin-bottom:8px"><label style="font-size:12px;font-weight:600;margin-right:6px">' + catLabel + '</label><select class="dc-swp-blk-category">' + catOpts + '</select></div>',
 			'<textarea class="dc-swp-blk-code large-text code" rows="8" spellcheck="false">' + codeSafe + '</textarea>',
 			'</div></div>',
 		].join( '' ) );
@@ -284,6 +284,11 @@ jQuery( function ( $ ) {
 	}
 
 	renderList();
+
+	// Sync category field visibility with the consent gate initial state.
+	if ( ! $( '#dc_swp_consent_gate' ).prop( 'checked' ) ) {
+		$( '.dc-swp-blk-cat-wrap' ).hide();
+	}
 
 	// Expand / collapse.
 	$( document ).on( 'click', '.dc-swp-blk-hdr', function ( e ) {
@@ -359,6 +364,9 @@ jQuery( function ( $ ) {
 		blocks.push( nb );
 		renderList();
 		const $ni = $( '.dc-swp-blk-item[data-id="' + nb.id + '"]' );
+		if ( ! $( '#dc_swp_consent_gate' ).prop( 'checked' ) ) {
+			$ni.find( '.dc-swp-blk-cat-wrap' ).hide();
+		}
 		$ni.addClass( 'dc-swp-blk-open' ).find( '.dc-swp-blk-body' ).show();
 		$ni.find( '.dc-swp-blk-chevron' ).removeClass( 'dashicons-arrow-right-alt2' ).addClass( 'dashicons-arrow-down-alt2' );
 		try { $ni[ 0 ].scrollIntoView( { behavior: 'smooth', block: 'nearest' } ); } catch { /* not supported in all browsers */ }
@@ -653,9 +661,11 @@ jQuery( function ( $ ) {
 	}
 } )( jQuery );
 
-// ── Consent Gate toggle — show/hide Script List category row ────────────────
+// ── Consent Gate toggle — show/hide Script List category row + block category ─
 ( function ( $ ) {
 	$( '#dc_swp_consent_gate' ).on( 'change', function () {
-		$( '#dc-swp-script-list-cat-row' ).toggle( $( this ).prop( 'checked' ) );
+		const on = $( this ).prop( 'checked' );
+		$( '#dc-swp-script-list-cat-row' ).toggle( on );
+		$( '.dc-swp-blk-cat-wrap' ).toggle( on );
 	} );
 } )( jQuery );

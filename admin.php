@@ -621,6 +621,40 @@ function dc_swp_admin_page_html() {
 					</td>
 				</tr>
 				<tr valign="top">
+					<th scope="row"><?php echo esc_html( dc_swp_str( 'consent_gate_label' ) ); ?></th>
+					<td>
+						<label class="pwa-toggle">
+							<input type="checkbox" id="dc_swp_consent_gate" name="dc_swp_consent_gate" value="yes" <?php checked( $consent_gate, true ); ?>>
+							<span class="pwa-slider"></span>
+						</label>
+						<p class="description"><?php echo wp_kses_post( dc_swp_str( 'consent_gate_desc' ) ); ?></p>
+						<?php if ( $consent_gate && ! function_exists( 'wp_has_consent' ) ) : ?>
+							<div class="notice notice-warning inline" style="margin-top:8px;padding:8px 12px">
+								<p><?php echo esc_html( dc_swp_str( 'consent_gate_notice' ) ); ?></p>
+							</div>
+						<?php endif; ?>
+					</td>
+				</tr>
+				<tr valign="top" id="dc-swp-script-list-cat-row"<?php echo ! $consent_gate ? ' style="display:none"' : ''; ?>>
+					<th scope="row"><?php echo esc_html( dc_swp_str( 'script_list_category_label' ) ); ?></th>
+					<td>
+						<select name="dc_swp_script_list_category">
+							<?php
+							$_cat_options = array( 'marketing', 'statistics', 'statistics-anonymous', 'functional', 'preferences' );
+							foreach ( $_cat_options as $_co ) {
+								printf(
+									'<option value="%s"%s>%s</option>',
+									esc_attr( $_co ),
+									selected( $script_list_cat, $_co, false ),
+									esc_html( ucfirst( $_co ) )
+								);
+							}
+							?>
+						</select>
+						<p class="description"><?php echo esc_html( dc_swp_str( 'script_list_category_desc' ) ); ?></p>
+					</td>
+				</tr>
+				<tr valign="top">
 					<th scope="row"><?php echo esc_html( dc_swp_str( 'partytown_scripts_label' ) ); ?></th>
 					<td>
 						<textarea name="dc_swp_partytown_scripts" rows="5" class="large-text code"
@@ -860,40 +894,6 @@ function dc_swp_admin_page_html() {
 							<span class="pwa-slider"></span>
 						</label>
 						<p class="description"><?php echo wp_kses_post( dc_swp_str( 'meta_ldu_desc' ) ); ?></p>
-					</td>
-				</tr>
-				<tr valign="top">
-					<th scope="row"><?php echo esc_html( dc_swp_str( 'consent_gate_label' ) ); ?></th>
-					<td>
-						<label class="pwa-toggle">
-							<input type="checkbox" id="dc_swp_consent_gate" name="dc_swp_consent_gate" value="yes" <?php checked( $consent_gate, true ); ?>>
-							<span class="pwa-slider"></span>
-						</label>
-						<p class="description"><?php echo wp_kses_post( dc_swp_str( 'consent_gate_desc' ) ); ?></p>
-						<?php if ( $consent_gate && ! function_exists( 'wp_has_consent' ) ) : ?>
-							<div class="notice notice-warning inline" style="margin-top:8px;padding:8px 12px">
-								<p><?php echo esc_html( dc_swp_str( 'consent_gate_notice' ) ); ?></p>
-							</div>
-						<?php endif; ?>
-					</td>
-				</tr>
-				<tr valign="top" id="dc-swp-script-list-cat-row"<?php echo ! $consent_gate ? ' style="display:none"' : ''; ?>>
-					<th scope="row"><?php echo esc_html( dc_swp_str( 'script_list_category_label' ) ); ?></th>
-					<td>
-						<select name="dc_swp_script_list_category">
-							<?php
-							$_cat_options = array( 'marketing', 'statistics', 'statistics-anonymous', 'functional', 'preferences' );
-							foreach ( $_cat_options as $_co ) {
-								printf(
-									'<option value="%s"%s>%s</option>',
-									esc_attr( $_co ),
-									selected( $script_list_cat, $_co, false ),
-									esc_html( ucfirst( $_co ) )
-								);
-							}
-							?>
-						</select>
-						<p class="description"><?php echo esc_html( dc_swp_str( 'script_list_category_desc' ) ); ?></p>
 					</td>
 				</tr>
 				<tr valign="top">
