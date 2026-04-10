@@ -12,9 +12,12 @@ if ( ! defined( 'ABSPATH' ) ) {
 	die(); }
 
 // ── Locale strings ────────────────────────────────────────────────────────────
-// English is the default; Danish is used when WP locale starts with "da_".
+// English is the default; Danish is used when admin user locale starts with "da_".
 /**
  * Return a localised admin UI string for the given key.
+ *
+ * Uses get_user_locale() so that each admin user sees the UI in their
+ * own profile language, not the site-wide default.
  *
  * @since 1.0.0
  * @param string $key The string key to look up.
@@ -23,7 +26,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 function dc_swp_str( $key ) {
 	static $s = null;
 	if ( null === $s ) {
-		$da = strncmp( get_locale(), 'da_', 3 ) === 0;
+		$da = strncmp( get_user_locale(), 'da_', 3 ) === 0;
 		$s  = $da ? array(
 			'page_title'                     => 'SW Proxy Indstillinger',
 			'saved'                          => 'Indstillinger gemt!',

@@ -2,12 +2,37 @@
 # This file is distributed under the same license as the DC Script Worker Prefetcher plugin.
 msgid ""
 msgstr ""
-"Project-Id-Version: DC Script Worker Prefetcher 1.0.0\n"
+"Project-Id-Version: DC Script Worker Prefetcher 2.4.0\n"
 "Report-Msgid-Bugs-To: https://www.dampcig.dk\n"
-"POT-Creation-Date: 2026-03-10T00:00:00+00:00\n"
+"POT-Creation-Date: 2026-04-10T00:00:00+00:00\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
 "PO-Revision-Date: 2026-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
+
+#. translators: %s: URL to DC Plugins GitHub organisation
+#: admin.php:348
+msgid "More plugins by <a href=\"%s\" target=\"_blank\" rel=\"noopener\">DC Plugins</a>"
+msgstr ""
+
+#: admin.php:824
+msgid "+ Add Pattern"
+msgstr ""
+
+#: admin.php:833
+msgid "Detected external scripts"
+msgstr ""
+
+#: admin.php:1271
+msgid "Advanced"
+msgstr ""
+
+#: admin.php:1334
+msgid "No patterns added yet. Click \"+ Add Pattern\" or use Auto-Detect."
+msgstr ""
+
+#: admin.php:1377
+msgid "Metrics reset — reload to confirm."
+msgstr ""
