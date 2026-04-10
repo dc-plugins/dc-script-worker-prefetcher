@@ -883,4 +883,31 @@ jQuery( function ( $ ) {
 		} );
 		$( '#dc_swp_ssga4_events_json' ).val( JSON.stringify( events ) );
 	} );
+
+	// Performance Metrics reset button.
+	var perf = ( dcSwpAdminData.perf ) || {};
+	$( '#dc-swp-perf-reset-btn' ).on( 'click', function () {
+		var $btn = $( this );
+		var $spinner = $( '#dc-swp-perf-reset-spinner' );
+		var $result  = $( '#dc-swp-perf-reset-result' );
+		$btn.prop( 'disabled', true );
+		$spinner.show();
+		$result.text( '' );
+		$.post(
+			ajaxurl,
+			{
+				action: 'dc_swp_perf_reset',
+				nonce:  perf.resetNonce || '',
+			},
+			function () {
+				$spinner.hide();
+				$btn.prop( 'disabled', false );
+				$result.html( '<span style="color:#3cb034">' + ( $( '<span>' ).text( perf.resetted || '✔ Metrics reset.' ).html() ) + '</span>' );
+			}
+		).fail( function () {
+			$spinner.hide();
+			$btn.prop( 'disabled', false );
+			$result.html( '<span style="color:#d63638">\u2718 Request failed.</span>' );
+		} );
+	} );
 } )( jQuery );

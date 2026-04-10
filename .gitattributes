@@ -13,3 +13,16 @@
 *.png binary
 *.jpg binary
 *.mo binary
+
+# Exclude dev-only files from git archive / WordPress.org ZIP
+.github export-ignore
+.gitattributes export-ignore
+.gitignore export-ignore
+.distignore export-ignore
+phpcs.xml export-ignore
+composer.json export-ignore
+composer.lock export-ignore
+README.md export-ignore
+eslint.config.mjs export-ignore
+scripts export-ignore
+vendor export-ignore
