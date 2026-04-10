@@ -5,7 +5,7 @@ Requires at least: 6.8
 Tested up to: 6.9
 Requires PHP: 8.0
 WC tested up to: 10.4.3
-Stable tag: 1.9.0
+Stable tag: 2.3.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -180,6 +180,12 @@ The administrator may freely add other services through the Partytown Script Lis
 3. DevTools showing Partytown service worker registered at `/~partytown/`.
 
 == Changelog ==
+
+= 2.3.0 =
+* Feature: Early Resource Hints (Feature 1) — auto-injects `<link rel="preconnect">` and `<link rel="dns-prefetch">` for all configured third-party hosts in `<head>`, reducing TCP+TLS round-trip latency for first-visit page loads. Controlled by the new "Early Resource Hints" toggle (on by default).
+* Feature: Partytown Health Monitor (Feature 2) — uses `PerformanceObserver` to detect services that fail silently inside the Partytown worker (no network traffic observed within 15 seconds) and surfaces an admin notice. Reported via `sendBeacon` AJAX. Controlled by the new "Partytown Health Monitor" toggle (on by default).
+* Feature: Performance Metrics Dashboard (Feature 3) — collects anonymous TBT and INP measurements from real visitors using `PerformanceObserver`. Stores rolling averages and P75 percentiles in non-autoloaded WP options. Admin dashboard shows CSS progress bars. Includes reset button. Controlled by the new "Performance Metrics" toggle (on by default).
+* Feature: Per-Page Script Exclusion Patterns (Feature 4) — new "Advanced" section textarea allows admins to define URL patterns (one per line, supports `*` wildcard) where Partytown is completely skipped. Useful for landing pages or payment flows with scripts incompatible with the Partytown worker.
 
 = 1.9.0 =
 * Feature: Consent Gate (WP Consent API) — optional admin toggle that delegates consent decisions to the WP Consent API standard. Scripts output as `type="text/plain"` with `data-wp-consent-category` until consent is granted. Client-side listener dynamically unblocks scripts. When disabled (default), all scripts load unconditionally.

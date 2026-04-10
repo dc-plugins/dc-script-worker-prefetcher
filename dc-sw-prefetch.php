@@ -6,7 +6,7 @@
  * Plugin Name: DC Script Worker Proxy
  * Plugin URI:  https://github.com/dc-plugins/dc-sw-prefetch
  * Description: Offloads third-party scripts (GTM, Pixel, Analytics…) to a Web Worker via Partytown with consent-aware loading. Fully vendored — no build step required.
- * Version:     1.9.0
+ * Version:     2.3.0
  * Author:      lennilg
  * Author URI:  https://github.com/lennilg
  * License:           GPL-2.0-or-later
@@ -514,7 +514,7 @@ function dc_swp_fallback_cache_headers() {
  * Partytown itself is registered at this virtual path.
  */
 define( 'DC_SWP_PARTYTOWN_LIB', '/wp-content/plugins/dc-sw-prefetch/assets/partytown/' );
-define( 'DC_SWP_VERSION', '1.9.0' );
+define( 'DC_SWP_VERSION', '2.3.0' );
 
 add_action( 'init', 'dc_swp_serve_partytown_files', 1 );
 
@@ -1114,6 +1114,9 @@ function dc_swp_inject_gtm_head() {
 	) {
 		return;
 	}
+	if ( dc_swp_is_excluded_url() ) {
+		return;
+	}
 
 	$nonce      = dc_swp_get_csp_nonce();
 	$nonce_attr = '' !== $nonce ? ' nonce="' . esc_attr( $nonce ) . '"' : '';
@@ -1334,6 +1337,10 @@ function dc_swp_partytown_config() {
 
 	$pt_enabled = get_option( 'dc_swp_sw_enabled', 'yes' ) === 'yes';
 	if ( ! $pt_enabled ) {
+		return;
+	}
+
+	if ( dc_swp_is_excluded_url() ) {
 		return;
 	}
 
@@ -1937,6 +1944,10 @@ function dc_swp_partytown_script_attrs( $attributes ) {
 		return $attributes;
 	}
 
+	if ( dc_swp_is_excluded_url() ) {
+		return $attributes;
+	}
+
 	if ( get_option( 'dc_swp_sw_enabled', 'yes' ) !== 'yes' ) {
 		// Partytown disabled → render matched scripts on the main thread with defer.
 		foreach ( dc_swp_get_partytown_patterns() as $pattern ) {
@@ -2021,6 +2032,7 @@ add_action( 'update_option_dc_swp_partytown_scripts', 'dc_swp_bust_page_cache' )
 add_action( 'update_option_dc_swp_inline_scripts', 'dc_swp_bust_page_cache' );
 add_action( 'update_option_dc_swp_gtm_mode', 'dc_swp_bust_page_cache' );
 add_action( 'update_option_dc_swp_gtm_id', 'dc_swp_bust_page_cache' );
+add_action( 'update_option_dc_swp_exclusion_patterns', 'dc_swp_bust_page_cache' );
 
 /**
  * Delete all object-cache pattern keys and flush W3TC page cache (if active),
@@ -2032,6 +2044,418 @@ function dc_swp_bust_page_cache() {
 	if ( function_exists( 'w3tc_pgcache_flush' ) ) {
 		w3tc_pgcache_flush();
 	}
+}
+
+
+// ============================================================
+// FEATURE 1 — EARLY RESOURCE HINTS
+// Auto-injects <link rel="preconnect"> and <link rel="dns-prefetch">
+// for every unique third-party hostname configured in the Script List,
+// Inline Blocks, and GTM detect mode. Reduces TCP+TLS latency for
+// first-time visitors before the Partytown worker makes any fetch.
+// ============================================================
+
+/**
+ * Collect the unique third-party hostnames that should receive resource hints.
+ *
+ * Pulls hostnames from dc_swp_get_proxy_allowed_hosts() (Script List + Inline
+ * Blocks) and, when GTM mode is own/managed/detect with a valid tag ID,
+ * appends www.googletagmanager.com. The site's own hostname is excluded.
+ *
+ * @since 2.0.0
+ * @return string[] Deduplicated lowercase hostname array.
+ */
+function dc_swp_get_resource_hint_hosts(): array {
+	$hosts    = dc_swp_get_proxy_allowed_hosts();
+	$gtm_mode = get_option( 'dc_swp_gtm_mode', 'off' );
+	$gtm_id   = sanitize_text_field( get_option( 'dc_swp_gtm_id', '' ) );
+
+	if ( in_array( $gtm_mode, array( 'own', 'managed', 'detect' ), true ) && ! empty( $gtm_id ) && dc_swp_is_valid_gtm_id( $gtm_id ) ) {
+		$hosts[] = 'www.googletagmanager.com';
+	}
+
+	$site_host = strtolower( (string) wp_parse_url( home_url(), PHP_URL_HOST ) );
+	$hosts     = array_filter(
+		array_unique( array_map( 'strtolower', $hosts ) ),
+		static function ( $h ) use ( $site_host ) {
+			return '' !== $h && $h !== $site_host;
+		}
+	);
+
+	return array_values( $hosts );
+}
+
+add_action( 'wp_head', 'dc_swp_inject_resource_hints', 2 );
+
+/**
+ * Emit <link rel="preconnect"> and <link rel="dns-prefetch"> tags for every
+ * configured third-party hostname.
+ *
+ * Priority 2: after the GCM v2 stub at priority 1, before GTM injection at 5.
+ *
+ * @since 2.0.0
+ * @return void
+ */
+function dc_swp_inject_resource_hints(): void {
+	if ( dc_swp_is_bot_request() ) {
+		return;
+	}
+	if ( is_admin() ) {
+		return;
+	}
+	if ( get_option( 'dc_swp_sw_enabled', 'yes' ) !== 'yes' ) {
+		return;
+	}
+	if ( get_option( 'dc_swp_resource_hints', 'yes' ) !== 'yes' ) {
+		return;
+	}
+	if ( dc_swp_is_safe_page() ) {
+		return;
+	}
+	if ( function_exists( 'dc_swp_is_excluded_url' ) && dc_swp_is_excluded_url() ) {
+		return;
+	}
+
+	foreach ( dc_swp_get_resource_hint_hosts() as $host ) {
+		echo '<link rel="preconnect" href="' . esc_url( 'https://' . $host ) . '" crossorigin />' . "\n";
+		echo '<link rel="dns-prefetch" href="//' . esc_attr( $host ) . '" />' . "\n";
+	}
+}
+
+
+// ============================================================
+// FEATURE 2 — PARTYTOWN HEALTH MONITOR
+// Detects when a configured third-party service fails silently
+// inside the Partytown worker and surfaces an admin notice.
+// ============================================================
+
+add_action( 'wp_enqueue_scripts', 'dc_swp_enqueue_health_monitor', 20 );
+
+/**
+ * Enqueue the Partytown health monitor JS on the front-end.
+ *
+ * Uses PerformanceObserver to track resource entries and reports
+ * any configured hostnames that produced no network traffic after
+ * a 15-second window to the dc_swp_health_report AJAX handler.
+ *
+ * @since 2.1.0
+ * @return void
+ */
+function dc_swp_enqueue_health_monitor(): void {
+	if ( dc_swp_is_bot_request() ) {
+		return;
+	}
+	if ( is_admin() ) {
+		return;
+	}
+	if ( get_option( 'dc_swp_sw_enabled', 'yes' ) !== 'yes' ) {
+		return;
+	}
+	if ( get_option( 'dc_swp_health_monitor', 'yes' ) !== 'yes' ) {
+		return;
+	}
+	if ( dc_swp_is_safe_page() ) {
+		return;
+	}
+	if ( empty( dc_swp_get_partytown_patterns() ) ) {
+		return;
+	}
+
+	wp_register_script(
+		'dc-swp-health-monitor',
+		plugins_url( 'assets/js/health-monitor.js', __FILE__ ),
+		array(),
+		DC_SWP_VERSION,
+		array( 'in_footer' => true )
+	);
+	wp_localize_script(
+		'dc-swp-health-monitor',
+		'dcSwpHealthData',
+		array(
+			'hosts'   => dc_swp_get_proxy_allowed_hosts(),
+			'nonce'   => wp_create_nonce( 'dc_swp_health_nonce' ),
+			'ajaxUrl' => admin_url( 'admin-ajax.php' ),
+			'timeout' => 15000,
+		)
+	);
+	wp_enqueue_script( 'dc-swp-health-monitor' );
+}
+
+add_action( 'wp_ajax_dc_swp_health_report', 'dc_swp_ajax_health_report' );
+add_action( 'wp_ajax_nopriv_dc_swp_health_report', 'dc_swp_ajax_health_report' );
+
+/**
+ * AJAX handler: receive a health-monitor failure report from the front-end.
+ *
+ * Anonymous — no cap check required. Nonce + allowlist validation is sufficient.
+ * Appends the failing hostname to the dc_swp_health_issues transient (24-hour TTL).
+ *
+ * @since 2.1.0
+ * @return void
+ */
+function dc_swp_ajax_health_report(): void {
+	check_ajax_referer( 'dc_swp_health_nonce', 'nonce' );
+
+	$host = sanitize_text_field( wp_unslash( $_POST['host'] ?? '' ) );
+	if ( '' === $host ) {
+		wp_send_json_error( array( 'message' => 'Missing host' ), 400 );
+	}
+
+	// Validate: host must be in the configured allowlist.
+	if ( ! in_array( $host, dc_swp_get_proxy_allowed_hosts(), true ) ) {
+		wp_send_json_error( array( 'message' => 'Invalid host' ), 400 );
+	}
+
+	$issues   = get_transient( 'dc_swp_health_issues' );
+	$issues   = is_array( $issues ) ? $issues : array();
+	$issues[] = $host;
+	$issues   = array_unique( $issues );
+	set_transient( 'dc_swp_health_issues', $issues, DAY_IN_SECONDS );
+
+	wp_send_json_success();
+}
+
+
+// ============================================================
+// FEATURE 3 — PERFORMANCE METRICS DASHBOARD
+// Collects anonymous front-end TBT and INP measurements and
+// exposes rolling averages + P75 percentiles in the WP admin.
+// ============================================================
+
+add_action( 'wp_enqueue_scripts', 'dc_swp_enqueue_perf_reporter', 20 );
+
+/**
+ * Enqueue the front-end performance reporter script.
+ *
+ * Tracks TBT (Total Blocking Time) via PerformanceObserver longtask and
+ * INP (Interaction to Next Paint) via PerformanceObserver event, then
+ * POSTs anonymised values to the dc_swp_perf_report AJAX endpoint.
+ *
+ * @since 2.2.0
+ * @return void
+ */
+function dc_swp_enqueue_perf_reporter(): void {
+	if ( dc_swp_is_bot_request() ) {
+		return;
+	}
+	if ( is_admin() ) {
+		return;
+	}
+	if ( get_option( 'dc_swp_sw_enabled', 'yes' ) !== 'yes' ) {
+		return;
+	}
+	if ( get_option( 'dc_swp_perf_monitor', 'yes' ) !== 'yes' ) {
+		return;
+	}
+
+	wp_register_script(
+		'dc-swp-perf-reporter',
+		plugins_url( 'assets/js/perf-reporter.js', __FILE__ ),
+		array(),
+		DC_SWP_VERSION,
+		array( 'in_footer' => true )
+	);
+	wp_localize_script(
+		'dc-swp-perf-reporter',
+		'dcSwpPerfData',
+		array(
+			'nonce'      => wp_create_nonce( 'dc_swp_perf_nonce' ),
+			'ajaxUrl'    => admin_url( 'admin-ajax.php' ),
+			'sessionKey' => 'dc_swp_perf_reported',
+		)
+	);
+	wp_enqueue_script( 'dc-swp-perf-reporter' );
+}
+
+add_action( 'wp_ajax_dc_swp_perf_report', 'dc_swp_ajax_perf_report' );
+add_action( 'wp_ajax_nopriv_dc_swp_perf_report', 'dc_swp_ajax_perf_report' );
+
+/**
+ * AJAX handler: receive a performance measurement from the front-end.
+ *
+ * Anonymous — no cap check required. Updates rolling averages and a sliding
+ * window of 100 samples (for P75 computation) in non-autoloaded WP options.
+ *
+ * @since 2.2.0
+ * @return void
+ */
+function dc_swp_ajax_perf_report(): void {
+	check_ajax_referer( 'dc_swp_perf_nonce', 'nonce' );
+
+	// Clamp inputs: TBT 0–30 000 ms, INP 0–10 000 ms.
+	$tbt = max( 0.0, min( 30000.0, (float) sanitize_text_field( wp_unslash( $_POST['tbt'] ?? '0' ) ) ) );
+	$inp = max( 0.0, min( 10000.0, (float) sanitize_text_field( wp_unslash( $_POST['inp'] ?? '0' ) ) ) );
+
+	// Read existing metrics.
+	$metrics_raw = get_option( 'dc_swp_perf_metrics', '' );
+	$metrics     = is_string( $metrics_raw ) && '' !== $metrics_raw ? json_decode( $metrics_raw, true ) : array();
+	if ( ! is_array( $metrics ) ) {
+		$metrics = array();
+	}
+	$samples_count = isset( $metrics['samples'] ) ? (int) $metrics['samples'] : 0;
+	$tbt_avg       = isset( $metrics['tbt_avg'] ) ? (float) $metrics['tbt_avg'] : 0.0;
+	$inp_avg       = isset( $metrics['inp_avg'] ) ? (float) $metrics['inp_avg'] : 0.0;
+
+	// Update rolling averages (cumulative moving average).
+	$new_samples = $samples_count + 1;
+	$new_tbt_avg = ( $tbt_avg * $samples_count + $tbt ) / $new_samples;
+	$new_inp_avg = ( $inp_avg * $samples_count + $inp ) / $new_samples;
+
+	// Maintain sliding window of last 100 samples for P75.
+	$samples_raw = get_option( 'dc_swp_perf_samples', '' );
+	$samples     = is_string( $samples_raw ) && '' !== $samples_raw ? json_decode( $samples_raw, true ) : array();
+	if ( ! is_array( $samples ) ) {
+		$samples = array(
+			'tbt' => array(),
+			'inp' => array(),
+		);
+	}
+	$tbt_arr = isset( $samples['tbt'] ) && is_array( $samples['tbt'] ) ? $samples['tbt'] : array();
+	$inp_arr = isset( $samples['inp'] ) && is_array( $samples['inp'] ) ? $samples['inp'] : array();
+
+	$tbt_arr[] = $tbt;
+	$inp_arr[] = $inp;
+	// Keep only last 100 values.
+	if ( count( $tbt_arr ) > 100 ) {
+		$tbt_arr = array_slice( $tbt_arr, -100 );
+	}
+	if ( count( $inp_arr ) > 100 ) {
+		$inp_arr = array_slice( $inp_arr, -100 );
+	}
+
+	// Compute P75.
+	$tbt_sorted = $tbt_arr;
+	$inp_sorted = $inp_arr;
+	sort( $tbt_sorted );
+	sort( $inp_sorted );
+	$p75_idx = (int) ceil( 0.75 * count( $tbt_sorted ) ) - 1;
+	$tbt_p75 = isset( $tbt_sorted[ $p75_idx ] ) ? (float) $tbt_sorted[ $p75_idx ] : 0.0;
+	$inp_p75 = isset( $inp_sorted[ $p75_idx ] ) ? (float) $inp_sorted[ $p75_idx ] : 0.0;
+
+	$new_metrics      = array(
+		'samples'      => $new_samples,
+		'tbt_avg'      => round( $new_tbt_avg, 2 ),
+		'inp_avg'      => round( $new_inp_avg, 2 ),
+		'tbt_p75'      => round( $tbt_p75, 2 ),
+		'inp_p75'      => round( $inp_p75, 2 ),
+		'last_updated' => gmdate( 'c' ),
+	);
+	$new_samples_data = array(
+		'tbt' => $tbt_arr,
+		'inp' => $inp_arr,
+	);
+
+	update_option( 'dc_swp_perf_metrics', wp_json_encode( $new_metrics ), false );
+	update_option( 'dc_swp_perf_samples', wp_json_encode( $new_samples_data ), false );
+
+	wp_send_json_success();
+}
+
+add_action( 'wp_ajax_dc_swp_perf_reset', 'dc_swp_ajax_perf_reset' );
+
+/**
+ * AJAX handler: reset all stored performance metrics.
+ *
+ * Requires manage_options capability and a valid nonce.
+ *
+ * @since 2.2.0
+ * @return void
+ */
+function dc_swp_ajax_perf_reset(): void {
+	check_ajax_referer( 'dc_swp_perf_reset_nonce', 'nonce' );
+	if ( ! current_user_can( 'manage_options' ) ) {
+		wp_send_json_error( array( 'message' => 'Unauthorized' ), 403 );
+	}
+	delete_option( 'dc_swp_perf_metrics' );
+	delete_option( 'dc_swp_perf_samples' );
+	wp_send_json_success();
+}
+
+
+// ============================================================
+// FEATURE 4 — PER-PAGE SCRIPT EXCLUSION PATTERNS
+// Lets admins define URL patterns where Partytown is completely
+// skipped — useful for pages with scripts incompatible with the
+// Partytown worker (payment flows, specific landing pages, etc.).
+// ============================================================
+
+/**
+ * Return the admin-configured per-page exclusion patterns.
+ *
+ * Reads the dc_swp_exclusion_patterns option (newline-separated URL
+ * substrings, supports * wildcard), sanitizes each line, and caches
+ * the result in the WP object cache for the duration of the request.
+ *
+ * @since 2.3.0
+ * @return string[]
+ */
+function dc_swp_get_exclusion_patterns(): array {
+	$cached = wp_cache_get( 'exclusion_patterns', 'dc_swp' );
+	if ( false !== $cached ) {
+		return (array) $cached;
+	}
+
+	$raw      = (string) get_option( 'dc_swp_exclusion_patterns', '' );
+	$patterns = array_values(
+		array_filter(
+			array_map(
+				'sanitize_text_field',
+				explode( "\n", $raw )
+			)
+		)
+	);
+
+	wp_cache_set( 'exclusion_patterns', $patterns, 'dc_swp', HOUR_IN_SECONDS );
+	return $patterns;
+}
+
+/**
+ * Return true when the current request URI matches any exclusion pattern.
+ *
+ * Each pattern may contain a * wildcard (matches any characters). Patterns
+ * without * are tested with str_contains(). Result is static-memoised so
+ * the check runs only once per request regardless of how many callers invoke it.
+ *
+ * @since 2.3.0
+ * @param string $request_uri Optional URI to test; defaults to SERVER['REQUEST_URI'].
+ * @return bool
+ */
+function dc_swp_is_excluded_url( string $request_uri = '' ): bool {
+	static $result = null;
+	if ( null !== $result && '' === $request_uri ) {
+		return $result;
+	}
+
+	if ( '' === $request_uri ) {
+		$request_uri = sanitize_text_field( wp_unslash( $_SERVER['REQUEST_URI'] ?? '' ) );
+	}
+
+	$patterns = dc_swp_get_exclusion_patterns();
+	$matched  = false;
+
+	foreach ( $patterns as $pattern ) {
+		if ( '' === $pattern ) {
+			continue;
+		}
+		if ( str_contains( $pattern, '*' ) ) {
+			// Wildcard pattern — escape for regex then replace escaped \* with .*.
+			$regex = '#' . str_replace( '\*', '.*', preg_quote( $pattern, '#' ) ) . '#';
+			if ( preg_match( $regex, $request_uri ) ) {
+				$matched = true;
+				break;
+			}
+		} elseif ( str_contains( $request_uri, $pattern ) ) {
+			$matched = true;
+			break;
+		}
+	}
+
+	$server_uri = sanitize_text_field( wp_unslash( $_SERVER['REQUEST_URI'] ?? '' ) );
+	if ( '' === $server_uri || $request_uri === $server_uri ) {
+		$result = $matched;
+	}
+
+	return $matched;
 }
 
 // ============================================================
@@ -2065,6 +2489,9 @@ function dc_swp_partytown_buffer_start() {
 		return;
 	}
 	if ( empty( dc_swp_get_partytown_patterns() ) ) {
+		return;
+	}
+	if ( dc_swp_is_excluded_url() ) {
 		return;
 	}
 	ob_start( 'dc_swp_partytown_buffer_rewrite' );
