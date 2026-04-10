@@ -1536,6 +1536,13 @@ function dc_swp_ajax_check_gcm_conflict() {
 		wp_send_json_error( 'Invalid nonce' );
 	}
 
+	// Serve cached result for 5 minutes to avoid a homepage HTTP fetch on every admin page load.
+	$cached = get_transient( 'dc_swp_gcm_conflict_result' );
+	if ( false !== $cached && is_array( $cached ) ) {
+		wp_send_json_success( $cached );
+		return;
+	}
+
 	$response = wp_remote_get(
 		home_url( '/' ),
 		array(
@@ -1570,12 +1577,12 @@ function dc_swp_ajax_check_gcm_conflict() {
 		}
 	}
 
-	wp_send_json_success(
-		array(
-			'conflict'       => $has_conflict,
-			'wp_consent_api' => function_exists( 'wp_has_consent' ),
-		)
+	$result = array(
+		'conflict'       => $has_conflict,
+		'wp_consent_api' => function_exists( 'wp_has_consent' ),
 	);
+	set_transient( 'dc_swp_gcm_conflict_result', $result, 5 * MINUTE_IN_SECONDS );
+	wp_send_json_success( $result );
 }
 
 // ============================================================

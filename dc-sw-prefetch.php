@@ -451,10 +451,7 @@ function dc_swp_cross_origin_isolation_headers() {
 		return;
 	}
 	// Skip for logged-in users and transactional pages.
-	if ( is_user_logged_in()
-		|| ( function_exists( 'is_cart' ) && is_cart() )
-		|| ( function_exists( 'is_checkout' ) && is_checkout() )
-		|| ( function_exists( 'is_account_page' ) && is_account_page() ) ) {
+	if ( is_user_logged_in() || dc_swp_is_safe_page() ) {
 		return;
 	}
 	header( 'Cross-Origin-Opener-Policy: same-origin' );
@@ -477,10 +474,7 @@ function dc_swp_fallback_cache_headers() {
 	}
 
 	// Never cache personalised or transactional pages.
-	if ( is_user_logged_in()
-		|| ( function_exists( 'is_cart' ) && is_cart() )
-		|| ( function_exists( 'is_checkout' ) && is_checkout() )
-		|| ( function_exists( 'is_account_page' ) && is_account_page() ) ) {
+	if ( is_user_logged_in() || dc_swp_is_safe_page() ) {
 		header( 'Cache-Control: no-store, no-cache, must-revalidate, max-age=0' );
 		header( 'Pragma: no-cache' );
 		return;
@@ -798,6 +792,31 @@ function dc_swp_build_path_rewrites() {
 // gtag('consent','update',{…granted}) when the visitor consents.
 // ============================================================
 
+/**
+ * Return true when consent-mode scripts should NOT be emitted for this request.
+ *
+ * Centralises the guard shared by dc_swp_inject_consent_mode_default() and
+ * dc_swp_enqueue_consent_scripts() so future changes only need one edit.
+ *
+ * @since 2.0.0
+ * @return bool
+ */
+function dc_swp_should_skip_consent_scripts(): bool {
+	if ( dc_swp_is_bot_request() || is_admin() ) {
+		return true;
+	}
+	if ( get_option( 'dc_swp_sw_enabled', 'yes' ) !== 'yes' ) {
+		return true;
+	}
+	if ( ! dc_swp_is_consent_mode_enabled() ) {
+		return true;
+	}
+	if ( get_option( 'dc_swp_gtm_mode', 'off' ) === 'off' ) {
+		return true;
+	}
+	return dc_swp_is_safe_page();
+}
+
 add_action( 'wp_head', 'dc_swp_inject_consent_mode_default', 1 );
 
 /**
@@ -807,26 +826,7 @@ add_action( 'wp_head', 'dc_swp_inject_consent_mode_default', 1 );
  * @return void
  */
 function dc_swp_inject_consent_mode_default() {
-	if ( dc_swp_is_bot_request() ) {
-		return;
-	}
-	if ( is_admin() ) {
-		return;
-	}
-	if ( get_option( 'dc_swp_sw_enabled', 'yes' ) !== 'yes' ) {
-		return;
-	}
-	if ( ! dc_swp_is_consent_mode_enabled() ) {
-		return;
-	}
-	if ( get_option( 'dc_swp_gtm_mode', 'off' ) === 'off' ) {
-		return;
-	}
-	if (
-		( function_exists( 'is_cart' ) && is_cart() ) ||
-		( function_exists( 'is_checkout' ) && is_checkout() ) ||
-		( function_exists( 'is_account_page' ) && is_account_page() )
-	) {
+	if ( dc_swp_should_skip_consent_scripts() ) {
 		return;
 	}
 
@@ -880,26 +880,7 @@ add_action( 'wp_enqueue_scripts', 'dc_swp_enqueue_consent_scripts', 1 );
  * @return void
  */
 function dc_swp_enqueue_consent_scripts() {
-	if ( dc_swp_is_bot_request() ) {
-		return;
-	}
-	if ( is_admin() ) {
-		return;
-	}
-	if ( get_option( 'dc_swp_sw_enabled', 'yes' ) !== 'yes' ) {
-		return;
-	}
-	if ( ! dc_swp_is_consent_mode_enabled() ) {
-		return;
-	}
-	if ( get_option( 'dc_swp_gtm_mode', 'off' ) === 'off' ) {
-		return;
-	}
-	if (
-		( function_exists( 'is_cart' ) && is_cart() ) ||
-		( function_exists( 'is_checkout' ) && is_checkout() ) ||
-		( function_exists( 'is_account_page' ) && is_account_page() )
-	) {
+	if ( dc_swp_should_skip_consent_scripts() ) {
 		return;
 	}
 
@@ -953,11 +934,7 @@ function dc_swp_enqueue_consent_gate_script() {
 	if ( ! dc_swp_is_consent_gate_enabled() ) {
 		return;
 	}
-	if (
-		( function_exists( 'is_cart' ) && is_cart() ) ||
-		( function_exists( 'is_checkout' ) && is_checkout() ) ||
-		( function_exists( 'is_account_page' ) && is_account_page() )
-	) {
+	if ( dc_swp_is_safe_page() ) {
 		return;
 	}
 
@@ -1107,11 +1084,7 @@ function dc_swp_inject_gtm_head() {
 	if ( empty( $tag_id ) || ! dc_swp_is_valid_gtm_id( $tag_id ) ) {
 		return;
 	}
-	if (
-		( function_exists( 'is_cart' ) && is_cart() ) ||
-		( function_exists( 'is_checkout' ) && is_checkout() ) ||
-		( function_exists( 'is_account_page' ) && is_account_page() )
-	) {
+	if ( dc_swp_is_safe_page() ) {
 		return;
 	}
 	if ( dc_swp_is_excluded_url() ) {
@@ -1173,11 +1146,7 @@ function dc_swp_inject_gtm_body() {
 	if ( empty( $tag_id ) || 0 !== stripos( $tag_id, 'GTM-' ) || ! dc_swp_is_valid_gtm_id( $tag_id ) ) {
 		return;
 	}
-	if (
-		( function_exists( 'is_cart' ) && is_cart() ) ||
-		( function_exists( 'is_checkout' ) && is_checkout() ) ||
-		( function_exists( 'is_account_page' ) && is_account_page() )
-	) {
+	if ( dc_swp_is_safe_page() ) {
 		return;
 	}
 	// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- tag ID regex-validated; esc_attr applied; static HTML template.
@@ -1229,11 +1198,7 @@ function dc_swp_inject_meta_ldu_default() {
 	if ( ! dc_swp_is_meta_ldu_enabled() ) {
 		return;
 	}
-	if (
-		( function_exists( 'is_cart' ) && is_cart() ) ||
-		( function_exists( 'is_checkout' ) && is_checkout() ) ||
-		( function_exists( 'is_account_page' ) && is_account_page() )
-	) {
+	if ( dc_swp_is_safe_page() ) {
 		return;
 	}
 
@@ -2040,6 +2005,7 @@ add_action( 'update_option_dc_swp_exclusion_patterns', 'dc_swp_bust_page_cache' 
  */
 function dc_swp_bust_page_cache() {
 	wp_cache_delete( 'patterns', 'dc_swp' );
+	delete_transient( 'dc_swp_gcm_conflict_result' );
 	// W3TC page cache flush.
 	if ( function_exists( 'w3tc_pgcache_flush' ) ) {
 		w3tc_pgcache_flush();
@@ -2196,6 +2162,14 @@ add_action( 'wp_ajax_nopriv_dc_swp_health_report', 'dc_swp_ajax_health_report' )
 function dc_swp_ajax_health_report(): void {
 	check_ajax_referer( 'dc_swp_health_nonce', 'nonce' );
 
+	// Rate-limit: one write per IP per 60 seconds to prevent transient flooding.
+	$rl_key = 'dc_swp_hl_rl_' . md5( wp_unslash( $_SERVER['REMOTE_ADDR'] ?? '' ) );
+	if ( get_transient( $rl_key ) ) {
+		wp_send_json_success();
+		return;
+	}
+	set_transient( $rl_key, 1, 60 );
+
 	$host = sanitize_text_field( wp_unslash( $_POST['host'] ?? '' ) );
 	if ( '' === $host ) {
 		wp_send_json_error( array( 'message' => 'Missing host' ), 400 );
@@ -2281,6 +2255,14 @@ add_action( 'wp_ajax_nopriv_dc_swp_perf_report', 'dc_swp_ajax_perf_report' );
  */
 function dc_swp_ajax_perf_report(): void {
 	check_ajax_referer( 'dc_swp_perf_nonce', 'nonce' );
+
+	// Rate-limit: one write per IP per 60 seconds to prevent metric pollution.
+	$rl_key = 'dc_swp_pr_rl_' . md5( wp_unslash( $_SERVER['REMOTE_ADDR'] ?? '' ) );
+	if ( get_transient( $rl_key ) ) {
+		wp_send_json_success();
+		return;
+	}
+	set_transient( $rl_key, 1, 60 );
 
 	// Clamp inputs: TBT 0–30 000 ms, INP 0–10 000 ms.
 	$tbt = max( 0.0, min( 30000.0, (float) wp_unslash( $_POST['tbt'] ?? 0 ) ) ); // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- float cast is safe sanitization for numeric values.
@@ -2485,7 +2467,6 @@ function dc_swp_is_excluded_url( string $request_uri = '' ): bool {
 		}
 	}
 
-	$server_uri = esc_url_raw( wp_unslash( $_SERVER['REQUEST_URI'] ?? '' ) );
 	if ( $is_server_uri || $request_uri === $server_uri ) {
 		$result = $matched;
 	}
@@ -2860,6 +2841,30 @@ function dc_swp_ssga4_get_endpoint(): string {
 }
 
 /**
+ * Return all SSGA4 config options, memoised for the request lifetime.
+ *
+ * Avoids repeated get_option() calls when multiple GA4 events fire in a
+ * single request (e.g. begin_checkout + add_payment_info + add_shipping_info).
+ *
+ * @since 2.0.0
+ * @return array{enabled: string, measurement_id: string, api_secret: string, events: array<string, bool>}
+ */
+function dc_swp_ssga4_get_config(): array {
+	static $cfg = null;
+	if ( null !== $cfg ) {
+		return $cfg;
+	}
+	$events_raw = json_decode( get_option( 'dc_swp_ssga4_events', '{}' ), true );
+	$cfg        = array(
+		'enabled'        => get_option( 'dc_swp_ssga4_enabled', 'no' ),
+		'measurement_id' => get_option( 'dc_swp_ssga4_measurement_id', '' ),
+		'api_secret'     => get_option( 'dc_swp_ssga4_api_secret', '' ),
+		'events'         => is_array( $events_raw ) ? $events_raw : array(),
+	);
+	return $cfg;
+}
+
+/**
  * Check whether a specific SSGA4 event is enabled in settings.
  *
  * @since 2.0.0
@@ -2867,14 +2872,11 @@ function dc_swp_ssga4_get_endpoint(): string {
  * @return bool
  */
 function dc_swp_ssga4_is_event_enabled( string $event_name ): bool {
-	if ( 'yes' !== get_option( 'dc_swp_ssga4_enabled', 'no' ) ) {
+	$cfg = dc_swp_ssga4_get_config();
+	if ( 'yes' !== $cfg['enabled'] ) {
 		return false;
 	}
-	$events = json_decode( get_option( 'dc_swp_ssga4_events', '{}' ), true );
-	if ( ! is_array( $events ) ) {
-		return false;
-	}
-	return ! empty( $events[ $event_name ] );
+	return ! empty( $cfg['events'][ $event_name ] );
 }
 
 /**
@@ -2905,7 +2907,7 @@ function dc_swp_ssga4_get_client_id(): string {
  * @return string Numeric session ID.
  */
 function dc_swp_ssga4_get_session_id(): string {
-	$mid     = get_option( 'dc_swp_ssga4_measurement_id', '' );
+	$mid     = dc_swp_ssga4_get_config()['measurement_id'];
 	$mid_key = str_replace( 'G-', '', strtoupper( $mid ) );
 	$cookie  = '_ga_' . $mid_key;
 	if ( ! empty( $_COOKIE[ $cookie ] ) ) {
@@ -2926,21 +2928,41 @@ function dc_swp_ssga4_get_session_id(): string {
  * @return array<int, array<string, mixed>> GA4 items array.
  */
 function dc_swp_ssga4_build_items( \WC_Order $order ): array {
+	$order_items = $order->get_items();
+
+	// Batch-fetch all product categories in one query to avoid N+1.
+	$product_ids = array();
+	foreach ( $order_items as $item ) {
+		$product = $item->get_product();
+		if ( $product ) {
+			$product_ids[] = $product->get_id();
+		}
+	}
+	$cat_map = array();
+	if ( ! empty( $product_ids ) ) {
+		$terms = wp_get_object_terms( $product_ids, 'product_cat', array( 'fields' => 'all_with_object_id' ) );
+		if ( is_array( $terms ) && ! is_wp_error( $terms ) ) {
+			foreach ( $terms as $term ) {
+				if ( ! isset( $cat_map[ $term->object_id ] ) ) {
+					$cat_map[ $term->object_id ] = $term->name;
+				}
+			}
+		}
+	}
+
 	$items = array();
 	$index = 0;
-	foreach ( $order->get_items() as $item ) {
+	foreach ( $order_items as $item ) {
 		$product = $item->get_product();
 		if ( ! $product ) {
 			continue;
 		}
-		$sku      = $product->get_sku();
-		$cats     = wp_get_post_terms( $product->get_id(), 'product_cat', array( 'fields' => 'names' ) );
-		$category = is_array( $cats ) && ! empty( $cats ) ? $cats[0] : '';
-
+		$sku     = $product->get_sku();
+		$pid     = $product->get_id();
 		$items[] = array(
-			'item_id'       => $sku ? $sku : (string) $product->get_id(),
+			'item_id'       => $sku ? $sku : (string) $pid,
 			'item_name'     => $product->get_name(),
-			'item_category' => $category,
+			'item_category' => $cat_map[ $pid ] ?? '',
 			'quantity'      => $item->get_quantity(),
 			'price'         => (float) $order->get_item_total( $item, false ),
 			'index'         => $index,
@@ -2960,21 +2982,40 @@ function dc_swp_ssga4_build_cart_items(): array {
 	if ( ! function_exists( 'WC' ) || is_null( WC()->cart ) ) {
 		return array();
 	}
+	$cart_contents = WC()->cart->get_cart();
+
+	// Batch-fetch all product categories in one query to avoid N+1.
+	$product_ids = array();
+	foreach ( $cart_contents as $cart_item ) {
+		if ( ! empty( $cart_item['data'] ) ) {
+			$product_ids[] = $cart_item['data']->get_id();
+		}
+	}
+	$cat_map = array();
+	if ( ! empty( $product_ids ) ) {
+		$terms = wp_get_object_terms( $product_ids, 'product_cat', array( 'fields' => 'all_with_object_id' ) );
+		if ( is_array( $terms ) && ! is_wp_error( $terms ) ) {
+			foreach ( $terms as $term ) {
+				if ( ! isset( $cat_map[ $term->object_id ] ) ) {
+					$cat_map[ $term->object_id ] = $term->name;
+				}
+			}
+		}
+	}
+
 	$items = array();
 	$index = 0;
-	foreach ( WC()->cart->get_cart() as $cart_item ) {
+	foreach ( $cart_contents as $cart_item ) {
 		$product = $cart_item['data'];
 		if ( ! $product ) {
 			continue;
 		}
-		$sku      = $product->get_sku();
-		$cats     = wp_get_post_terms( $product->get_id(), 'product_cat', array( 'fields' => 'names' ) );
-		$category = is_array( $cats ) && ! empty( $cats ) ? $cats[0] : '';
-
+		$sku     = $product->get_sku();
+		$pid     = $product->get_id();
 		$items[] = array(
-			'item_id'       => $sku ? $sku : (string) $product->get_id(),
+			'item_id'       => $sku ? $sku : (string) $pid,
 			'item_name'     => $product->get_name(),
-			'item_category' => $category,
+			'item_category' => $cat_map[ $pid ] ?? '',
 			'quantity'      => $cart_item['quantity'],
 			'price'         => (float) $product->get_price(),
 			'index'         => $index,
@@ -2994,8 +3035,9 @@ function dc_swp_ssga4_build_cart_items(): array {
  * @return bool True on success or non-blocking dispatch, false on failure.
  */
 function dc_swp_ssga4_send( string $event_name, array $params = array(), bool $blocking = false ): bool {
-	$measurement_id = get_option( 'dc_swp_ssga4_measurement_id', '' );
-	$api_secret     = get_option( 'dc_swp_ssga4_api_secret', '' );
+	$cfg            = dc_swp_ssga4_get_config();
+	$measurement_id = $cfg['measurement_id'];
+	$api_secret     = $cfg['api_secret'];
 
 	if ( empty( $measurement_id ) || empty( $api_secret ) ) {
 		return false;
@@ -3281,7 +3323,7 @@ function dc_swp_ssga4_view_item(): void {
 	if ( ! dc_swp_ssga4_is_event_enabled( 'view_item' ) ) {
 		return;
 	}
-	if ( ! is_product() ) {
+	if ( ! function_exists( 'is_product' ) || ! is_product() ) {
 		return;
 	}
 
@@ -3447,11 +3489,7 @@ function dc_swp_output_inline_scripts() {
 		return;
 	}
 	// Skip cart, checkout, and account pages.
-	if (
-		( function_exists( 'is_cart' ) && is_cart() ) ||
-		( function_exists( 'is_checkout' ) && is_checkout() ) ||
-		( function_exists( 'is_account_page' ) && is_account_page() )
-	) {
+	if ( dc_swp_is_safe_page() ) {
 		return;
 	}
 
@@ -3480,7 +3518,7 @@ function dc_swp_output_inline_scripts() {
 	 * $force_blk: whether the parent block has force_partytown enabled.
 	 * $cat_blk: WP Consent API category for this block.
 	 */
-	$parse_code = function ( $code, $force_blk, $cat_blk = '' ) use ( &$js_blocks, &$src_blocks, &$raw_noscript, $allowed_attr_re ) {
+	$parse_code = function ( $code, $force_blk, $cat_blk = '' ) use ( &$js_blocks, &$src_blocks, &$noscript_blocks, $allowed_attr_re ) {
 		if ( preg_match_all( '/<script\b([^>]*)>(.*?)<\/script>/is', $code, $matches, PREG_SET_ORDER ) ) {
 			foreach ( $matches as $m ) {
 				if ( preg_match( '/\bsrc\s*=\s*(["\'])([^"\']+)\1/i', $m[1], $src_m ) ) {
