@@ -514,7 +514,7 @@ function dc_swp_fallback_cache_headers() {
  * Partytown itself is registered at this virtual path.
  */
 define( 'DC_SWP_PARTYTOWN_LIB', '/wp-content/plugins/dc-sw-prefetch/assets/partytown/' );
-define( 'DC_SWP_VERSION', '1.8.2' );
+define( 'DC_SWP_VERSION', '1.9.0' );
 
 add_action( 'init', 'dc_swp_serve_partytown_files', 1 );
 
