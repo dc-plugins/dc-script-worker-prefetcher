@@ -5,7 +5,7 @@ Requires at least: 6.8
 Tested up to: 6.9
 Requires PHP: 8.0
 WC tested up to: 10.4.3
-Stable tag: 2.3.0
+Stable tag: 2.3.1
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -169,6 +169,12 @@ Provided by Mixpanel, Inc. Sends page views, custom events, and an anonymous vis
 The administrator may freely add other services through the Partytown Script List. The plugin imposes no restriction on which services can be configured, beyond the security allowlist that prevents the CORS proxy from being used as an open relay. Refer to each service's own privacy policy and terms of service for details on what data they collect.
 
 == Changelog ==
+
+= 2.3.1 =
+* Removed: Legacy fallback cache headers function (out of scope for a script-offloading plugin).
+* Removed: Architecture info section from admin UI.
+* Cleanup: Removed orphaned translation strings and W3TC-specific documentation.
+* Docs: Tightened readme text, simplified External Services section.
 
 = 2.3.0 =
 * Feature: Early Resource Hints (Feature 1) — auto-injects `<link rel="preconnect">` and `<link rel="dns-prefetch">` for all configured third-party hosts in `<head>`, reducing TCP+TLS round-trip latency for first-visit page loads. Controlled by the new "Early Resource Hints" toggle (on by default).
