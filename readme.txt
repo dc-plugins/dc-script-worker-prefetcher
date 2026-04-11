@@ -5,7 +5,7 @@ Requires at least: 6.8
 Tested up to: 6.9
 Requires PHP: 8.0
 WC tested up to: 10.4.3
-Stable tag: 2.3.1
+Stable tag: 2.3.5
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -169,6 +169,12 @@ Provided by Mixpanel, Inc. Sends page views, custom events, and an anonymous vis
 The administrator may freely add other services through the Partytown Script List. The plugin imposes no restriction on which services can be configured, beyond the security allowlist that prevents the CORS proxy from being used as an open relay. Refer to each service's own privacy policy and terms of service for details on what data they collect.
 
 == Changelog ==
+
+= 2.3.5 =
+* Fix: GCM v2 consent scripts now load after WP Consent API (proper script dependency).
+* Fix: Consent polling now tracks actual state changes, not just API availability.
+* Fix: Replace Unicode characters (box-drawing, ellipsis, em-dash) with ASCII equivalents for encoding safety.
+* Chore: Add ESLint globals for browser APIs and WP Consent API functions.
 
 = 2.3.1 =
 * Removed: Legacy fallback cache headers function (out of scope for a script-offloading plugin).
