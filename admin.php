@@ -167,6 +167,10 @@ function dc_swp_enqueue_admin_assets( $hook ) {
     .dc-swp-ssga4-active .dc-swp-ssga4-field { display:table-row; }
     .dc-swp-ssga4-valid   { color:#3cb034; font-weight:600; font-size:12px; margin-left:6px; }
     .dc-swp-ssga4-invalid { color:#d63638; font-weight:600; font-size:12px; margin-left:6px; }
+    /* ── Fieldset sections ─────────────────────────────────────────────────── */
+    .dc-swp-fieldset { border:0; padding:0; margin:0 0 20px 0; }
+    .dc-swp-fieldset > legend { font-size:1.3em; font-weight:600; padding:10px 0 5px 0; margin:0; }
+    .dc-swp-ssga4-panel { margin-top:10px; padding:12px 14px; border:1px solid #dcdcde; border-radius:3px; background:#f9f9f9; }
     "
 	);
 	wp_enqueue_style( 'dc-swp-admin' );
@@ -484,6 +488,9 @@ function dc_swp_admin_page_html() {
 
 		<form method="post" action="" class="pwa-cache-settings">
 			<?php wp_nonce_field( 'dc_swp_save_settings', 'dc_swp_nonce' ); ?>
+
+			<fieldset class="dc-swp-fieldset">
+			<legend><?php echo esc_html( __( 'Partytown Integration', 'dc-sw-prefetch' ) ); ?></legend>
 			<table class="form-table">
 				<tr valign="top">
 					<th scope="row"><?php echo esc_html( __( 'Enable Partytown', 'dc-sw-prefetch' ) ); ?></th>
@@ -811,9 +818,11 @@ function dc_swp_admin_page_html() {
 					</td>
 				</tr>
 			</table>
+			</fieldset>
 
 			<!-- ── Server-Side GA4 Events ──────────────────────────────────── -->
-			<h2><?php echo esc_html( __( 'Server-Side GA4 Events', 'dc-sw-prefetch' ) ); ?></h2>
+			<fieldset class="dc-swp-fieldset">
+			<legend><?php echo esc_html( __( 'Server-Side GA4 Events', 'dc-sw-prefetch' ) ); ?></legend>
 			<p><?php echo wp_kses_post( __( 'Sends WooCommerce ecommerce events directly from the server to GA4 via Measurement Protocol v2 — independent of browser consent and ad-blockers. Events fire from PHP; visitor consent rejection does not affect data quality. <strong>Requires a GA4 Measurement ID (G-XXXXXXXXXX) and an API Secret.</strong>', 'dc-sw-prefetch' ) ); ?></p>
 			<?php if ( ! class_exists( 'WooCommerce' ) ) : ?>
 				<div class="notice notice-warning inline" style="margin:8px 0;padding:8px 12px">
@@ -1062,9 +1071,11 @@ function dc_swp_admin_page_html() {
 					</td>
 				</tr>
 			</table>
+			</fieldset>
 
 			<!-- ── Performance Dashboard ──────────────────────────────────────── -->
-		<h2><?php echo esc_html( __( 'Performance Dashboard', 'dc-sw-prefetch' ) ); ?></h2>
+			<fieldset class="dc-swp-fieldset">
+			<legend><?php echo esc_html( __( 'Performance Dashboard', 'dc-sw-prefetch' ) ); ?></legend>
 		<?php if ( ! is_array( $perf_metrics ) || empty( $perf_metrics['samples'] ) ) : ?>
 			<p class="description"><?php echo esc_html( __( 'No performance data yet. Enable Performance Metrics and wait for visitor activity.', 'dc-sw-prefetch' ) ); ?></p>
 		<?php else : ?>
@@ -1123,9 +1134,11 @@ function dc_swp_admin_page_html() {
 				</tr>
 			</table>
 		<?php endif; ?>
+		</fieldset>
 
 		<!-- ── Advanced: Exclusion Patterns ──────────────────────────────── -->
-		<h2><?php esc_html_e( 'Advanced', 'dc-sw-prefetch' ); ?></h2>
+		<fieldset class="dc-swp-fieldset">
+		<legend><?php esc_html_e( 'Advanced', 'dc-sw-prefetch' ); ?></legend>
 		<table class="form-table">
 			<tr valign="top">
 				<th scope="row"><?php echo esc_html( __( 'Partytown Exclusion Patterns', 'dc-sw-prefetch' ) ); ?></th>
@@ -1136,8 +1149,10 @@ function dc_swp_admin_page_html() {
 				</td>
 			</tr>
 		</table>
+		</fieldset>
 
-			<h2><?php echo esc_html( __( 'Benefits', 'dc-sw-prefetch' ) ); ?></h2>
+			<fieldset class="dc-swp-fieldset">
+			<legend><?php echo esc_html( __( 'Benefits', 'dc-sw-prefetch' ) ); ?></legend>
 			<ul style="list-style: disc; margin-left: 20px;">
 				<li>✅ <?php echo esc_html( __( 'Analytics scripts run in a Web Worker — unlike async, they never execute on the browser main thread', 'dc-sw-prefetch' ) ); ?></li>
 				<li>✅ <?php echo esc_html( __( 'Viewport prefetch pre-loads product links automatically', 'dc-sw-prefetch' ) ); ?></li>
@@ -1148,7 +1163,10 @@ function dc_swp_admin_page_html() {
 				<li>✅ <?php echo esc_html( __( 'Third-party scripts auto-detected and offloaded to Partytown in one click', 'dc-sw-prefetch' ) ); ?></li>
 				<li>✅ <?php echo esc_html( __( 'Consent-aware: optional Consent Gate blocks scripts (text/plain) until consent is granted via the WP Consent API', 'dc-sw-prefetch' ) ); ?></li>
 			</ul>
+			</fieldset>
 
+			<fieldset class="dc-swp-fieldset">
+			<legend><?php echo esc_html( __( 'Footer Credit', 'dc-sw-prefetch' ) ); ?></legend>
 			<table class="form-table">
 				<tr valign="top">
 					<th scope="row"><?php echo esc_html( __( 'Footer Credit', 'dc-sw-prefetch' ) ); ?></th>
@@ -1161,6 +1179,7 @@ function dc_swp_admin_page_html() {
 					</td>
 				</tr>
 			</table>
+			</fieldset>
 
 			<?php submit_button( __( 'Save Settings', 'dc-sw-prefetch' ) ); ?>
 		</form>

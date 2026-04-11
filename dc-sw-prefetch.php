@@ -17,7 +17,6 @@
  * Requires PHP:      8.0
  * Tested up to:      6.9
  * WC tested up to:   10.4.3
- * Update URI:        https://github.com/dc-plugins/dc-sw-prefetch
  *
  * @package DC_Service_Worker_Proxy
  */
@@ -372,19 +371,6 @@ function dc_swp_is_meta_ldu_enabled() {
 // Loads .mo translation files from the /languages directory so
 // that __() / _e() / esc_html__() calls with the 'dc-sw-prefetch'
 // text domain resolve to the admin user's locale.
-// ============================================================
-
-/**
- * Load plugin text domain for translations.
- *
- * @since 2.4.0
- * @return void
- */
-function dc_swp_load_textdomain() {
-	load_plugin_textdomain( 'dc-sw-prefetch', false, dirname( plugin_basename( __FILE__ ) ) . '/languages' );
-}
-add_action( 'init', 'dc_swp_load_textdomain' );
-
 // ============================================================
 // ADMIN INTERFACE
 // ============================================================
