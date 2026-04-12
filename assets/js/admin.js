@@ -1124,3 +1124,165 @@ jQuery( function ( $ ) {
 		} );
 	} );
 } )( jQuery );
+
+// -- Meta CAPI -----------------------------------------------------------------
+( function ( $ ) {
+	const capi = dcSwpAdminData.capi || {};
+
+	/** Sync credential hidden fields from whichever panel is active. */
+	function syncCapiFields() {
+		const mode = $( 'input[name="dc_swp_capi_mode"]:checked' ).val() || 'off';
+		let pixel = '', token = '';
+		if ( 'own' === mode ) {
+			pixel = $( '#dc-swp-capi-pixel-own' ).val().trim();
+			token = $( '#dc-swp-capi-token-own' ).val().trim();
+		} else if ( 'detect' === mode ) {
+			pixel = $( '#dc-swp-capi-panel-detect' ).data( 'detected-pixel' ) || $( '#dc-swp-capi-panel-detect' ).data( 'saved-pixel' ) || '';
+			token = $( '#dc-swp-capi-token-detect' ).val().trim();
+		}
+		$( '#dc_swp_capi_pixel_field' ).val( pixel );
+		$( '#dc_swp_capi_token_field' ).val( token );
+		$( '#dc_swp_capi_exclude_field' ).val( $( '#dc-swp-capi-exclude-own' ).is( ':checked' ) ? 'yes' : 'no' );
+	}
+
+	/** Get pixel + token for whichever panel is currently active. */
+	function getCapiCredentials() {
+		const mode = $( 'input[name="dc_swp_capi_mode"]:checked' ).val() || 'off';
+		if ( 'own' === mode ) {
+			return {
+				pixel_id:     $( '#dc-swp-capi-pixel-own' ).val().trim(),
+				access_token: $( '#dc-swp-capi-token-own' ).val().trim(),
+				tec:          $( '#dc-swp-capi-tec-field' ).val().trim(),
+			};
+		}
+		return {
+			pixel_id:     $( '#dc-swp-capi-panel-detect' ).data( 'detected-pixel' ) || $( '#dc-swp-capi-panel-detect' ).data( 'saved-pixel' ) || '',
+			access_token: $( '#dc-swp-capi-token-detect' ).val().trim(),
+			tec:          '',
+		};
+	}
+
+	/** Show/hide panels and dependent rows when mode radio changes. */
+	function updateCapiMode( mode ) {
+		$( '.dc-swp-capi-panel' ).hide();
+		if ( 'off' !== mode ) {
+			$( '#dc-swp-capi-panel-' + mode ).show();
+		}
+		$( '#dc-swp-capi-events-row, #dc-swp-capi-pii-row' ).toggle( 'off' !== mode );
+		$( '#dc-swp-capi-tec-row' ).toggle( 'own' === mode );
+	}
+
+	// Initialise on page load.
+	const initCapiMode = $( 'input[name="dc_swp_capi_mode"]:checked' ).val() || 'off';
+	updateCapiMode( initCapiMode );
+
+	// Restore saved pixel in detect mode.
+	if ( 'detect' === initCapiMode ) {
+		const savedPixel = $( '#dc-swp-capi-panel-detect' ).data( 'saved-pixel' );
+		if ( savedPixel ) {
+			$( '#dc-swp-capi-panel-detect' ).data( 'detected-pixel', savedPixel );
+			$( '#dc-swp-capi-detect-result' ).html(
+				'<p style="color:#3cb034"><strong>' + $( '<span>' ).text( capi.active || 'Auto-detected and active' ).html() + ':</strong> <code>' + $( '<span>' ).text( savedPixel ).html() + '</code></p>'
+			);
+			$( '#dc-swp-capi-detect-token-row' ).show();
+		}
+	}
+
+	$( 'input[name="dc_swp_capi_mode"]' ).on( 'change', function () {
+		updateCapiMode( $( this ).val() );
+	} );
+
+	// Pixel ID format validation (own panel).
+	$( '#dc-swp-capi-pixel-own' ).on( 'input', function () {
+		const val     = $( this ).val().trim();
+		const valid   = /^\d{15,16}$/.test( val );
+		const $status = $( '#dc-swp-capi-pixel-own-status' );
+		if ( val ) {
+			$status
+				.text( valid ? '\u2714 Valid Pixel ID' : '\u26a0 Expected 15-16 digit number' )
+				.css( 'color', valid ? '#3cb034' : '#d63638' )
+				.css( 'margin-left', '8px' );
+		} else {
+			$status.text( '' );
+		}
+	} );
+
+	// Scan Website button (detect mode).
+	$( '#dc-swp-capi-detect-btn' ).on( 'click', function () {
+		const $spin = $( '#dc-swp-capi-detect-spinner' );
+		const $res  = $( '#dc-swp-capi-detect-result' );
+		$spin.show();
+		$res.html( '' );
+		$.post( ajaxurl, { action: 'dc_swp_detect_capi_pixel', nonce: dcSwpAdminData.nonce }, function ( r ) {
+			$spin.hide();
+			if ( r.success && r.data && r.data.pixel_id ) {
+				const pid = r.data.pixel_id;
+				$( '#dc-swp-capi-panel-detect' ).data( 'detected-pixel', pid );
+				$res.html(
+					'<p style="color:#3cb034"><strong>' + $( '<span>' ).text( capi.detected || 'Detected' ).html() + ':</strong> <code>' + $( '<span>' ).text( pid ).html() + '</code></p>'
+				);
+				$( '#dc-swp-capi-detect-token-row' ).show();
+			} else {
+				$res.html( '<p style="color:#888">' + $( '<span>' ).text( capi.detectNone || 'No Meta Pixel found in page source.' ).html() + '</p>' );
+			}
+		} ).fail( function () {
+			$spin.hide();
+			$res.html( '<p style="color:#d63638">\u2718 Scan request failed.</p>' );
+		} );
+	} );
+
+	// Test Connection buttons (all panels share this class).
+	$( document ).on( 'click', '.dc-swp-capi-test-btn', function () {
+		const $btn     = $( this );
+		const $spinner = $btn.siblings( '.dc-swp-capi-test-spinner' );
+		const $result  = $btn.siblings( '.dc-swp-capi-test-result' );
+		const creds    = getCapiCredentials();
+
+		if ( ! creds.pixel_id || ! creds.access_token ) {
+			$result.html( '<span style="color:#d63638">\u26a0 Pixel ID and Access Token required.</span>' );
+			return;
+		}
+
+		$btn.prop( 'disabled', true );
+		$spinner.show();
+		$result.text( '' );
+
+		$.post(
+			ajaxurl,
+			{
+				action:          'dc_swp_test_capi',
+				nonce:           dcSwpAdminData.nonce,
+				pixel_id:        creds.pixel_id,
+				access_token:    creds.access_token,
+				test_event_code: creds.tec,
+			},
+			function ( r ) {
+				$spinner.hide();
+				$btn.prop( 'disabled', false );
+				if ( r.success && r.data && r.data.valid ) {
+					$result.html(
+						'<span style="color:#3cb034">' + $( '<span>' ).text( capi.testSuccess || '\u2714 Connection OK -- Meta accepted the test event.' ).html() + '</span>'
+					);
+				} else {
+					const errMsg = r.data && r.data.error ? r.data.error : ( capi.testFail || '\u26a0 Connection failed.' );
+					$result.html( '<span style="color:#d63638">' + $( '<span>' ).text( errMsg ).html() + '</span>' );
+				}
+			}
+		).fail( function () {
+			$spinner.hide();
+			$btn.prop( 'disabled', false );
+			$result.html( '<span style="color:#d63638">\u2718 Request failed.</span>' );
+		} );
+	} );
+
+	// Sync hidden fields and events JSON on form submit.
+	$( '.pwa-cache-settings' ).on( 'submit', function () {
+		syncCapiFields();
+
+		const events = {};
+		$( '.dc-swp-capi-event-cb' ).each( function () {
+			events[ $( this ).data( 'event' ) ] = $( this ).is( ':checked' );
+		} );
+		$( '#dc_swp_capi_events_json' ).val( JSON.stringify( events ) );
+	} );
+} )( jQuery );

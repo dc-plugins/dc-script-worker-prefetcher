@@ -267,6 +267,14 @@ function dc_swp_register_settings() {
 	register_setting( 'dc-sw-prefetch-settings', 'dc_swp_health_monitor', array( 'sanitize_callback' => 'sanitize_text_field' ) );
 	register_setting( 'dc-sw-prefetch-settings', 'dc_swp_perf_monitor', array( 'sanitize_callback' => 'sanitize_text_field' ) );
 	register_setting( 'dc-sw-prefetch-settings', 'dc_swp_exclusion_patterns', array( 'sanitize_callback' => 'sanitize_textarea_field' ) );
+	// Meta CAPI.
+	register_setting( 'dc-sw-prefetch-settings', 'dc_swp_capi_mode', array( 'sanitize_callback' => 'sanitize_text_field' ) );
+	register_setting( 'dc-sw-prefetch-settings', 'dc_swp_capi_pixel_id', array( 'sanitize_callback' => 'sanitize_text_field' ) );
+	register_setting( 'dc-sw-prefetch-settings', 'dc_swp_capi_access_token', array( 'sanitize_callback' => 'sanitize_text_field' ) );
+	register_setting( 'dc-sw-prefetch-settings', 'dc_swp_capi_test_event_code', array( 'sanitize_callback' => 'sanitize_text_field' ) );
+	register_setting( 'dc-sw-prefetch-settings', 'dc_swp_capi_events', array( 'sanitize_callback' => 'sanitize_text_field' ) );
+	register_setting( 'dc-sw-prefetch-settings', 'dc_swp_capi_exclude_logged_in', array( 'sanitize_callback' => 'sanitize_text_field' ) );
+	register_setting( 'dc-sw-prefetch-settings', 'dc_swp_capi_send_pii', array( 'sanitize_callback' => 'sanitize_text_field' ) );
 }
 
 // Admin page HTML.
@@ -372,6 +380,27 @@ function dc_swp_admin_page_html() {
 			}
 		}
 		update_option( 'dc_swp_ssga4_events', wp_json_encode( $_ssga4_events_clean ) );
+		// -- Meta CAPI -------------------------------------------------------
+		$_valid_capi_modes = array( 'off', 'own', 'detect' );
+		$_capi_mode_raw    = sanitize_text_field( wp_unslash( $_POST['dc_swp_capi_mode'] ?? 'off' ) );
+		$_capi_mode        = in_array( $_capi_mode_raw, $_valid_capi_modes, true ) ? $_capi_mode_raw : 'off';
+		update_option( 'dc_swp_capi_mode', $_capi_mode );
+		// Pixel ID -- digits only (15-16 digit numeric string).
+		$_capi_pixel_raw = sanitize_text_field( wp_unslash( $_POST['dc_swp_capi_pixel_id'] ?? '' ) );
+		update_option( 'dc_swp_capi_pixel_id', preg_replace( '/[^0-9]/', '', $_capi_pixel_raw ) );
+		update_option( 'dc_swp_capi_access_token', sanitize_text_field( wp_unslash( $_POST['dc_swp_capi_access_token'] ?? '' ) ) );
+		update_option( 'dc_swp_capi_test_event_code', sanitize_text_field( wp_unslash( $_POST['dc_swp_capi_test_event_code'] ?? '' ) ) );
+		update_option( 'dc_swp_capi_exclude_logged_in', sanitize_text_field( wp_unslash( $_POST['dc_swp_capi_exclude_logged_in'] ?? 'yes' ) ) );
+		update_option( 'dc_swp_capi_send_pii', isset( $_POST['dc_swp_capi_send_pii'] ) ? 'yes' : 'no' );
+		$_capi_valid_events = array( 'Purchase', 'InitiateCheckout', 'AddToCart', 'ViewContent', 'AddPaymentInfo' );
+		$_capi_events_raw   = json_decode( wp_unslash( $_POST['dc_swp_capi_events_json'] ?? '{}' ), true ); // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- JSON envelope; each key validated below.
+		$_capi_events_clean = array();
+		if ( is_array( $_capi_events_raw ) ) {
+			foreach ( $_capi_valid_events as $_cev ) {
+				$_capi_events_clean[ $_cev ] = ! empty( $_capi_events_raw[ $_cev ] );
+			}
+		}
+		update_option( 'dc_swp_capi_events', wp_json_encode( $_capi_events_clean ) );
 		update_option( 'dc_swp_resource_hints', isset( $_POST['dc_swp_resource_hints'] ) ? 'yes' : 'no' );
 		update_option( 'dc_swp_health_monitor', isset( $_POST['dc_swp_health_monitor'] ) ? 'yes' : 'no' );
 		update_option( 'dc_swp_perf_monitor', isset( $_POST['dc_swp_perf_monitor'] ) ? 'yes' : 'no' );
@@ -437,6 +466,22 @@ function dc_swp_admin_page_html() {
 	$_ssga4_tz       = wp_timezone_string();
 	$_ssga4_is_eu    = str_starts_with( $_ssga4_tz, 'Europe/' ) || str_starts_with( $_ssga4_tz, 'Atlantic/' );
 	$_ssga4_endpoint = $_ssga4_is_eu ? __( '🇪🇺 EU Endpoint (region1.google-analytics.com)', 'dc-sw-prefetch' ) : __( '🌐 Global Endpoint (google-analytics.com)', 'dc-sw-prefetch' );
+	// -- Meta CAPI --------------------------------------------------------
+	$capi_mode            = get_option( 'dc_swp_capi_mode', 'off' );
+	$capi_pixel_id        = get_option( 'dc_swp_capi_pixel_id', '' );
+	$capi_access_token    = get_option( 'dc_swp_capi_access_token', '' );
+	$capi_test_event_code = get_option( 'dc_swp_capi_test_event_code', '' );
+	$capi_exclude_logged  = get_option( 'dc_swp_capi_exclude_logged_in', 'yes' ) === 'yes';
+	$capi_send_pii        = get_option( 'dc_swp_capi_send_pii', 'no' ) === 'yes';
+	$capi_events_raw      = json_decode( get_option( 'dc_swp_capi_events', '' ), true );
+	$capi_events_default  = array(
+		'Purchase'         => true,
+		'InitiateCheckout' => true,
+		'AddToCart'        => false,
+		'ViewContent'      => false,
+		'AddPaymentInfo'   => false,
+	);
+	$capi_events = is_array( $capi_events_raw ) ? array_merge( $capi_events_default, $capi_events_raw ) : $capi_events_default;
 	// Inline script blocks -- decode JSON; auto-migrate legacy plain-text format.
 	$inline_scripts_raw   = get_option( 'dc_swp_inline_scripts', '' );
 	$inline_script_blocks = array();
@@ -1073,6 +1118,155 @@ function dc_swp_admin_page_html() {
 			</table>
 			</fieldset>
 
+			<!-- -- Meta Conversions API (CAPI) ---------------------------------- -->
+			<fieldset class="dc-swp-fieldset">
+			<legend><?php echo esc_html( __( 'Server-Side Meta CAPI Events', 'dc-sw-prefetch' ) ); ?></legend>
+			<p><?php echo wp_kses_post( __( 'Sends WooCommerce ecommerce events directly from the server to Meta via the Conversions API -- independent of browser consent and ad-blockers. Works alongside your client-side Meta Pixel for deduplication. <strong>Requires a Meta Pixel ID and a System User access token.</strong>', 'dc-sw-prefetch' ) ); ?></p>
+			<?php if ( ! class_exists( 'WooCommerce' ) ) : ?>
+				<div class="notice notice-warning inline" style="margin:8px 0;padding:8px 12px">
+					<p><?php echo esc_html( __( '⚠ WooCommerce is not active. Server-Side Meta CAPI Events require WooCommerce.', 'dc-sw-prefetch' ) ); ?></p>
+				</div>
+			<?php endif; ?>
+			<table class="form-table">
+				<tr valign="top">
+					<th scope="row"><?php echo esc_html( __( 'CAPI Setup', 'dc-sw-prefetch' ) ); ?></th>
+					<td>
+						<!-- Hidden fields -- JS syncs from active panel -->
+						<input type="hidden" name="dc_swp_capi_pixel_id" id="dc_swp_capi_pixel_field"
+							value="<?php echo esc_attr( $capi_pixel_id ); ?>">
+						<input type="hidden" name="dc_swp_capi_access_token" id="dc_swp_capi_token_field"
+							value="<?php echo esc_attr( $capi_access_token ); ?>">
+						<input type="hidden" name="dc_swp_capi_exclude_logged_in" id="dc_swp_capi_exclude_field"
+							value="<?php echo esc_attr( $capi_exclude_logged ? 'yes' : 'no' ); ?>">
+						<fieldset>
+						<?php
+						$_capi_modes = array(
+							'off'    => __( 'Disabled -- no server-side Meta CAPI events', 'dc-sw-prefetch' ),
+							'own'    => __( 'Enter Credentials -- I have my Pixel ID and Access Token', 'dc-sw-prefetch' ),
+							'detect' => __( 'Auto-Detect -- find Meta Pixel ID in page source', 'dc-sw-prefetch' ),
+						);
+						foreach ( $_capi_modes as $_cv => $_cl ) :
+							?>
+						<label style="display:block;margin-bottom:6px">
+							<input type="radio" name="dc_swp_capi_mode" value="<?php echo esc_attr( $_cv ); ?>"
+								<?php checked( $capi_mode, $_cv ); ?>>
+							<?php echo esc_html( $_cl ); ?>
+						</label>
+						<?php endforeach; ?>
+						</fieldset>
+
+						<!-- Panel: own -->
+						<div id="dc-swp-capi-panel-own" class="dc-swp-capi-panel" <?php echo 'own' !== $capi_mode ? 'style="display:none"' : ''; ?>>
+							<div style="margin-bottom:12px">
+								<label style="display:block;margin-bottom:4px;font-weight:500"><?php echo esc_html( __( 'Pixel ID', 'dc-sw-prefetch' ) ); ?></label>
+								<input type="text" id="dc-swp-capi-pixel-own"
+									class="regular-text" style="font-family:monospace"
+									value="<?php echo esc_attr( $capi_pixel_id ); ?>"
+									placeholder="<?php echo esc_attr( __( '1234567890123456', 'dc-sw-prefetch' ) ); ?>">
+								<span id="dc-swp-capi-pixel-own-status"></span>
+							</div>
+							<div style="margin-bottom:12px">
+								<label style="display:block;margin-bottom:4px;font-weight:500"><?php echo esc_html( __( 'Access Token', 'dc-sw-prefetch' ) ); ?></label>
+								<input type="password" id="dc-swp-capi-token-own"
+									class="regular-text" style="font-family:monospace"
+									value="<?php echo esc_attr( $capi_access_token ); ?>"
+									placeholder="<?php echo esc_attr( __( 'Paste your System User access token', 'dc-sw-prefetch' ) ); ?>"
+									autocomplete="off">
+								<p class="description" style="margin-top:4px"><?php echo wp_kses_post( __( 'Create in Meta Business Manager → System Users → Generate Token (select your Pixel, ads_management permission). <a href="https://developers.facebook.com/docs/marketing-api/conversions-api/get-started" target="_blank" rel="noopener">Instructions ↗</a>', 'dc-sw-prefetch' ) ); ?></p>
+							</div>
+							<label style="display:block;margin-bottom:12px">
+								<input type="checkbox" id="dc-swp-capi-exclude-own"
+									<?php checked( $capi_exclude_logged ); ?>>
+								<strong><?php echo esc_html( __( 'Exclude logged-in users', 'dc-sw-prefetch' ) ); ?></strong>
+								<p class="description" style="margin-top:2px;margin-left:24px"><?php echo esc_html( __( 'Skip server-side events for WordPress admins and editors.', 'dc-sw-prefetch' ) ); ?></p>
+							</label>
+							<button type="button" class="button button-secondary dc-swp-capi-test-btn">
+								<?php echo esc_html( __( '🧪 Test Connection', 'dc-sw-prefetch' ) ); ?>
+							</button>
+							<span class="dc-swp-capi-test-spinner spinner" style="float:none;margin-left:4px;display:none;"></span>
+							<span class="dc-swp-capi-test-result" style="margin-left:6px"></span>
+						</div>
+
+						<!-- Panel: detect -->
+						<div id="dc-swp-capi-panel-detect" class="dc-swp-capi-panel"
+							data-saved-pixel="<?php echo esc_attr( $capi_pixel_id ); ?>"
+							<?php echo 'detect' !== $capi_mode ? 'style="display:none"' : ''; ?>>
+							<button type="button" id="dc-swp-capi-detect-btn" class="button button-secondary">
+								<?php echo esc_html( __( 'Scan Website', 'dc-sw-prefetch' ) ); ?>
+							</button>
+							<span id="dc-swp-capi-detect-spinner" class="spinner" style="float:none;margin-left:4px;display:none;"></span>
+							<div id="dc-swp-capi-detect-result" style="margin-top:8px"></div>
+							<div id="dc-swp-capi-detect-token-row" style="margin-top:12px;display:none">
+								<label style="display:block;margin-bottom:4px;font-weight:500"><?php echo esc_html( __( 'Access Token', 'dc-sw-prefetch' ) ); ?></label>
+								<input type="password" id="dc-swp-capi-token-detect"
+									class="regular-text" style="font-family:monospace"
+									value="<?php echo esc_attr( $capi_access_token ); ?>"
+									placeholder="<?php echo esc_attr( __( 'Paste your System User access token', 'dc-sw-prefetch' ) ); ?>"
+									autocomplete="off">
+								<button type="button" class="button button-secondary dc-swp-capi-test-btn" style="margin-top:8px">
+									<?php echo esc_html( __( '🧪 Test Connection', 'dc-sw-prefetch' ) ); ?>
+								</button>
+								<span class="dc-swp-capi-test-spinner spinner" style="float:none;margin-left:4px;display:none;"></span>
+								<span class="dc-swp-capi-test-result" style="margin-left:6px"></span>
+							</div>
+							<p class="description" style="margin-top:8px"><?php echo esc_html( __( 'Scans your homepage for an existing Meta Pixel and extracts the Pixel ID. You still need to paste your Access Token.', 'dc-sw-prefetch' ) ); ?></p>
+						</div>
+					</td>
+				</tr>
+
+				<!-- Send PII toggle (visible whenever CAPI is not off) -->
+				<tr valign="top" id="dc-swp-capi-pii-row"<?php echo 'off' === $capi_mode ? ' style="display:none"' : ''; ?>>
+					<th scope="row"><?php echo esc_html( __( 'Hashed PII', 'dc-sw-prefetch' ) ); ?></th>
+					<td>
+						<label>
+							<input type="checkbox" name="dc_swp_capi_send_pii" value="yes" <?php checked( $capi_send_pii ); ?>>
+							<strong><?php echo esc_html( __( 'Send hashed customer details (email, phone, name, address)', 'dc-sw-prefetch' ) ); ?></strong>
+						</label>
+						<p class="description" style="margin-top:4px"><?php echo wp_kses_post( __( 'All fields are SHA-256 hashed before sending. Improves match rate significantly. <strong>Only enable if your privacy policy discloses server-to-server data sharing with Meta.</strong>', 'dc-sw-prefetch' ) ); ?></p>
+					</td>
+				</tr>
+
+				<!-- Test Event Code (visible in own mode) -->
+				<tr valign="top" id="dc-swp-capi-tec-row"<?php echo 'own' !== $capi_mode ? ' style="display:none"' : ''; ?>>
+					<th scope="row"><?php echo esc_html( __( 'Test Event Code', 'dc-sw-prefetch' ) ); ?></th>
+					<td>
+						<input type="text" name="dc_swp_capi_test_event_code" id="dc-swp-capi-tec-field"
+							class="regular-text" style="font-family:monospace"
+							value="<?php echo esc_attr( $capi_test_event_code ); ?>"
+							placeholder="TEST12345">
+						<p class="description"><?php echo esc_html( __( 'Found in Meta Events Manager → Test Events. Leave empty for production.', 'dc-sw-prefetch' ) ); ?></p>
+					</td>
+				</tr>
+
+				<!-- Events checkboxes -->
+				<tr valign="top" id="dc-swp-capi-events-row"<?php echo 'off' === $capi_mode ? ' style="display:none"' : ''; ?>>
+					<th scope="row"><?php echo esc_html( __( 'Server-Side Events', 'dc-sw-prefetch' ) ); ?></th>
+					<td>
+						<input type="hidden" id="dc_swp_capi_events_json" name="dc_swp_capi_events_json" value="">
+						<div style="display:grid;grid-template-columns:repeat(3,auto);gap:4px 18px;max-width:520px">
+						<?php
+						$_capi_event_labels = array(
+							'Purchase'         => 'Purchase',
+							'InitiateCheckout' => 'InitiateCheckout',
+							'AddToCart'        => 'AddToCart',
+							'ViewContent'      => 'ViewContent',
+							'AddPaymentInfo'   => 'AddPaymentInfo',
+						);
+						foreach ( $_capi_event_labels as $_ek => $_el ) :
+							?>
+							<label style="white-space:nowrap">
+								<input type="checkbox" class="dc-swp-capi-event-cb" data-event="<?php echo esc_attr( $_ek ); ?>"
+									<?php checked( ! empty( $capi_events[ $_ek ] ) ); ?>>
+								<code><?php echo esc_html( $_el ); ?></code>
+							</label>
+						<?php endforeach; ?>
+						</div>
+						<p class="description" style="margin-top:8px"><?php echo esc_html( __( 'Purchase and InitiateCheckout are recommended for revenue attribution. AddToCart and ViewContent require marketing consent.', 'dc-sw-prefetch' ) ); ?></p>
+					</td>
+				</tr>
+			</table>
+			</fieldset>
+
 			<!-- -- Performance Dashboard ---------------------------------------- -->
 			<fieldset class="dc-swp-fieldset">
 			<legend><?php echo esc_html( __( 'Performance Dashboard', 'dc-sw-prefetch' ) ); ?></legend>
@@ -1238,6 +1432,15 @@ function dc_swp_admin_page_html() {
 				'testSuccess' => __( '✔ Connection OK -- GA4 accepted the test event.', 'dc-sw-prefetch' ),
 				'testFail'    => __( '⚠ Connection failed -- check Measurement ID and API Secret.', 'dc-sw-prefetch' ),
 				'events'      => $ssga4_events,
+			),
+			'capi'               => array(
+				'mode'        => $capi_mode,
+				'detectNone'  => __( 'No Meta Pixel found in page source.', 'dc-sw-prefetch' ),
+				'detected'    => __( 'Detected', 'dc-sw-prefetch' ),
+				'active'      => __( 'Auto-detected and active', 'dc-sw-prefetch' ),
+				'testSuccess' => __( '✔ Connection OK -- Meta accepted the test event.', 'dc-sw-prefetch' ),
+				'testFail'    => __( '⚠ Connection failed -- check Pixel ID and Access Token.', 'dc-sw-prefetch' ),
+				'events'      => $capi_events,
 			),
 			'perf'               => array(
 				'resetNonce' => wp_create_nonce( 'dc_swp_perf_reset_nonce' ),
@@ -1566,6 +1769,129 @@ function dc_swp_ajax_test_ssga4() {
 			'valid'    => $valid,
 			'code'     => $code,
 			'messages' => $body['validationMessages'] ?? array(),
+		)
+	);
+}
+
+// ============================================================
+// AJAX -- Detect Meta Pixel ID from homepage source
+// ============================================================
+
+add_action( 'wp_ajax_dc_swp_detect_capi_pixel', 'dc_swp_ajax_detect_capi_pixel' );
+/**
+ * AJAX handler: scan homepage source for a Meta Pixel ID.
+ *
+ * Looks for fbq('init', 'PIXELID') patterns and returns the first match.
+ *
+ * @since 2.4.0
+ * @return void
+ */
+function dc_swp_ajax_detect_capi_pixel() {
+	if ( ! current_user_can( 'manage_options' ) ) {
+		wp_send_json_error( 'Unauthorized', 403 );
+	}
+	if ( ! isset( $_POST['nonce'] ) || ! wp_verify_nonce( sanitize_text_field( wp_unslash( $_POST['nonce'] ) ), 'dc_swp_detect_nonce' ) ) {
+		wp_send_json_error( 'Invalid nonce' );
+	}
+
+	$response = wp_remote_get(
+		home_url( '/' ),
+		array(
+			'timeout'    => 10,
+			'user-agent' => 'Mozilla/5.0 (compatible; DC-SWP-Scanner/1.0)',
+		)
+	);
+
+	if ( is_wp_error( $response ) ) {
+		wp_send_json_error( $response->get_error_message() );
+	}
+
+	$body = wp_remote_retrieve_body( $response );
+
+	// Match fbq('init', 'PIXELID') -- pixel IDs are 15-16 digit numeric strings.
+	if ( preg_match( "/fbq\s*\(\s*['\"]init['\"]\s*,\s*['\"](\d{15,16})['\"]/i", $body, $m ) ) {
+		wp_send_json_success( array( 'pixel_id' => $m[1] ) );
+	}
+
+	wp_send_json_success( array() );
+}
+
+// ============================================================
+// AJAX -- Test Meta CAPI connection
+// ============================================================
+
+add_action( 'wp_ajax_dc_swp_test_capi', 'dc_swp_ajax_test_capi' );
+/**
+ * AJAX handler: send a PageView test event to the Meta Graph API.
+ *
+ * Uses the test_event_code when provided so the event appears in the
+ * Meta Events Manager real-time test view without polluting real data.
+ *
+ * @since 2.4.0
+ * @return void
+ */
+function dc_swp_ajax_test_capi() {
+	if ( ! current_user_can( 'manage_options' ) ) {
+		wp_send_json_error( 'Unauthorized', 403 );
+	}
+	if ( ! isset( $_POST['nonce'] ) || ! wp_verify_nonce( sanitize_text_field( wp_unslash( $_POST['nonce'] ) ), 'dc_swp_detect_nonce' ) ) {
+		wp_send_json_error( 'Invalid nonce' );
+	}
+
+	$pixel_id       = preg_replace( '/[^0-9]/', '', sanitize_text_field( wp_unslash( $_POST['pixel_id'] ?? '' ) ) );
+	$access_token   = sanitize_text_field( wp_unslash( $_POST['access_token'] ?? '' ) );
+	$test_event_code = sanitize_text_field( wp_unslash( $_POST['test_event_code'] ?? '' ) );
+
+	if ( empty( $pixel_id ) || empty( $access_token ) ) {
+		wp_send_json_error( 'Missing pixel_id or access_token' );
+	}
+
+	$url = 'https://graph.facebook.com/v20.0/' . rawurlencode( $pixel_id ) . '/events?access_token=' . rawurlencode( $access_token );
+
+	$payload = array(
+		'data' => array(
+			array(
+				'event_name'    => 'PageView',
+				'event_time'    => time(),
+				'event_id'      => 'capi_test_' . wp_rand( 100000, 999999 ),
+				'action_source' => 'website',
+				'user_data'     => array(
+					'client_ip_address' => '127.0.0.1',
+					'client_user_agent' => 'DC-SWP-Test/1.0',
+				),
+			),
+		),
+	);
+
+	if ( ! empty( $test_event_code ) ) {
+		$payload['test_event_code'] = $test_event_code;
+	}
+
+	$response = wp_remote_post(
+		$url,
+		array(
+			'timeout' => 10,
+			'headers' => array( 'Content-Type' => 'application/json' ),
+			'body'    => wp_json_encode( $payload ),
+		)
+	);
+
+	if ( is_wp_error( $response ) ) {
+		wp_send_json_error( $response->get_error_message() );
+	}
+
+	$code = wp_remote_retrieve_response_code( $response );
+	$body = json_decode( wp_remote_retrieve_body( $response ), true );
+
+	// Graph API returns { events_received: N } on success; error objects on failure.
+	$valid = 200 === $code && isset( $body['events_received'] ) && $body['events_received'] > 0;
+
+	wp_send_json_success(
+		array(
+			'valid'            => $valid,
+			'code'             => $code,
+			'events_received'  => $body['events_received'] ?? 0,
+			'error'            => $body['error']['message'] ?? '',
 		)
 	);
 }

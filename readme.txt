@@ -5,7 +5,7 @@ Requires at least: 6.8
 Tested up to: 6.9
 Requires PHP: 8.0
 WC tested up to: 10.4.3
-Stable tag: 2.3.5
+Stable tag: 2.4.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -169,6 +169,14 @@ Provided by Mixpanel, Inc. Sends page views, custom events, and an anonymous vis
 The administrator may freely add other services through the Partytown Script List. The plugin imposes no restriction on which services can be configured, beyond the security allowlist that prevents the CORS proxy from being used as an open relay. Refer to each service's own privacy policy and terms of service for details on what data they collect.
 
 == Changelog ==
+
+= 2.4.0 =
+* Feature: Server-Side Meta Conversions API (CAPI) -- sends WooCommerce events (Purchase, InitiateCheckout, AddToCart, ViewContent, AddPaymentInfo) directly from PHP to the Meta Graph API.
+* Feature: Hashed PII support (email, phone, name, address) -- SHA-256 normalised per Meta spec, gated by a dedicated toggle.
+* Feature: _fbp / _fbc cookie forwarding and ?fbclid= synthesis for improved match rate.
+* Feature: Client-side deduplication bridge -- window.dcSwpCapiEventIds JSON blob lets the Meta Pixel send matching eventID values.
+* Feature: Test Event Code support for validating events in Meta Events Manager without polluting production data.
+* Feature: Auto-detect mode scans homepage source for an existing fbq('init', ...) Pixel ID.
 
 = 2.3.5 =
 * Fix: GCM v2 consent scripts now load after WP Consent API (proper script dependency).
