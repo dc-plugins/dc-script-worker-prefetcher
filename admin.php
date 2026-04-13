@@ -171,6 +171,12 @@ function dc_swp_enqueue_admin_assets( $hook ) {
     .dc-swp-fieldset { border:0; padding:0; margin:0 0 20px 0; }
     .dc-swp-fieldset > legend { font-size:1.3em; font-weight:600; padding:10px 0 5px 0; margin:0; }
     .dc-swp-ssga4-panel { margin-top:10px; padding:12px 14px; border:1px solid #dcdcde; border-radius:3px; background:#f9f9f9; }
+    /* -- Tab panels ------------------------------------------------------------ */
+    .dc-swp-tab-panel { display:none; }
+    .dc-swp-tab-panel.dc-swp-tab-active { display:block; }
+    /* -- Partytown-dependent rows ---------------------------------------------- */
+    .dc-swp-row-disabled { opacity:0.45; }
+    .dc-swp-row-disabled .pwa-toggle { pointer-events:none; }
     "
 	);
 	wp_enqueue_style( 'dc-swp-admin' );
@@ -534,14 +540,23 @@ function dc_swp_admin_page_html() {
 		<form method="post" action="" class="pwa-cache-settings">
 			<?php wp_nonce_field( 'dc_swp_save_settings', 'dc_swp_nonce' ); ?>
 
+		<nav class="nav-tab-wrapper" id="dc-swp-tabs" aria-label="<?php esc_attr_e( 'Settings sections', 'dc-sw-prefetch' ); ?>">
+			<a href="#tab-scripts"     class="nav-tab"><?php esc_html_e( 'Scripts',     'dc-sw-prefetch' ); ?></a>
+			<a href="#tab-analytics"   class="nav-tab"><?php esc_html_e( 'Analytics',   'dc-sw-prefetch' ); ?></a>
+			<a href="#tab-meta"        class="nav-tab"><?php esc_html_e( 'Meta Ads',    'dc-sw-prefetch' ); ?></a>
+			<a href="#tab-performance" class="nav-tab"><?php esc_html_e( 'Performance', 'dc-sw-prefetch' ); ?></a>
+			<a href="#tab-advanced"    class="nav-tab"><?php esc_html_e( 'Advanced',    'dc-sw-prefetch' ); ?></a>
+		</nav>
+
+		<!-- ===== TAB 1: SCRIPTS ===== -->
+		<div id="tab-scripts" class="dc-swp-tab-panel">
 			<fieldset class="dc-swp-fieldset">
-			<legend><?php echo esc_html( __( 'Partytown Integration', 'dc-sw-prefetch' ) ); ?></legend>
 			<table class="form-table">
 				<tr valign="top">
 					<th scope="row"><?php echo esc_html( __( 'Enable Partytown', 'dc-sw-prefetch' ) ); ?></th>
 					<td>
 						<label class="pwa-toggle">
-							<input type="checkbox" name="dc_swp_sw_enabled" value="yes" <?php checked( $sw_enabled, true ); ?>>
+							<input type="checkbox" id="dc_swp_sw_enabled" name="dc_swp_sw_enabled" value="yes" <?php checked( $sw_enabled, true ); ?>>
 							<span class="pwa-slider"></span>
 						</label>
 						<p class="description"><?php echo esc_html( __( 'Activate Partytown service worker for third-party script offloading and viewport prefetch. When disabled, scripts render directly on the main thread with defer -- useful for diagnosing Partytown issues (no Web Worker, no consent gating).', 'dc-sw-prefetch' ) ); ?></p>
@@ -614,6 +629,43 @@ function dc_swp_admin_page_html() {
 						<p class="description" style="margin-top:8px"><?php echo wp_kses_post( __( 'Paste complete third-party script blocks here -- including &lt;script&gt; tags and &lt;noscript&gt; fallbacks (Meta Pixel, TikTok Pixel, etc.). The plugin automatically converts them to <code>type="text/partytown"</code> so they run in a Web Worker and respect marketing consent. <a href="https://partytown.qwik.dev/common-services/" target="_blank" rel="noopener">Compatible services ↗</a>', 'dc-sw-prefetch' ) ); ?></p>
 					</td>
 				</tr>
+				<tr valign="top"<?php if ( ! $sw_enabled ) echo ' class="dc-swp-row-disabled"'; ?>>
+					<th scope="row"><?php echo esc_html( __( 'SharedArrayBuffer (Atomics Bridge)', 'dc-sw-prefetch' ) ); ?></th>
+					<td>
+						<label class="pwa-toggle">
+							<input type="checkbox" name="dc_swp_coi_headers" value="yes" <?php checked( $coi_headers && $sw_enabled, true ); ?><?php if ( ! $sw_enabled ) echo ' disabled'; ?>>
+							<span class="pwa-slider"></span>
+						</label>
+						<p class="description"><?php echo wp_kses_post( __( 'Sends <code>Cross-Origin-Opener-Policy: same-origin</code> and <code>Cross-Origin-Embedder-Policy: credentialless</code> on public pages. Enables <code>crossOriginIsolated</code> in the browser so Partytown switches to the faster Atomics bridge instead of the sync-XHR bridge. Skipped for bots, logged-in users and checkout. All cross-origin iframes are automatically given the <code>credentialless</code> attribute so they can load under COEP -- regardless of the exclusion list. <strong>Test in staging first -- can break OAuth popups or other cross-origin iframes.</strong>', 'dc-sw-prefetch' ) ); ?></p>
+					</td>
+				</tr>
+				<tr valign="top">
+					<th scope="row"><?php echo esc_html( __( 'Early Resource Hints', 'dc-sw-prefetch' ) ); ?></th>
+					<td>
+						<label class="pwa-toggle">
+							<input type="checkbox" name="dc_swp_resource_hints" value="yes" <?php checked( $resource_hints, true ); ?>>
+							<span class="pwa-slider"></span>
+						</label>
+						<p class="description"><?php echo wp_kses_post( __( 'Emits <code>&lt;link rel="preconnect"&gt;</code> and <code>&lt;link rel="dns-prefetch"&gt;</code> for all configured third-party hosts in &lt;head&gt;. Reduces TCP+TLS round-trip latency for first-visit page loads.', 'dc-sw-prefetch' ) ); ?></p>
+					</td>
+				</tr>
+				<tr valign="top">
+					<th scope="row"><?php echo esc_html( __( 'Partytown Exclusion Patterns', 'dc-sw-prefetch' ) ); ?></th>
+					<td>
+						<textarea name="dc_swp_exclusion_patterns" rows="5" class="large-text code"
+							placeholder="/landing-page/&#10;/payment-flow/*"><?php echo esc_textarea( $exclusion_patterns ); ?></textarea>
+						<p class="description"><?php echo wp_kses_post( __( 'URL patterns (one per line) where Partytown is completely skipped. Supports <code>*</code> wildcard. Useful for landing pages or payment flows with scripts incompatible with the Partytown worker.', 'dc-sw-prefetch' ) ); ?></p>
+					</td>
+				</tr>
+			</table>
+			</fieldset>
+		</div><!-- /tab-scripts -->
+
+		<!-- ===== TAB 2: ANALYTICS ===== -->
+		<div id="tab-analytics" class="dc-swp-tab-panel">
+			<fieldset class="dc-swp-fieldset">
+			<legend><?php esc_html_e( 'Tag Management', 'dc-sw-prefetch' ); ?></legend>
+			<table class="form-table">
 				<tr valign="top">
 					<th scope="row"><?php echo esc_html( __( 'Google Tag Management', 'dc-sw-prefetch' ) ); ?></th>
 					<td>
@@ -810,56 +862,6 @@ function dc_swp_admin_page_html() {
 							<span class="pwa-slider"></span>
 						</label>
 						<p class="description"><?php echo wp_kses_post( __( 'Meta/Facebook Pixel does not support Google Consent Mode v2 — it uses its own Limited Data Use (LDU) consent API. Injects an <code>fbq</code> stub + <code>fbq("dataProcessingOptions",["LDU"],0,0)</code> in &lt;head&gt; before Partytown and Facebook Pixel scripts load. The Meta Pixel always runs as <code>text/partytown</code> — Meta applies LDU restrictions internally (data not used for ad targeting). Your CMP does not need to block the script via <code>text/plain</code>. <strong>When the WP Consent API is active:</strong> LDU is applied conditionally — consented visitors receive <code>fbq("consent","grant")</code> + <code>fbq("dataProcessingOptions",[],0,0)</code> (unrestricted), while non-consented visitors receive <code>fbq("consent","revoke")</code> + full LDU. Server-side CAPI payloads automatically mirror this state via <code>data_processing_options</code>. Requires Meta Pixel to be added via the Partytown Script List or an Inline Script Block.', 'dc-sw-prefetch' ) ); ?></p>
-					</td>
-				</tr>
-				<tr valign="top">
-					<th scope="row"><?php echo esc_html( __( 'SharedArrayBuffer (Atomics Bridge)', 'dc-sw-prefetch' ) ); ?></th>
-					<td>
-						<label class="pwa-toggle">
-							<input type="checkbox" name="dc_swp_coi_headers" value="yes" <?php checked( $coi_headers, true ); ?>>
-							<span class="pwa-slider"></span>
-						</label>
-						<p class="description"><?php echo wp_kses_post( __( 'Sends <code>Cross-Origin-Opener-Policy: same-origin</code> and <code>Cross-Origin-Embedder-Policy: credentialless</code> on public pages. Enables <code>crossOriginIsolated</code> in the browser so Partytown switches to the faster Atomics bridge instead of the sync-XHR bridge. Skipped for bots, logged-in users and checkout. All cross-origin iframes are automatically given the <code>credentialless</code> attribute so they can load under COEP -- regardless of the exclusion list. <strong>Test in staging first -- can break OAuth popups or other cross-origin iframes.</strong>', 'dc-sw-prefetch' ) ); ?></p>
-					</td>
-				</tr>
-				<tr valign="top">
-					<th scope="row"><?php echo esc_html( __( 'Early Resource Hints', 'dc-sw-prefetch' ) ); ?></th>
-					<td>
-						<label class="pwa-toggle">
-							<input type="checkbox" name="dc_swp_resource_hints" value="yes" <?php checked( $resource_hints, true ); ?>>
-							<span class="pwa-slider"></span>
-						</label>
-						<p class="description"><?php echo wp_kses_post( __( 'Emits <code>&lt;link rel="preconnect"&gt;</code> and <code>&lt;link rel="dns-prefetch"&gt;</code> for all configured third-party hosts in &lt;head&gt;. Reduces TCP+TLS round-trip latency for first-visit page loads.', 'dc-sw-prefetch' ) ); ?></p>
-					</td>
-				</tr>
-				<tr valign="top">
-					<th scope="row"><?php echo esc_html( __( 'Partytown Health Monitor', 'dc-sw-prefetch' ) ); ?></th>
-					<td>
-						<label class="pwa-toggle">
-							<input type="checkbox" name="dc_swp_health_monitor" value="yes" <?php checked( $health_monitor, true ); ?>>
-							<span class="pwa-slider"></span>
-						</label>
-						<p class="description"><?php echo esc_html( __( 'Detects services that fail silently inside the Partytown worker (no network traffic observed within 15 seconds) and surfaces an admin notice. Disable if you experience false positives.', 'dc-sw-prefetch' ) ); ?></p>
-					</td>
-				</tr>
-				<tr valign="top">
-					<th scope="row"><?php echo esc_html( __( 'Performance Metrics', 'dc-sw-prefetch' ) ); ?></th>
-					<td>
-						<label class="pwa-toggle">
-							<input type="checkbox" name="dc_swp_perf_monitor" value="yes" <?php checked( $perf_monitor, true ); ?>>
-							<span class="pwa-slider"></span>
-						</label>
-						<p class="description"><?php echo esc_html( __( 'Collects anonymous TBT (Total Blocking Time) and INP (Interaction to Next Paint) measurements from real visitors and shows rolling averages + P75 percentiles in the admin -- giving tangible proof of Partytown\'s main-thread offloading benefit.', 'dc-sw-prefetch' ) ); ?></p>
-					</td>
-				</tr>
-				<tr valign="top">
-					<th scope="row"><?php echo esc_html( __( 'Partytown Debug Mode', 'dc-sw-prefetch' ) ); ?></th>
-					<td>
-						<label class="pwa-toggle">
-							<input type="checkbox" name="dc_swp_debug_mode" value="yes" <?php checked( $debug_mode, true ); ?>>
-							<span class="pwa-slider"></span>
-						</label>
-						<p class="description"><?php echo wp_kses_post( __( 'Loads the unminified debug build of Partytown and enables all log flags. Output is emitted via <code>console.debug()</code> -- you must enable the <strong>Verbose</strong> level in the DevTools Console filter (hidden by default). Worker-side logs only appear in <strong>Atomics Bridge</strong> mode, which requires the <em>COI Headers</em> option above to be enabled. <strong>Use only in staging or local development -- enables verbose logging for all visitors.</strong>', 'dc-sw-prefetch' ) ); ?></p>
 					</td>
 				</tr>
 			</table>
@@ -1117,7 +1119,10 @@ function dc_swp_admin_page_html() {
 				</tr>
 			</table>
 			</fieldset>
+		</div><!-- /tab-analytics -->
 
+		<!-- ===== TAB 3: META ADS ===== -->
+		<div id="tab-meta" class="dc-swp-tab-panel">
 			<!-- -- Meta Conversions API (CAPI) ---------------------------------- -->
 			<fieldset class="dc-swp-fieldset">
 			<legend><?php echo esc_html( __( 'Server-Side Meta CAPI Events', 'dc-sw-prefetch' ) ); ?></legend>
@@ -1452,6 +1457,34 @@ function dc_swp_admin_page_html() {
 				</tr>
 			</table>
 			</fieldset>
+		</div><!-- /tab-meta -->
+
+		<!-- ===== TAB 4: PERFORMANCE ===== -->
+		<div id="tab-performance" class="dc-swp-tab-panel">
+			<fieldset class="dc-swp-fieldset">
+			<table class="form-table">
+				<tr valign="top">
+					<th scope="row"><?php echo esc_html( __( 'Partytown Health Monitor', 'dc-sw-prefetch' ) ); ?></th>
+					<td>
+						<label class="pwa-toggle">
+							<input type="checkbox" name="dc_swp_health_monitor" value="yes" <?php checked( $health_monitor, true ); ?>>
+							<span class="pwa-slider"></span>
+						</label>
+						<p class="description"><?php echo esc_html( __( 'Detects services that fail silently inside the Partytown worker (no network traffic observed within 15 seconds) and surfaces an admin notice. Disable if you experience false positives.', 'dc-sw-prefetch' ) ); ?></p>
+					</td>
+				</tr>
+				<tr valign="top">
+					<th scope="row"><?php echo esc_html( __( 'Performance Metrics', 'dc-sw-prefetch' ) ); ?></th>
+					<td>
+						<label class="pwa-toggle">
+							<input type="checkbox" name="dc_swp_perf_monitor" value="yes" <?php checked( $perf_monitor, true ); ?>>
+							<span class="pwa-slider"></span>
+						</label>
+						<p class="description"><?php echo esc_html( __( 'Collects anonymous TBT (Total Blocking Time) and INP (Interaction to Next Paint) measurements from real visitors and shows rolling averages + P75 percentiles in the admin -- giving tangible proof of Partytown\'s main-thread offloading benefit.', 'dc-sw-prefetch' ) ); ?></p>
+					</td>
+				</tr>
+			</table>
+			</fieldset>
 
 			<!-- -- Performance Dashboard ---------------------------------------- -->
 			<fieldset class="dc-swp-fieldset">
@@ -1515,21 +1548,24 @@ function dc_swp_admin_page_html() {
 			</table>
 		<?php endif; ?>
 		</fieldset>
+		</div><!-- /tab-performance -->
 
-		<!-- -- Advanced: Exclusion Patterns -------------------------------- -->
-		<fieldset class="dc-swp-fieldset">
-		<legend><?php esc_html_e( 'Advanced', 'dc-sw-prefetch' ); ?></legend>
-		<table class="form-table">
-			<tr valign="top">
-				<th scope="row"><?php echo esc_html( __( 'Partytown Exclusion Patterns', 'dc-sw-prefetch' ) ); ?></th>
-				<td>
-					<textarea name="dc_swp_exclusion_patterns" rows="5" class="large-text code"
-						placeholder="/landing-page/&#10;/payment-flow/*"><?php echo esc_textarea( $exclusion_patterns ); ?></textarea>
-					<p class="description"><?php echo wp_kses_post( __( 'URL patterns (one per line) where Partytown is completely skipped. Supports <code>*</code> wildcard. Useful for landing pages or payment flows with scripts incompatible with the Partytown worker.', 'dc-sw-prefetch' ) ); ?></p>
-				</td>
-			</tr>
-		</table>
-		</fieldset>
+		<!-- ===== TAB 5: ADVANCED ===== -->
+		<div id="tab-advanced" class="dc-swp-tab-panel">
+			<fieldset class="dc-swp-fieldset">
+			<table class="form-table">
+				<tr valign="top"<?php if ( ! $sw_enabled ) echo ' class="dc-swp-row-disabled"'; ?>>
+					<th scope="row"><?php echo esc_html( __( 'Partytown Debug Mode', 'dc-sw-prefetch' ) ); ?></th>
+					<td>
+						<label class="pwa-toggle">
+							<input type="checkbox" name="dc_swp_debug_mode" value="yes" <?php checked( $debug_mode && $sw_enabled, true ); ?><?php if ( ! $sw_enabled ) echo ' disabled'; ?>>
+							<span class="pwa-slider"></span>
+						</label>
+						<p class="description"><?php echo wp_kses_post( __( 'Loads the unminified debug build of Partytown and enables all log flags. Output is emitted via <code>console.debug()</code> -- you must enable the <strong>Verbose</strong> level in the DevTools Console filter (hidden by default). Worker-side logs only appear in <strong>Atomics Bridge</strong> mode, which requires the <em>COI Headers</em> option above to be enabled. <strong>Use only in staging or local development -- enables verbose logging for all visitors.</strong>', 'dc-sw-prefetch' ) ); ?></p>
+					</td>
+				</tr>
+			</table>
+			</fieldset>
 
 			<fieldset class="dc-swp-fieldset">
 			<legend><?php echo esc_html( __( 'Benefits', 'dc-sw-prefetch' ) ); ?></legend>
@@ -1560,6 +1596,8 @@ function dc_swp_admin_page_html() {
 				</tr>
 			</table>
 			</fieldset>
+
+		</div><!-- /tab-advanced -->
 
 			<?php submit_button( __( 'Save Settings', 'dc-sw-prefetch' ) ); ?>
 		</form>

@@ -1429,3 +1429,60 @@ jQuery( function ( $ ) {
 		$( '#dc_swp_capi_events_json' ).val( JSON.stringify( events ) );
 	} );
 } )( jQuery );
+
+// -- Partytown-dependent toggles --------------------------------------------
+( function ( $ ) {
+	'use strict';
+
+	var $ptToggle  = $( '#dc_swp_sw_enabled' );
+	var $depInputs = $( 'input[name="dc_swp_coi_headers"], input[name="dc_swp_debug_mode"]' );
+
+	function syncPtDeps() {
+		var ptOn = $ptToggle.is( ':checked' );
+		$depInputs.each( function () {
+			var $input = $( this );
+			var $row   = $input.closest( 'tr' );
+			if ( ptOn ) {
+				$input.prop( 'disabled', false );
+				$row.removeClass( 'dc-swp-row-disabled' );
+			} else {
+				$input.prop( 'checked', false ).prop( 'disabled', true );
+				$row.addClass( 'dc-swp-row-disabled' );
+			}
+		} );
+	}
+
+	$ptToggle.on( 'change', syncPtDeps );
+	syncPtDeps();
+} )( jQuery );
+
+// -- Tab navigation ----------------------------------------------------------
+( function ( $ ) {
+	'use strict';
+
+	var $tabs   = $( '#dc-swp-tabs .nav-tab' );
+	var $panels = $( '.dc-swp-tab-panel' );
+
+	function activateTab( target ) {
+		if ( ! target || ! $( target ).length ) {
+			target = $tabs.first().attr( 'href' );
+		}
+		$tabs.removeClass( 'nav-tab-active' ).filter( '[href="' + target + '"]' ).addClass( 'nav-tab-active' );
+		$panels.removeClass( 'dc-swp-tab-active' );
+		$( target ).addClass( 'dc-swp-tab-active' );
+		if ( history.replaceState ) {
+			history.replaceState( null, '', location.pathname + location.search + target );
+		}
+	}
+
+	$tabs.on( 'click', function ( e ) {
+		e.preventDefault();
+		activateTab( $( this ).attr( 'href' ) );
+	} );
+
+	// Restore tab from URL hash; fall back to first tab.
+	var initialHash = location.hash && $( '#dc-swp-tabs .nav-tab[href="' + location.hash + '"]' ).length
+		? location.hash
+		: null;
+	activateTab( initialHash );
+} )( jQuery );
