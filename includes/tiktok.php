@@ -481,7 +481,7 @@ if ( class_exists( 'WooCommerce' ) ) {
 			'event_id'   => dc_swp_tt_get_event_id( 'AddToCart' ),
 			'event_time' => time(),
 			'user'       => dc_swp_tt_get_user_data(),
-			'page'       => array( 'url' => dc_swp_tt_current_url() ),
+			'page'       => array( 'url' => esc_url_raw( get_permalink( $product->get_id() ) ) ),
 			'properties' => array(
 				'currency'     => get_woocommerce_currency(),
 				'value'        => (float) $product->get_price() * $quantity,
