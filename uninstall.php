@@ -60,6 +60,13 @@ function dc_swp_uninstall() {
 		'dc_swp_attr_enabled',
 		'dc_swp_attr_model',
 		'dc_swp_ga4_enhanced_conv',
+		// TikTok Pixel & Events API (v2.6.0+).
+		'dc_swp_tt_pixel_id',
+		'dc_swp_tt_access_token',
+		'dc_swp_tt_test_event_code',
+		'dc_swp_tt_events',
+		'dc_swp_tt_exclude_logged_in',
+		'dc_swp_tt_send_pii',
 		// Legacy names (pre-1.6.0) -- remove if migration never ran.
 		'dampcig_pwa_sw_enabled',
 		'dampcig_pwa_footer_credit',

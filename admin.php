@@ -374,6 +374,22 @@ function dc_swp_admin_page_html() {
 		update_option( 'dc_swp_attr_model', in_array( $_attr_model_raw, array( 'first', 'last' ), true ) ? $_attr_model_raw : 'first' );
 		// -- Google Ads Enhanced Conversions --------------------------------
 		update_option( 'dc_swp_ga4_enhanced_conv', isset( $_POST['dc_swp_ga4_enhanced_conv'] ) ? 'yes' : 'no' );
+		// -- TikTok Pixel & Events API ------------------------------------
+		$_tt_pixel_raw = sanitize_text_field( wp_unslash( $_POST['dc_swp_tt_pixel_id'] ?? '' ) );
+		update_option( 'dc_swp_tt_pixel_id', preg_replace( '/[^A-Z0-9]/i', '', $_tt_pixel_raw ) );
+		update_option( 'dc_swp_tt_access_token', sanitize_text_field( wp_unslash( $_POST['dc_swp_tt_access_token'] ?? '' ) ) );
+		update_option( 'dc_swp_tt_test_event_code', sanitize_text_field( wp_unslash( $_POST['dc_swp_tt_test_event_code'] ?? '' ) ) );
+		update_option( 'dc_swp_tt_exclude_logged_in', sanitize_text_field( wp_unslash( $_POST['dc_swp_tt_exclude_logged_in'] ?? 'yes' ) ) );
+		update_option( 'dc_swp_tt_send_pii', isset( $_POST['dc_swp_tt_send_pii'] ) ? 'yes' : 'no' );
+		$_tt_valid_events = array( 'Purchase', 'ViewContent', 'AddToCart', 'InitiateCheckout' );
+		$_tt_events_raw   = json_decode( wp_unslash( $_POST['dc_swp_tt_events_json'] ?? '{}' ), true ); // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- JSON envelope; each key validated below.
+		$_tt_events_clean = array();
+		if ( is_array( $_tt_events_raw ) ) {
+			foreach ( $_tt_valid_events as $_tev ) {
+				$_tt_events_clean[ $_tev ] = ! empty( $_tt_events_raw[ $_tev ] );
+			}
+		}
+		update_option( 'dc_swp_tt_events', wp_json_encode( $_tt_events_clean ) );
 		update_option( 'dc_swp_resource_hints', isset( $_POST['dc_swp_resource_hints'] ) ? 'yes' : 'no' );
 		update_option( 'dc_swp_health_monitor', isset( $_POST['dc_swp_health_monitor'] ) ? 'yes' : 'no' );
 		update_option( 'dc_swp_perf_monitor', isset( $_POST['dc_swp_perf_monitor'] ) ? 'yes' : 'no' );
@@ -458,6 +474,19 @@ function dc_swp_admin_page_html() {
 		'AddPaymentInfo'   => false,
 	);
 	$capi_events          = is_array( $capi_events_raw ) ? array_merge( $capi_events_default, $capi_events_raw ) : $capi_events_default;
+	$tt_pixel_id          = get_option( 'dc_swp_tt_pixel_id', '' );
+	$tt_access_token      = get_option( 'dc_swp_tt_access_token', '' );
+	$tt_test_event_code   = get_option( 'dc_swp_tt_test_event_code', '' );
+	$tt_exclude_logged    = get_option( 'dc_swp_tt_exclude_logged_in', 'yes' ) === 'yes';
+	$tt_send_pii          = get_option( 'dc_swp_tt_send_pii', 'no' ) === 'yes';
+	$tt_events_raw        = json_decode( get_option( 'dc_swp_tt_events', '' ), true );
+	$tt_events_default    = array(
+		'Purchase'         => true,
+		'ViewContent'      => false,
+		'AddToCart'        => false,
+		'InitiateCheckout' => false,
+	);
+	$tt_events            = is_array( $tt_events_raw ) ? array_merge( $tt_events_default, $tt_events_raw ) : $tt_events_default;
 	// Inline script blocks -- decode JSON; auto-migrate legacy plain-text format.
 	$inline_scripts_raw   = get_option( 'dc_swp_inline_scripts', '' );
 	$inline_script_blocks = array();
@@ -514,6 +543,7 @@ function dc_swp_admin_page_html() {
 			<a href="#tab-scripts"     class="nav-tab"><?php esc_html_e( 'Scripts', 'dc-sw-prefetch' ); ?></a>
 			<a href="#tab-analytics"   class="nav-tab"><?php esc_html_e( 'Analytics', 'dc-sw-prefetch' ); ?></a>
 			<a href="#tab-meta"        class="nav-tab"><?php esc_html_e( 'Meta Ads', 'dc-sw-prefetch' ); ?></a>
+			<a href="#tab-tiktok"      class="nav-tab"><?php esc_html_e( 'TikTok Ads', 'dc-sw-prefetch' ); ?></a>
 			<a href="#tab-performance" class="nav-tab"><?php esc_html_e( 'Performance', 'dc-sw-prefetch' ); ?></a>
 			<a href="#tab-advanced"    class="nav-tab"><?php esc_html_e( 'Advanced', 'dc-sw-prefetch' ); ?></a>
 		</nav>
@@ -1495,7 +1525,103 @@ function dc_swp_admin_page_html() {
 			</fieldset>
 		</div><!-- /tab-meta -->
 
-		<!-- ===== TAB 4: PERFORMANCE ===== -->
+		<!-- ===== TAB 4: TIKTOK ADS ===== -->
+		<div id="tab-tiktok" class="dc-swp-tab-panel">
+
+			<!-- -- TikTok Pixel (Client-Side) ------------------------------------ -->
+			<fieldset class="dc-swp-fieldset">
+			<legend><?php esc_html_e( 'TikTok Pixel (Client-Side)', 'dc-sw-prefetch' ); ?></legend>
+			<table class="form-table">
+				<tr valign="top">
+					<th scope="row"><?php esc_html_e( 'Pixel ID', 'dc-sw-prefetch' ); ?></th>
+					<td>
+						<input type="text" name="dc_swp_tt_pixel_id" value="<?php echo esc_attr( $tt_pixel_id ); ?>"
+							placeholder="C1A2B3C4D5E6F7G" style="width:240px;font-family:monospace">
+						<p class="description"><?php echo wp_kses_post( __( 'When set, the TikTok Pixel base code is automatically injected as <code>type="text/partytown"</code> — offloading the pixel to a web worker. The <a href="https://partytown.qwik.dev/common-services/" target="_blank" rel="noopener">Partytown-supported</a> <code>ttq.track</code>, <code>ttq.page</code>, and <code>ttq.load</code> functions are forwarded automatically. No manual Script List entry needed.', 'dc-sw-prefetch' ) ); ?></p>
+					</td>
+				</tr>
+			</table>
+			</fieldset>
+
+			<!-- -- TikTok Events API (Server-Side) ------------------------------- -->
+			<fieldset class="dc-swp-fieldset">
+			<legend><?php esc_html_e( 'Server-Side TikTok Events API', 'dc-sw-prefetch' ); ?></legend>
+			<p><?php echo wp_kses_post( __( 'Sends WooCommerce ecommerce events directly from the server to TikTok via the <a href="https://business-api.tiktok.com/portal/docs?id=1741601162187777" target="_blank" rel="noopener">Events API</a> — independent of browser consent and ad-blockers. Works alongside the client Pixel for deduplication. <strong>Requires a Pixel ID and an Events API Access Token.</strong>', 'dc-sw-prefetch' ) ); ?></p>
+			<?php if ( ! class_exists( 'WooCommerce' ) ) : ?>
+				<div class="notice notice-warning inline" style="margin:8px 0;padding:8px 12px">
+					<p><?php echo esc_html__( '⚠ WooCommerce is not active. Server-Side TikTok Events require WooCommerce.', 'dc-sw-prefetch' ); ?></p>
+				</div>
+			<?php endif; ?>
+			<table class="form-table">
+				<tr valign="top">
+					<th scope="row"><?php esc_html_e( 'Access Token', 'dc-sw-prefetch' ); ?></th>
+					<td>
+						<input type="password" name="dc_swp_tt_access_token" value="<?php echo esc_attr( $tt_access_token ); ?>"
+							placeholder="<?php esc_attr_e( 'TikTok Events API Access Token', 'dc-sw-prefetch' ); ?>" style="width:360px">
+						<p class="description"><?php echo wp_kses_post( __( 'Generate in TikTok Ads Manager &#8594; Assets &#8594; Events &#8594; Web Events &#8594; Manage &#8594; <strong>Generate Access Token</strong>. Stored encrypted in the database; transmitted via <code>Access-Token</code> request header — never in the URL.', 'dc-sw-prefetch' ) ); ?></p>
+					</td>
+				</tr>
+				<tr valign="top">
+					<th scope="row"><?php esc_html_e( 'Test Event Code', 'dc-sw-prefetch' ); ?></th>
+					<td>
+						<input type="text" name="dc_swp_tt_test_event_code" value="<?php echo esc_attr( $tt_test_event_code ); ?>"
+							placeholder="TEST12345" style="width:180px;font-family:monospace">
+						<p class="description"><?php esc_html_e( 'Optional. Visible in TikTok Events Manager real-time test view. Remove when going live.', 'dc-sw-prefetch' ); ?></p>
+					</td>
+				</tr>
+				<tr valign="top">
+					<th scope="row"><?php esc_html_e( 'Server-Side Events', 'dc-sw-prefetch' ); ?></th>
+					<td>
+						<input type="hidden" id="dc_swp_tt_events_json" name="dc_swp_tt_events_json" value="">
+						<div style="display:grid;grid-template-columns:repeat(2,auto);gap:4px 18px;max-width:360px">
+						<?php
+						$_tt_event_labels = array(
+							'Purchase'         => 'Purchase',
+							'ViewContent'      => 'ViewContent',
+							'AddToCart'        => 'AddToCart',
+							'InitiateCheckout' => 'InitiateCheckout',
+						);
+						foreach ( $_tt_event_labels as $_tev_key => $_tev_label ) :
+							?>
+							<label style="white-space:nowrap">
+								<input type="checkbox" class="dc-swp-tt-event-cb" data-event="<?php echo esc_attr( $_tev_key ); ?>"
+									<?php checked( ! empty( $tt_events[ $_tev_key ] ) ); ?>>
+								<code><?php echo esc_html( $_tev_label ); ?></code>
+							</label>
+						<?php endforeach; ?>
+						</div>
+						<p class="description" style="margin-top:8px"><?php esc_html_e( 'Choose which WooCommerce events to send server-side. Purchase is always recommended — it improves ROAS reporting for TikTok Ads.', 'dc-sw-prefetch' ); ?></p>
+					</td>
+				</tr>
+				<tr valign="top">
+					<th scope="row"><?php esc_html_e( 'Exclude Logged-In', 'dc-sw-prefetch' ); ?></th>
+					<td>
+						<input type="hidden" name="dc_swp_tt_exclude_logged_in" id="dc_swp_tt_exclude_field"
+							value="<?php echo esc_attr( $tt_exclude_logged ? 'yes' : 'no' ); ?>">
+						<label>
+							<input type="checkbox" id="dc_swp_tt_exclude_cb"
+								<?php checked( $tt_exclude_logged ); ?>
+								onchange="document.getElementById('dc_swp_tt_exclude_field').value=this.checked?'yes':'no'">
+							<?php esc_html_e( 'Skip server-side events for logged-in administrators and shop managers', 'dc-sw-prefetch' ); ?>
+						</label>
+					</td>
+				</tr>
+				<tr valign="top">
+					<th scope="row"><?php esc_html_e( 'Hashed PII', 'dc-sw-prefetch' ); ?></th>
+					<td>
+						<label>
+							<input type="checkbox" name="dc_swp_tt_send_pii" value="yes"<?php checked( $tt_send_pii ); ?>>
+							<?php esc_html_e( 'Include hashed billing email, phone number, and customer ID in Events API payloads', 'dc-sw-prefetch' ); ?>
+						</label>
+						<p class="description"><?php esc_html_e( 'Data is SHA-256 hashed before transmission. Only enable if your privacy policy covers sharing hashed customer data with TikTok.', 'dc-sw-prefetch' ); ?></p>
+					</td>
+				</tr>
+			</table>
+			</fieldset>
+
+		</div><!-- /tab-tiktok -->
+
+		<!-- ===== TAB 5: PERFORMANCE ===== -->
 		<div id="tab-performance" class="dc-swp-tab-panel">
 			<fieldset class="dc-swp-fieldset">
 			<table class="form-table">

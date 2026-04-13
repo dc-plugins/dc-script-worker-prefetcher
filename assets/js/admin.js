@@ -1422,11 +1422,17 @@ jQuery( function ( $ ) {
 	$( '.pwa-cache-settings' ).on( 'submit', function () {
 		syncCapiFields();
 
-		const events = {};
+		const capiEvents = {};
 		$( '.dc-swp-capi-event-cb' ).each( function () {
-			events[ $( this ).data( 'event' ) ] = $( this ).is( ':checked' );
+			capiEvents[ $( this ).data( 'event' ) ] = $( this ).is( ':checked' );
 		} );
-		$( '#dc_swp_capi_events_json' ).val( JSON.stringify( events ) );
+		$( '#dc_swp_capi_events_json' ).val( JSON.stringify( capiEvents ) );
+
+		const ttEvents = {};
+		$( '.dc-swp-tt-event-cb' ).each( function () {
+			ttEvents[ $( this ).data( 'event' ) ] = $( this ).is( ':checked' );
+		} );
+		$( '#dc_swp_tt_events_json' ).val( JSON.stringify( ttEvents ) );
 	} );
 } )( jQuery );
 

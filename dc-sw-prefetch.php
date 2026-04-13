@@ -388,6 +388,7 @@ define( 'DC_SWP_VERSION', '2.5.1' );
 require_once plugin_dir_path( __FILE__ ) . 'admin.php';
 require_once plugin_dir_path( __FILE__ ) . 'capi.php';
 require_once plugin_dir_path( __FILE__ ) . 'includes/attribution.php';
+require_once plugin_dir_path( __FILE__ ) . 'includes/tiktok.php';
 
 
 // ============================================================
@@ -1225,6 +1226,71 @@ function dc_swp_inject_ga4_client_tag() {
 	// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- fully static JS; measurement ID is esc_js escaped; nonce is pre-escaped.
 	echo '<script' . $nonce_attr . ">gtag('js',new Date());gtag('config','" . $safe_id . "');</script>\n";
 }
+
+// ============================================================
+// TIKTOK PIXEL -- CLIENT-SIDE INJECTION
+// Injects the TikTok Pixel base code as type="text/partytown" when
+// a Pixel ID is configured in admin. The pixel runs in the web worker
+// via Partytown; forward:['ttq.track','ttq.page','ttq.load'] relays
+// main-thread ttq() calls into the worker.
+// ============================================================
+
+/**
+ * Inject the TikTok Pixel base code in <head> when a Pixel ID is set.
+ *
+ * Fires at priority 7 -- after GTM (5) and GA4 client tag (6).
+ * Requires Partytown to be active (dc_swp_sw_enabled = yes).
+ * analytics.tiktok.com is included in the CORS proxy allowed-hosts list
+ * and known-services map, so no additional configuration is needed.
+ *
+ * @since 2.6.0
+ * @return void
+ */
+function dc_swp_inject_tt_head(): void {
+	if ( dc_swp_is_bot_request() || is_admin() ) {
+		return;
+	}
+
+	$pixel_id = sanitize_text_field( get_option( 'dc_swp_tt_pixel_id', '' ) );
+	if ( empty( $pixel_id ) ) {
+		return;
+	}
+
+	if ( 'yes' !== get_option( 'dc_swp_sw_enabled', 'yes' ) ) {
+		return;
+	}
+
+	if ( dc_swp_is_safe_page() || dc_swp_is_excluded_url() ) {
+		return;
+	}
+
+	$nonce      = dc_swp_get_csp_nonce();
+	$nonce_attr = '' !== $nonce ? ' nonce="' . esc_attr( $nonce ) . '"' : '';
+	$safe_id    = esc_js( $pixel_id );
+
+	// TikTok Pixel base code -- runs inside the Partytown web worker.
+	// ttq.load() creates a <script src="analytics.tiktok.com/..."> element
+	// which Partytown proxies back to the main thread via the CORS proxy.
+	$js = '!function(w,d,t){w.TiktokAnalyticsObject=t;var ttq=w[t]=w[t]||[];' .
+		'ttq.methods=["page","track","trackSku","trackWithDeduplication","identify",' .
+		'"instances","debug","on","off","once","ready","alias","group",' .
+		'"enableCookie","disableCookie","holdConsent","revokeConsent","grantConsent"],' .
+		'ttq.setAndDefer=function(t,e){t[e]=function(){t.push([e].concat(Array.prototype.slice.call(arguments,0)))}};' .
+		'for(var i=0;i<ttq.methods.length;i++)ttq.setAndDefer(ttq,ttq.methods[i]);' .
+		'ttq.instance=function(t){for(var e=ttq._i[t]||[],n=0;n<ttq.methods.length;n++)ttq.setAndDefer(e,ttq.methods[n]);return e},' .
+		'ttq.load=function(e,n){var r="https://analytics.tiktok.com/i18n/pixel/events.js";' .
+		'ttq._i=ttq._i||{},ttq._i[e]=[],ttq._i[e]._u=r,ttq._t=ttq._t||{},ttq._t[e]=+new Date,' .
+		'ttq._o=ttq._o||{},ttq._o[e]=n||{};' .
+		'n=document.createElement("script");n.type="text/javascript",n.async=!0,' .
+		'n.src=r+"?sdkid="+e+"&lib="+t;' .
+		'var a=document.getElementsByTagName("script")[0];a.parentNode.insertBefore(n,a)};' .
+		"ttq.load('" . $safe_id . "');ttq.page()}" .
+		"(window,document,'ttq');";
+
+	// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- $js is a static string; pixel ID is esc_js-escaped; nonce is pre-escaped via esc_attr.
+	echo '<script type="text/partytown"' . $nonce_attr . '>' . $js . "</script>\n";
+}
+add_action( 'wp_head', 'dc_swp_inject_tt_head', 7 );
 
 /**
  * AJAX handler: detect a live Google Tag ID by scanning the homepage HTML.
