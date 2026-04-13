@@ -797,12 +797,6 @@ function dc_swp_admin_page_html() {
 								?>
 							</div>
 
-							<p class="dc-swp-info-section"><?php echo esc_html__( 'Meta Pixel -- Separate LDU Mechanism', 'dc-sw-prefetch' ); ?></p>
-							<p class="description" style="margin-bottom:6px"><?php echo esc_html__( 'Meta Pixel does not implement GCM v2. Enable Meta Pixel LDU below -- Meta applies Limited Data Use restrictions internally.', 'dc-sw-prefetch' ); ?></p>
-							<div class="dc-swp-badges">
-								<?php echo $_badge( 'Meta Pixel', 'LDU API', 'meta', $_si . 'Meta%20Pixel-LDU%20API-1877f2' . $_sq ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
-							</div>
-
 						</div>
 					</details>
 					</td>
@@ -824,15 +818,6 @@ function dc_swp_admin_page_html() {
 							<span class="pwa-slider"></span>
 						</label>
 						<p class="description"><?php echo wp_kses_post( __( 'Enables <code>gtag("set","ads_data_redaction",true)</code>. Redacts click IDs (gclid, wbraid) from data sent to Google when <code>ad_storage</code> is denied -- enhanced privacy for visitors who have not granted marketing consent.', 'dc-sw-prefetch' ) ); ?></p>
-					</td>
-				</tr>
-				<tr valign="top">					<th scope="row"><?php echo esc_html__( 'Meta Pixel Limited Data Use (LDU)', 'dc-sw-prefetch' ); ?></th>
-					<td>
-						<label class="pwa-toggle">
-							<input type="checkbox" name="dc_swp_meta_ldu" value="yes" <?php checked( $meta_ldu, true ); ?>>
-							<span class="pwa-slider"></span>
-						</label>
-						<p class="description"><?php echo wp_kses_post( __( 'Meta/Facebook Pixel does not support Google Consent Mode v2 — it uses its own Limited Data Use (LDU) consent API. Injects an <code>fbq</code> stub + <code>fbq("dataProcessingOptions",["LDU"],0,0)</code> in &lt;head&gt; before Partytown and Facebook Pixel scripts load. The Meta Pixel always runs as <code>text/partytown</code> — Meta applies LDU restrictions internally (data not used for ad targeting). Your CMP does not need to block the script via <code>text/plain</code>. <strong>When the WP Consent API is active:</strong> LDU is applied conditionally — consented visitors receive <code>fbq("consent","grant")</code> + <code>fbq("dataProcessingOptions",[],0,0)</code> (unrestricted), while non-consented visitors receive <code>fbq("consent","revoke")</code> + full LDU. Server-side CAPI payloads automatically mirror this state via <code>data_processing_options</code>. Requires Meta Pixel to be added via the Partytown Script List or an Inline Script Block.', 'dc-sw-prefetch' ) ); ?></p>
 					</td>
 				</tr>
 			</table>
@@ -1094,6 +1079,28 @@ function dc_swp_admin_page_html() {
 
 		<!-- ===== TAB 3: META ADS ===== -->
 		<div id="tab-meta" class="dc-swp-tab-panel">
+			<!-- -- Meta Pixel (Client-Side) -------------------------------------- -->
+			<fieldset class="dc-swp-fieldset">
+			<legend><?php esc_html_e( 'Meta Pixel (Client-Side)', 'dc-sw-prefetch' ); ?></legend>
+			<table class="form-table">
+				<tr valign="top">
+					<th scope="row"><?php esc_html_e( 'Meta Pixel Limited Data Use (LDU)', 'dc-sw-prefetch' ); ?></th>
+					<td>
+						<p class="dc-swp-info-section"><?php esc_html_e( 'Meta Pixel -- Separate LDU Mechanism', 'dc-sw-prefetch' ); ?></p>
+						<p class="description" style="margin-bottom:6px"><?php esc_html_e( 'Meta Pixel does not implement GCM v2. Enable Meta Pixel LDU below -- Meta applies Limited Data Use restrictions internally.', 'dc-sw-prefetch' ); ?></p>
+						<div class="dc-swp-badges">
+							<?php echo $_badge( 'Meta Pixel', 'LDU API', 'meta', $_si . 'Meta%20Pixel-LDU%20API-1877f2' . $_sq ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
+						</div>
+						<label class="pwa-toggle" style="margin-top:10px;display:inline-block">
+							<input type="checkbox" name="dc_swp_meta_ldu" value="yes" <?php checked( $meta_ldu, true ); ?>>
+							<span class="pwa-slider"></span>
+						</label>
+						<p class="description"><?php echo wp_kses_post( __( 'Meta/Facebook Pixel does not support Google Consent Mode v2 — it uses its own Limited Data Use (LDU) consent API. Injects an <code>fbq</code> stub + <code>fbq("dataProcessingOptions",["LDU"],0,0)</code> in &lt;head&gt; before Partytown and Facebook Pixel scripts load. The Meta Pixel always runs as <code>text/partytown</code> — Meta applies LDU restrictions internally (data not used for ad targeting). Your CMP does not need to block the script via <code>text/plain</code>. <strong>When the WP Consent API is active:</strong> LDU is applied conditionally — consented visitors receive <code>fbq("consent","grant")</code> + <code>fbq("dataProcessingOptions",[],0,0)</code> (unrestricted), while non-consented visitors receive <code>fbq("consent","revoke")</code> + full LDU. Server-side CAPI payloads automatically mirror this state via <code>data_processing_options</code>. Requires Meta Pixel to be added via the Partytown Script List or an Inline Script Block.', 'dc-sw-prefetch' ) ); ?></p>
+					</td>
+				</tr>
+			</table>
+			</fieldset>
+
 			<!-- -- Meta Conversions API (CAPI) ---------------------------------- -->
 			<fieldset class="dc-swp-fieldset">
 			<legend><?php echo esc_html__( 'Server-Side Meta CAPI Events', 'dc-sw-prefetch' ); ?></legend>
