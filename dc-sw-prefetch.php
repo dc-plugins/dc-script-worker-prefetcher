@@ -3506,20 +3506,44 @@ if ( class_exists( 'WooCommerce' ) ) {
 	add_action( 'woocommerce_before_checkout_form', 'dc_swp_ssga4_begin_checkout', 20 );
 
 	/**
+	 * WooCommerce Blocks checkout compatibility: fire begin_checkout via
+	 * template_redirect so it triggers on block-based checkout pages, which
+	 * do not emit woocommerce_before_checkout_form.
+	 *
+	 * The dc_swp_ssga4_should_fire_once() guard prevents double-firing on
+	 * classic checkout where both hooks reach the function in the same session.
+	 *
+	 * @since 2.6.0
+	 * @return void
+	 */
+	function dc_swp_ssga4_begin_checkout_blocks(): void {
+		if ( ! function_exists( 'is_checkout' ) || ! is_checkout() ) {
+			return;
+		}
+		if ( function_exists( 'is_order_received_page' ) && is_order_received_page() ) {
+			return;
+		}
+		dc_swp_ssga4_begin_checkout();
+	}
+	add_action( 'template_redirect', 'dc_swp_ssga4_begin_checkout_blocks', 20 );
+
+	/**
 	 * SSGA4: add_to_cart event.
 	 *
 	 * @since 2.0.0
 	 * @param string $cart_item_key Cart item key.
 	 * @param int    $product_id    Product ID.
 	 * @param int    $quantity      Quantity added.
+	 * @param int    $variation_id  Variation ID (0 for simple products).
 	 * @return void
 	 */
-	function dc_swp_ssga4_add_to_cart( string $cart_item_key, int $product_id, int $quantity ): void {
+	function dc_swp_ssga4_add_to_cart( string $cart_item_key, int $product_id, int $quantity, int $variation_id ): void {
 		if ( ! dc_swp_ssga4_is_event_enabled( 'add_to_cart' ) ) {
 			return;
 		}
 
-		$product = wc_get_product( $product_id );
+		$pid     = $variation_id > 0 ? $variation_id : $product_id;
+		$product = wc_get_product( $pid );
 		if ( ! $product ) {
 			return;
 		}
@@ -3544,7 +3568,7 @@ if ( class_exists( 'WooCommerce' ) ) {
 			)
 		);
 	}
-	add_action( 'woocommerce_add_to_cart', 'dc_swp_ssga4_add_to_cart', 20, 3 );
+	add_action( 'woocommerce_add_to_cart', 'dc_swp_ssga4_add_to_cart', 20, 4 );
 
 	/**
 	 * SSGA4: remove_from_cart event.
