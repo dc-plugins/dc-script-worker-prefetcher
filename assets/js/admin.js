@@ -1434,14 +1434,14 @@ jQuery( function ( $ ) {
 ( function ( $ ) {
 	'use strict';
 
-	var $ptToggle  = $( '#dc_swp_sw_enabled' );
-	var $depInputs = $( 'input[name="dc_swp_coi_headers"], input[name="dc_swp_debug_mode"]' );
+	const $ptToggle  = $( '#dc_swp_sw_enabled' );
+	const $depInputs = $( 'input[name="dc_swp_coi_headers"], input[name="dc_swp_debug_mode"]' );
 
 	function syncPtDeps() {
-		var ptOn = $ptToggle.is( ':checked' );
+		const ptOn = $ptToggle.is( ':checked' );
 		$depInputs.each( function () {
-			var $input = $( this );
-			var $row   = $input.closest( 'tr' );
+			const $input = $( this );
+			const $row   = $input.closest( 'tr' );
 			if ( ptOn ) {
 				$input.prop( 'disabled', false );
 				$row.removeClass( 'dc-swp-row-disabled' );
@@ -1460,8 +1460,8 @@ jQuery( function ( $ ) {
 ( function ( $ ) {
 	'use strict';
 
-	var $tabs   = $( '#dc-swp-tabs .nav-tab' );
-	var $panels = $( '.dc-swp-tab-panel' );
+	const $tabs   = $( '#dc-swp-tabs .nav-tab' );
+	const $panels = $( '.dc-swp-tab-panel' );
 
 	function activateTab( target ) {
 		if ( ! target || ! $( target ).length ) {
@@ -1481,7 +1481,7 @@ jQuery( function ( $ ) {
 	} );
 
 	// Restore tab from URL hash; fall back to first tab.
-	var initialHash = location.hash && $( '#dc-swp-tabs .nav-tab[href="' + location.hash + '"]' ).length
+	const initialHash = location.hash && $( '#dc-swp-tabs .nav-tab[href="' + location.hash + '"]' ).length
 		? location.hash
 		: null;
 	activateTab( initialHash );

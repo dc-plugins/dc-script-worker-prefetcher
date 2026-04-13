@@ -13,7 +13,7 @@
  * @package DC_Service_Worker_Prefetcher
  */
 
-/* global gtag, wp_has_consent, dcSwpMeta */
+/* global gtag, wp_has_consent */
 
 ( function () {
 	'use strict';
@@ -76,9 +76,9 @@
 		if ( typeof window.fbq !== 'function' ) {
 			return;
 		}
-		var meta        = window.dcSwpMeta || {};
-		var consentGate = meta.consentGate === '1';
-		var metaLdu     = meta.ldu === '1';
+		const meta        = window.dcSwpMeta || {};
+		const consentGate = meta.consentGate === '1';
+		const metaLdu     = meta.ldu === '1';
 
 		// Only drive Meta signals when the consent gate is on — when it's off,
 		// the server-side stub already handles the static state at page load.
@@ -86,7 +86,7 @@
 			return;
 		}
 
-		var state = hasConsent ? 'grant' : 'revoke';
+		const state = hasConsent ? 'grant' : 'revoke';
 		if ( lastMetaConsent === state ) {
 			return; // No change — avoid redundant fbq calls.
 		}

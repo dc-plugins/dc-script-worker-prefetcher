@@ -145,14 +145,14 @@ function dc_swp_capi_get_fbc(): string {
  * @return string Absolute URL of the current page.
  */
 function dc_swp_capi_current_url(): string {
-	$request_uri = isset( $_SERVER['REQUEST_URI'] ) ? wp_unslash( $_SERVER['REQUEST_URI'] ) : '/';
+	$request_uri = isset( $_SERVER['REQUEST_URI'] ) ? wp_unslash( $_SERVER['REQUEST_URI'] ) : '/'; // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- sanitized through esc_url_raw( home_url() ) on the next line; sanitize_text_field would corrupt encoded query strings.
 	return esc_url_raw( home_url( $request_uri ) );
 }
 
 /**
  * Build the user_data object for a CAPI event.
  *
- * connection-level fields (IP address, user agent, fbp, fbc) are always
+ * Connection-level fields (IP address, user agent, fbp, fbc) are always
  * included. Hashed PII fields (em, ph, fn, ln, ct, st, zp, country,
  * external_id) are only included when dc_swp_capi_send_pii = 'yes'.
  *
@@ -228,7 +228,7 @@ function dc_swp_capi_get_user_data( ?\WC_Order $order = null ): array {
 		$city = $order->get_billing_city();
 		if ( ! empty( $city ) ) {
 			// Meta rule: city -- lowercase, strip spaces and hyphens, then hash.
-			$city_clean = strtolower( preg_replace( '/[\s\-]/', '', $city ) );
+			$city_clean      = strtolower( preg_replace( '/[\s\-]/', '', $city ) );
 			$user_data['ct'] = array( hash( 'sha256', $city_clean ) );
 		}
 
@@ -355,8 +355,8 @@ function dc_swp_capi_get_event_id( string $event, int $context_id = 0 ): string 
 		$session_key = (string) WC()->session->get_customer_id();
 	}
 	if ( '' === $session_key ) {
-		$remote = isset( $_SERVER['REMOTE_ADDR'] ) ? sanitize_text_field( wp_unslash( $_SERVER['REMOTE_ADDR'] ) ) : '';
-		$ua     = isset( $_SERVER['HTTP_USER_AGENT'] ) ? sanitize_text_field( wp_unslash( $_SERVER['HTTP_USER_AGENT'] ) ) : '';
+		$remote      = isset( $_SERVER['REMOTE_ADDR'] ) ? sanitize_text_field( wp_unslash( $_SERVER['REMOTE_ADDR'] ) ) : '';
+		$ua          = isset( $_SERVER['HTTP_USER_AGENT'] ) ? sanitize_text_field( wp_unslash( $_SERVER['HTTP_USER_AGENT'] ) ) : '';
 		$session_key = wp_hash( $remote . $ua );
 	}
 	// 5-second bucket keeps server ID in sync with client ID emitted in the same page load.
@@ -433,6 +433,14 @@ function dc_swp_capi_get_ldu_payload_fields(): array {
 	);
 }
 
+/**
+ * Send one or more server events to the Meta Conversions API.
+ *
+ * @since 2.4.0
+ * @param array<int,array<string,mixed>> $server_events  Array of CAPI event objects.
+ * @param bool                           $blocking        Whether to wait for the HTTP response.
+ * @return bool True if the request was dispatched, false if pixel/token are missing.
+ */
 function dc_swp_capi_send( array $server_events, bool $blocking = false ): bool {
 	$cfg          = dc_swp_capi_get_config();
 	$pixel_id     = $cfg['pixel_id'];

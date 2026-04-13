@@ -5,7 +5,7 @@ Requires at least: 6.8
 Tested up to: 6.9
 Requires PHP: 8.0
 WC tested up to: 10.4.3
-Stable tag: 2.5.0
+Stable tag: 2.5.1
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -169,6 +169,21 @@ Provided by Mixpanel, Inc. Sends page views, custom events, and an anonymous vis
 The administrator may freely add other services through the Partytown Script List. The plugin imposes no restriction on which services can be configured, beyond the security allowlist that prevents the CORS proxy from being used as an open relay. Refer to each service's own privacy policy and terms of service for details on what data they collect.
 
 == Changelog ==
+
+= 2.5.1 =
+* Fix: CAPI access token moved from URL query string to Authorization: Bearer header (prevents credential appearing in server access logs).
+* Fix: CAPI inline event-ID script now uses wp_add_inline_script() + wp_inline_script_attributes nonce filter instead of a raw echo.
+* Fix: Uninstall now deletes all seven CAPI options, including the stored access token.
+* Fix: DC_SWP_VERSION constant moved before require_once calls so included files can safely reference it at module level.
+* Fix: admin footer translatable string no longer embeds raw HTML inside __(); markup and URL are escaped separately.
+* Fix: $_SERVER['REMOTE_ADDR'] and HTTP_USER_AGENT now use sanitize_text_field( wp_unslash() ) consistently.
+* Fix: Removed register_setting() / admin_init hook -- the custom save handler already sanitizes all fields inline; double-sanitization eliminated.
+* Fix: Lone if inside else block at Meta LDU injection converted to elseif.
+* Chore: ABSPATH guards and file doc comments added to all five includes/ stub files.
+* Chore: 129x esc_html( __() ) calls in admin.php replaced with esc_html__() shorthand.
+* Chore: four list() destructuring calls replaced with short [ ] syntax.
+* Chore: phpcbf applied -- 35 auto-fixable PHPCS violations resolved.
+* Chore: ESLint -- var replaced with const/let in tab and PT-deps IIFEs; history and dcSwpMeta globals reconciled.
 
 = 2.5.0 =
 * Feature: CAPI Getting Started wizard -- 5-step guided setup (Dataset creation, System User token, connection test, event selection, finalise) replaces the need for Meta's own Dataset Setup Events guide.

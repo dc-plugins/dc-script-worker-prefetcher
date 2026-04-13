@@ -6,7 +6,7 @@
  * Plugin Name: DC Script Worker Proxy
  * Plugin URI:  https://github.com/dc-plugins/dc-sw-prefetch
  * Description: Offloads third-party scripts (GTM, Pixel, Analytics...) to a Web Worker via Partytown with consent-aware loading. Fully vendored -- no build step required.
- * Version:     2.5.0
+ * Version:     2.5.1
  * Author:      lennilg
  * Author URI:  https://github.com/lennilg
  * License:           GPL-2.0-or-later
@@ -373,7 +373,7 @@ function dc_swp_is_meta_ldu_enabled() {
 // files can safely reference DC_SWP_VERSION at module level.
 // ============================================================
 
-define( 'DC_SWP_VERSION', '2.5.0' );
+define( 'DC_SWP_VERSION', '2.5.1' );
 
 
 // ============================================================
@@ -1269,7 +1269,7 @@ function dc_swp_inject_meta_ldu_default() {
 		return;
 	}
 
-	$ldu_on        = dc_swp_is_meta_ldu_enabled();
+	$ldu_on = dc_swp_is_meta_ldu_enabled();
 	// WP Consent API is "active" when the gate is on AND the API function exists.
 	$consent_aware = dc_swp_is_consent_gate_enabled() && function_exists( 'wp_has_consent' );
 
@@ -1305,11 +1305,9 @@ function dc_swp_inject_meta_ldu_default() {
 				$ldu_js .= "fbq('dataProcessingOptions',['LDU'],0,0);\n";
 			}
 		}
-	} else {
+	} elseif ( $ldu_on ) {
 		// No WP Consent API — apply LDU unconditionally (legacy behaviour).
-		if ( $ldu_on ) {
-			$ldu_js .= "fbq('dataProcessingOptions',['LDU'],0,0);\n";
-		}
+		$ldu_js .= "fbq('dataProcessingOptions',['LDU'],0,0);\n";
 	}
 	// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- fully static JS; nonce is pre-escaped via esc_attr.
 	echo '<script' . $nonce_attr . ">\n" . $ldu_js . "</script>\n";
@@ -2033,8 +2031,8 @@ function dc_swp_partytown_script_attrs( $attributes ) {
 	foreach ( $all_patterns as $pattern ) {
 		if ( '' !== $pattern && str_contains( $src, $pattern ) ) {
 			// Per-service consent gate via WP Consent API.
-			[ $allowed, $cat ] = dc_swp_resolve_script_consent( $src );
-			$attributes['type']    = $allowed ? 'text/partytown' : 'text/plain';
+			[ $allowed, $cat ]  = dc_swp_resolve_script_consent( $src );
+			$attributes['type'] = $allowed ? 'text/partytown' : 'text/plain';
 			if ( ! $allowed ) {
 				$attributes['data-wp-consent-category'] = $cat;
 			}
@@ -2767,8 +2765,8 @@ function dc_swp_partytown_buffer_rewrite( $html ) {
 
 				// Per-service consent gate via WP Consent API.
 				[ $allowed, $cat ] = dc_swp_resolve_script_consent( $src );
-				$new_type              = $allowed ? 'text/partytown' : 'text/plain';
-				$tag_inner             = preg_replace( '/\s+async(?:=["\'][^"\']*["\'])?/i', '', $tag_inner );
+				$new_type          = $allowed ? 'text/partytown' : 'text/plain';
+				$tag_inner         = preg_replace( '/\s+async(?:=["\'][^"\']*["\'])?/i', '', $tag_inner );
 				// Stamp blocked scripts with their consent category for client-side unblocking.
 				if ( ! $allowed && ! preg_match( '/\bdata-wp-consent-category=/i', $tag_inner ) ) {
 					$tag_inner .= ' data-wp-consent-category="' . esc_attr( $cat ) . '"';
@@ -3712,11 +3710,11 @@ function dc_swp_output_inline_scripts() {
 	if ( $pt_enabled ) {
 		// Partytown active -- per-block consent gate via WP Consent API.
 		foreach ( $js_blocks as $blk ) {
-			$js              = $blk['content'];
-			$cat             = $blk['category'];
+			$js          = $blk['content'];
+			$cat         = $blk['category'];
 			[ $allowed ] = dc_swp_resolve_inline_consent( $js, $cat );
-			$blk_type        = $allowed ? 'text/partytown' : 'text/plain';
-			$consent_cat     = ! $allowed ? ' data-wp-consent-category="' . esc_attr( $cat ? $cat : dc_swp_get_script_list_category() ) . '"' : '';
+			$blk_type    = $allowed ? 'text/partytown' : 'text/plain';
+			$consent_cat = ! $allowed ? ' data-wp-consent-category="' . esc_attr( $cat ? $cat : dc_swp_get_script_list_category() ) . '"' : '';
 			if ( dc_swp_inline_matches_known_service( $js ) || $blk['force_partytown'] ) {
 				// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- admin-controlled inline JS.
 				echo '<script type="' . esc_attr( $blk_type ) . '"' . $consent_cat . $nonce_attr . ">\n" . $js . "\n</script>\n";

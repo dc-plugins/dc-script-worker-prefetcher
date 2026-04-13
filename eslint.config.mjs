@@ -16,6 +16,7 @@ export default [
 				window: 'readonly',
 				document: 'readonly',
 				navigator: 'readonly',
+				history: 'readonly',
 				location: 'readonly',
 				console: 'readonly',
 				setTimeout: 'readonly',

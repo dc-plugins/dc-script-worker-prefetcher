@@ -441,7 +441,7 @@ function dc_swp_admin_page_html() {
 		'ViewContent'      => false,
 		'AddPaymentInfo'   => false,
 	);
-	$capi_events = is_array( $capi_events_raw ) ? array_merge( $capi_events_default, $capi_events_raw ) : $capi_events_default;
+	$capi_events          = is_array( $capi_events_raw ) ? array_merge( $capi_events_default, $capi_events_raw ) : $capi_events_default;
 	// Inline script blocks -- decode JSON; auto-migrate legacy plain-text format.
 	$inline_scripts_raw   = get_option( 'dc_swp_inline_scripts', '' );
 	$inline_script_blocks = array();
@@ -495,11 +495,11 @@ function dc_swp_admin_page_html() {
 			<?php wp_nonce_field( 'dc_swp_save_settings', 'dc_swp_nonce' ); ?>
 
 		<nav class="nav-tab-wrapper" id="dc-swp-tabs" aria-label="<?php esc_attr_e( 'Settings sections', 'dc-sw-prefetch' ); ?>">
-			<a href="#tab-scripts"     class="nav-tab"><?php esc_html_e( 'Scripts',     'dc-sw-prefetch' ); ?></a>
-			<a href="#tab-analytics"   class="nav-tab"><?php esc_html_e( 'Analytics',   'dc-sw-prefetch' ); ?></a>
-			<a href="#tab-meta"        class="nav-tab"><?php esc_html_e( 'Meta Ads',    'dc-sw-prefetch' ); ?></a>
+			<a href="#tab-scripts"     class="nav-tab"><?php esc_html_e( 'Scripts', 'dc-sw-prefetch' ); ?></a>
+			<a href="#tab-analytics"   class="nav-tab"><?php esc_html_e( 'Analytics', 'dc-sw-prefetch' ); ?></a>
+			<a href="#tab-meta"        class="nav-tab"><?php esc_html_e( 'Meta Ads', 'dc-sw-prefetch' ); ?></a>
 			<a href="#tab-performance" class="nav-tab"><?php esc_html_e( 'Performance', 'dc-sw-prefetch' ); ?></a>
-			<a href="#tab-advanced"    class="nav-tab"><?php esc_html_e( 'Advanced',    'dc-sw-prefetch' ); ?></a>
+			<a href="#tab-advanced"    class="nav-tab"><?php esc_html_e( 'Advanced', 'dc-sw-prefetch' ); ?></a>
 		</nav>
 
 		<!-- ===== TAB 1: SCRIPTS ===== -->
@@ -583,11 +583,21 @@ function dc_swp_admin_page_html() {
 						<p class="description" style="margin-top:8px"><?php echo wp_kses_post( __( 'Paste complete third-party script blocks here -- including &lt;script&gt; tags and &lt;noscript&gt; fallbacks (Meta Pixel, TikTok Pixel, etc.). The plugin automatically converts them to <code>type="text/partytown"</code> so they run in a Web Worker and respect marketing consent. <a href="https://partytown.qwik.dev/common-services/" target="_blank" rel="noopener">Compatible services ↗</a>', 'dc-sw-prefetch' ) ); ?></p>
 					</td>
 				</tr>
-				<tr valign="top"<?php if ( ! $sw_enabled ) echo ' class="dc-swp-row-disabled"'; ?>>
+				<tr valign="top"
+				<?php
+				if ( ! $sw_enabled ) {
+					echo ' class="dc-swp-row-disabled"';}
+				?>
+				>
 					<th scope="row"><?php echo esc_html__( 'SharedArrayBuffer (Atomics Bridge)', 'dc-sw-prefetch' ); ?></th>
 					<td>
 						<label class="pwa-toggle">
-							<input type="checkbox" name="dc_swp_coi_headers" value="yes" <?php checked( $coi_headers && $sw_enabled, true ); ?><?php if ( ! $sw_enabled ) echo ' disabled'; ?>>
+							<input type="checkbox" name="dc_swp_coi_headers" value="yes" <?php checked( $coi_headers && $sw_enabled, true ); ?>
+							<?php
+							if ( ! $sw_enabled ) {
+								echo ' disabled';}
+							?>
+							>
 							<span class="pwa-slider"></span>
 						</label>
 						<p class="description"><?php echo wp_kses_post( __( 'Sends <code>Cross-Origin-Opener-Policy: same-origin</code> and <code>Cross-Origin-Embedder-Policy: credentialless</code> on public pages. Enables <code>crossOriginIsolated</code> in the browser so Partytown switches to the faster Atomics bridge instead of the sync-XHR bridge. Skipped for bots, logged-in users and checkout. All cross-origin iframes are automatically given the <code>credentialless</code> attribute so they can load under COEP -- regardless of the exclusion list. <strong>Test in staging first -- can break OAuth popups or other cross-origin iframes.</strong>', 'dc-sw-prefetch' ) ); ?></p>
@@ -1178,7 +1188,10 @@ function dc_swp_admin_page_html() {
 							<div class="dc-swp-step-indicator dc-swp-capi-steps" style="margin-bottom:16px">
 								<?php for ( $_cs = 1; $_cs <= 5; $_cs++ ) : ?>
 									<span class="dc-swp-step-dot" data-step="<?php echo (int) $_cs; ?>"><?php echo (int) $_cs; ?></span>
-									<?php if ( $_cs < 5 ) : ?><span class="dc-swp-step-connector"></span><?php endif; ?>
+									<?php
+									if ( $_cs < 5 ) :
+										?>
+										<span class="dc-swp-step-connector"></span><?php endif; ?>
 								<?php endfor; ?>
 							</div>
 
@@ -1508,11 +1521,21 @@ function dc_swp_admin_page_html() {
 		<div id="tab-advanced" class="dc-swp-tab-panel">
 			<fieldset class="dc-swp-fieldset">
 			<table class="form-table">
-				<tr valign="top"<?php if ( ! $sw_enabled ) echo ' class="dc-swp-row-disabled"'; ?>>
+				<tr valign="top"
+				<?php
+				if ( ! $sw_enabled ) {
+					echo ' class="dc-swp-row-disabled"';}
+				?>
+				>
 					<th scope="row"><?php echo esc_html__( 'Partytown Debug Mode', 'dc-sw-prefetch' ); ?></th>
 					<td>
 						<label class="pwa-toggle">
-							<input type="checkbox" name="dc_swp_debug_mode" value="yes" <?php checked( $debug_mode && $sw_enabled, true ); ?><?php if ( ! $sw_enabled ) echo ' disabled'; ?>>
+							<input type="checkbox" name="dc_swp_debug_mode" value="yes" <?php checked( $debug_mode && $sw_enabled, true ); ?>
+							<?php
+							if ( ! $sw_enabled ) {
+								echo ' disabled';}
+							?>
+							>
 							<span class="pwa-slider"></span>
 						</label>
 						<p class="description"><?php echo wp_kses_post( __( 'Loads the unminified debug build of Partytown and enables all log flags. Output is emitted via <code>console.debug()</code> -- you must enable the <strong>Verbose</strong> level in the DevTools Console filter (hidden by default). Worker-side logs only appear in <strong>Atomics Bridge</strong> mode, which requires the <em>COI Headers</em> option above to be enabled. <strong>Use only in staging or local development -- enables verbose logging for all visitors.</strong>', 'dc-sw-prefetch' ) ); ?></p>
@@ -1612,13 +1635,13 @@ function dc_swp_admin_page_html() {
 				'events'      => $ssga4_events,
 			),
 			'capi'               => array(
-				'mode'        => $capi_mode,
-				'detectNone'  => __( 'No Meta Pixel found in page source.', 'dc-sw-prefetch' ),
-				'detected'    => __( 'Detected', 'dc-sw-prefetch' ),
-				'active'      => __( 'Auto-detected and active', 'dc-sw-prefetch' ),
-				'testSuccess' => __( '✔ Connection OK -- Meta accepted the test event.', 'dc-sw-prefetch' ),
-				'testFail'    => __( '⚠ Connection failed -- check Pixel ID and Access Token.', 'dc-sw-prefetch' ),
-				'events'      => $capi_events,
+				'mode'                 => $capi_mode,
+				'detectNone'           => __( 'No Meta Pixel found in page source.', 'dc-sw-prefetch' ),
+				'detected'             => __( 'Detected', 'dc-sw-prefetch' ),
+				'active'               => __( 'Auto-detected and active', 'dc-sw-prefetch' ),
+				'testSuccess'          => __( '✔ Connection OK -- Meta accepted the test event.', 'dc-sw-prefetch' ),
+				'testFail'             => __( '⚠ Connection failed -- check Pixel ID and Access Token.', 'dc-sw-prefetch' ),
+				'events'               => $capi_events,
 				'wizardPixelRequired'  => __( 'Enter a valid 15–16 digit Pixel ID to continue.', 'dc-sw-prefetch' ),
 				'wizardTokenRequired'  => __( 'Paste your Access Token to continue.', 'dc-sw-prefetch' ),
 				'wizardSummaryDataset' => __( 'Dataset', 'dc-sw-prefetch' ),
@@ -2023,8 +2046,8 @@ function dc_swp_ajax_test_capi() {
 		wp_send_json_error( 'Invalid nonce' );
 	}
 
-	$pixel_id       = preg_replace( '/[^0-9]/', '', sanitize_text_field( wp_unslash( $_POST['pixel_id'] ?? '' ) ) );
-	$access_token   = sanitize_text_field( wp_unslash( $_POST['access_token'] ?? '' ) );
+	$pixel_id        = preg_replace( '/[^0-9]/', '', sanitize_text_field( wp_unslash( $_POST['pixel_id'] ?? '' ) ) );
+	$access_token    = sanitize_text_field( wp_unslash( $_POST['access_token'] ?? '' ) );
 	$test_event_code = sanitize_text_field( wp_unslash( $_POST['test_event_code'] ?? '' ) );
 
 	if ( empty( $pixel_id ) || empty( $access_token ) ) {
@@ -2076,10 +2099,10 @@ function dc_swp_ajax_test_capi() {
 
 	wp_send_json_success(
 		array(
-			'valid'            => $valid,
-			'code'             => $code,
-			'events_received'  => $body['events_received'] ?? 0,
-			'error'            => $body['error']['message'] ?? '',
+			'valid'           => $valid,
+			'code'            => $code,
+			'events_received' => $body['events_received'] ?? 0,
+			'error'           => $body['error']['message'] ?? '',
 		)
 	);
 }
