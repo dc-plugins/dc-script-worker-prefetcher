@@ -1215,7 +1215,10 @@ function dc_swp_admin_page_html() {
 			<!-- -- Meta Conversions API (CAPI) ---------------------------------- -->
 			<fieldset class="dc-swp-fieldset">
 			<legend><?php echo esc_html__( 'Server-Side Meta CAPI Events', 'dc-sw-prefetch' ); ?></legend>
-			<p><?php echo wp_kses_post( __( 'Sends WooCommerce ecommerce events directly from the server to Meta via the Conversions API -- independent of browser consent and ad-blockers. Works alongside your client-side Meta Pixel for deduplication. <strong>Requires a Meta Pixel ID and a System User access token.</strong>', 'dc-sw-prefetch' ) ); ?></p>
+			<p><?php echo wp_kses_post( __( 'Sends WooCommerce ecommerce events directly from the server to Meta via the Conversions API -- independent of browser consent and ad-blockers. Works alongside your client-side Meta Pixel for deduplication. <strong>Requires a Meta Pixel ID and a System User Access Token.</strong>', 'dc-sw-prefetch' ) ); ?></p>
+			<div class="notice notice-info inline" style="margin:8px 0;padding:8px 12px">
+				<p><?php echo wp_kses_post( __( '<strong>Meta Events Manager setup required.</strong> Configuring the plugin is not enough — you must also complete Meta\'s own CAPI setup wizard, or events will not be tracked even though the plugin is forwarding them correctly. In <a href="https://www.facebook.com/events_manager2/" target="_blank" rel="noopener">Events Manager</a>, open your Dataset (Pixel) &rarr; <strong>Settings</strong> &rarr; <strong>Conversions API</strong> &rarr; <strong>Set up manually</strong>, then select the events you want to activate (ViewContent, AddToCart, InitiateCheckout, Purchase). This one-time step is required by Meta before events appear in reporting.', 'dc-sw-prefetch' ) ); ?></p>
+			</div>
 			<?php if ( ! class_exists( 'WooCommerce' ) ) : ?>
 				<div class="notice notice-warning inline" style="margin:8px 0;padding:8px 12px">
 					<p><?php echo esc_html__( '⚠ WooCommerce is not active. Server-Side Meta CAPI Events require WooCommerce.', 'dc-sw-prefetch' ); ?></p>
