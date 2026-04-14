@@ -1640,7 +1640,7 @@ function dc_swp_get_gcm_v2_aware_services() {
 	$services = array(
 		'googletagmanager.com', // Google Tag Manager -- owns the GCM v2 API.
 		'google-analytics.com', // Google Analytics (UA / GA4).
-		'analytics.google.com', // GA4 measurement protocol.
+		'analytics.google.com', // Google Analytics (GA4 data collection endpoint).
 		'static.hotjar.com',    // Hotjar -- respects analytics_storage since 2024.
 		'script.hotjar.com',    // Hotjar (alternate CDN).
 		'clarity.ms',           // Microsoft Clarity -- native GCM v2 integration.

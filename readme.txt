@@ -170,6 +170,14 @@ The administrator may freely add other services through the Partytown Script Lis
 
 == Changelog ==
 
+= 3.0.0 =
+* Removed: Server-Side GA4 (SSGA4) — Measurement Protocol event pipeline removed. Plugin refocused on Partytown offloading and consent authority.
+* Removed: Meta Conversions API (CAPI) — server-side Graph API event pipeline removed.
+* Removed: TikTok Events API — server-side TikTok event pipeline removed. TikTok Pixel client-side offloading via Partytown is unaffected.
+* Removed: UTM/click-ID attribution cookie (was used only by CAPI and TikTok Events API).
+* Feature: GTM wizard now enforces GTM-only container IDs (rejects G- GA4 IDs at step 2).
+* Feature: GCMv2 toggle is hard-gated behind a valid GTM Container ID — misconfiguration prevented at the admin level.
+
 = 2.5.1 =
 * Fix: CAPI access token moved from URL query string to Authorization: Bearer header (prevents credential appearing in server access logs).
 * Fix: CAPI inline event-ID script now uses wp_add_inline_script() + wp_inline_script_attributes nonce filter instead of a raw echo.

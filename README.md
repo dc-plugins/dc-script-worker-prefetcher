@@ -180,6 +180,14 @@ The administrator may configure additional services via the Partytown Script Lis
 
 ## Changelog
 
+### 3.0.0
+- Removed: Server-Side GA4 (SSGA4) Measurement Protocol pipeline.
+- Removed: Meta Conversions API (CAPI) server-side pipeline.
+- Removed: TikTok Events API server-side pipeline. TikTok Pixel client-side offloading via Partytown is unaffected.
+- Removed: UTM/click-ID attribution cookie (was only consumed by CAPI and TikTok Events API).
+- Feature: GTM wizard now enforces GTM-only container IDs (rejects G- GA4 IDs at step 2).
+- Feature: GCMv2 toggle hard-gated behind a valid GTM Container ID.
+
 ### 1.9.0
 - Feature: **Consent Gate (WP Consent API)** — optional admin toggle that delegates consent decisions to the WP Consent API standard. When enabled, scripts are output as `type="text/plain"` with `data-wp-consent-category` until consent is granted. A client-side listener (`consent-gate.js`) dynamically unblocks scripts by swapping `text/plain` to `text/partytown`. When disabled (default), all scripts load unconditionally — no breaking change for existing installs.
 - Feature: Per-script **consent category** — each inline script block can be assigned a WP Consent API category (marketing, statistics, statistics-anonymous, functional, preferences). The Script List uses a configurable default category.
