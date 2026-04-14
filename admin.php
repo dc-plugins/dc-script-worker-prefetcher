@@ -995,14 +995,17 @@ function dc_swp_admin_page_html() {
 			<fieldset class="dc-swp-fieldset">
 			<legend><?php echo esc_html__( 'Benefits', 'dc-sw-prefetch' ); ?></legend>
 			<ul style="list-style: disc; margin-left: 20px;">
-				<li>✅ <?php echo esc_html__( 'Analytics scripts run in a Web Worker -- unlike async, they never execute on the browser main thread', 'dc-sw-prefetch' ); ?></li>
-				<li>✅ <?php echo esc_html__( 'Viewport prefetch pre-loads product links automatically', 'dc-sw-prefetch' ); ?></li>
-				<li>✅ <?php echo esc_html__( 'Pagination next-page link prefetched 2 s ahead', 'dc-sw-prefetch' ); ?></li>
-				<li>✅ <?php echo esc_html__( 'Bots and crawlers never receive Partytown (clean HTML)', 'dc-sw-prefetch' ); ?></li>
-				<li>✅ <?php echo esc_html__( 'Automatic updates via GitHub Actions workflow', 'dc-sw-prefetch' ); ?></li>
-				<li>✅ <?php echo esc_html__( 'WP emoji scripts removed -- saves a DNS lookup and ~76 KB', 'dc-sw-prefetch' ); ?></li>
-				<li>✅ <?php echo esc_html__( 'Third-party scripts auto-detected and offloaded to Partytown in one click', 'dc-sw-prefetch' ); ?></li>
-				<li>✅ <?php echo esc_html__( 'Consent-aware: optional Consent Gate blocks scripts (text/plain) until consent is granted via the WP Consent API', 'dc-sw-prefetch' ); ?></li>
+				<li>&#x2705; <?php echo esc_html__( 'Third-party scripts run in a Web Worker -- unlike async/defer, they never execute on the browser main thread (no layout jank, no TBT penalty)', 'dc-sw-prefetch' ); ?></li>
+				<li>&#x2705; <?php echo esc_html__( 'Google Consent Mode v2 (GCMv2) -- all 7 consent parameters injected before GTM loads; live update signals fired on banner interaction', 'dc-sw-prefetch' ); ?></li>
+				<li>&#x2705; <?php echo esc_html__( 'Meta Pixel LDU -- fbq stub + consent-aware grant/revoke injected automatically; no CMP blocking of the pixel required', 'dc-sw-prefetch' ); ?></li>
+				<li>&#x2705; <?php echo esc_html__( 'Consent Gate -- optional WP Consent API integration; any compatible CMP (Complianz, Cookiebot, CookieYes...) is supported automatically', 'dc-sw-prefetch' ); ?></li>
+				<li>&#x2705; <?php echo esc_html__( 'Six pre-configured Partytown integrations: HubSpot, Klaviyo, Mixpanel, FullStory, Intercom, TikTok Pixel -- enter an ID and the snippet is auto-injected', 'dc-sw-prefetch' ); ?></li>
+				<li>&#x2705; <?php echo esc_html__( 'GTM managed injection with GCMv2 pre-configuration and step-by-step setup wizard', 'dc-sw-prefetch' ); ?></li>
+				<li>&#x2705; <?php echo esc_html__( 'Early Resource Hints -- preconnect and dns-prefetch links auto-emitted for all configured third-party hosts', 'dc-sw-prefetch' ); ?></li>
+				<li>&#x2705; <?php echo esc_html__( 'Cart, checkout, and account pages are always skipped -- Partytown never interferes with WooCommerce critical flows', 'dc-sw-prefetch' ); ?></li>
+				<li>&#x2705; <?php echo esc_html__( 'Bots and crawlers never receive Partytown scripts -- clean, unmodified HTML for search engines', 'dc-sw-prefetch' ); ?></li>
+				<li>&#x2705; <?php echo esc_html__( 'Third-party scripts auto-detected in one click via homepage scan', 'dc-sw-prefetch' ); ?></li>
+				<li>&#x2705; <?php echo esc_html__( 'Partytown library stays current via automated weekly GitHub Actions workflow', 'dc-sw-prefetch' ); ?></li>
 			</ul>
 			</fieldset>
 
