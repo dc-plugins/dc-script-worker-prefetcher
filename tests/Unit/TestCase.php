@@ -21,6 +21,9 @@ abstract class TestCase extends PHPUnitTestCase {
 		// Clear the consent map used by the wp_has_consent() stub.
 		$GLOBALS['_dc_swp_test_has_consent'] = [];
 
+		// Default to anonymous visitor.
+		$GLOBALS['_dc_swp_test_logged_in'] = false;
+
 		// Remove server variables that some functions read directly.
 		unset( $_SERVER['HTTP_USER_AGENT'], $_SERVER['REQUEST_URI'] );
 	}
@@ -49,5 +52,16 @@ abstract class TestCase extends PHPUnitTestCase {
 	 */
 	protected function setConsent( string $category, bool $consented ): void {
 		$GLOBALS['_dc_swp_test_has_consent'][ $category ] = $consented;
+	}
+
+	/**
+	 * Set whether the current visitor is logged in.
+	 *
+	 * Controls what is_user_logged_in() returns.
+	 *
+	 * @param bool $logged_in True to simulate a logged-in user.
+	 */
+	protected function setLoggedIn( bool $logged_in ): void {
+		$GLOBALS['_dc_swp_test_logged_in'] = $logged_in;
 	}
 }

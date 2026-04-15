@@ -335,16 +335,18 @@ jQuery( function ( $ ) {
 	}
 
 	function buildBlockEl( b, idx ) {
-		const labelSafe  = $( '<span>' ).text( b.label || ( 'Block ' + ( idx + 1 ) ) ).html();
-		const codeSafe   = $( '<span>' ).text( b.code  || '' ).html();
-		const checked    = b.enabled       ? ' checked' : '';
-		const forceChk   = b.force_partytown ? ' checked' : '';
-		const disCls     = b.enabled ? '' : ' dc-swp-blk-disabled';
-		const forceLbl   = $( '<span>' ).text( dcSwpAdminData.forcePtLabel ).html();
-		const noticeHtml = $( '<span>' ).text( dcSwpAdminData.forcePtNotice ).html();
-		const catLabel   = $( '<span>' ).text( dcSwpAdminData.blockCategoryLabel || 'Consent category' ).html();
-		const cats       = dcSwpAdminData.consentCategories || [ 'marketing', 'statistics', 'statistics-anonymous', 'functional', 'preferences' ];
-		const curCat     = b.category || 'marketing';
+		const labelSafe    = $( '<span>' ).text( b.label || ( 'Block ' + ( idx + 1 ) ) ).html();
+		const codeSafe     = $( '<span>' ).text( b.code  || '' ).html();
+		const checked      = b.enabled       ? ' checked' : '';
+		const forceChk     = b.force_partytown ? ' checked' : '';
+		const skipChk      = b.skip_logged_in  ? ' checked' : '';
+		const disCls       = b.enabled ? '' : ' dc-swp-blk-disabled';
+		const forceLbl     = $( '<span>' ).text( dcSwpAdminData.forcePtLabel ).html();
+		const noticeHtml   = $( '<span>' ).text( dcSwpAdminData.forcePtNotice ).html();
+		const catLabel     = $( '<span>' ).text( dcSwpAdminData.blockCategoryLabel || 'Consent category' ).html();
+		const skipLbl      = $( '<span>' ).text( dcSwpAdminData.blockSkipLoggedIn  || 'Skip for logged-in users' ).html();
+		const cats         = dcSwpAdminData.consentCategories || [ 'marketing', 'statistics', 'statistics-anonymous', 'functional', 'preferences' ];
+		const curCat       = b.category || 'marketing';
 		let catOpts = '';
 		$.each( cats, function ( _ci, cv ) {
 			catOpts += '<option value="' + cv + '"' + ( cv === curCat ? ' selected' : '' ) + '>' + cv.charAt( 0 ).toUpperCase() + cv.slice( 1 ) + '</option>';
@@ -367,6 +369,7 @@ jQuery( function ( $ ) {
 			'<div class="dc-swp-blk-body">',
 			'<div class="dc-swp-blk-force-notice" style="display:none;margin-bottom:8px;padding:8px 10px;background:#fefce8;border-left:3px solid #ca8a04;font-size:12px;color:#92400e">' + noticeHtml + '</div>',
 			'<div class="dc-swp-blk-cat-wrap" style="margin-bottom:8px"><label style="font-size:12px;font-weight:600;margin-right:6px">' + catLabel + '</label><select class="dc-swp-blk-category">' + catOpts + '</select></div>',
+			'<div class="dc-swp-blk-skip-wrap" style="margin-bottom:8px"><label style="font-size:12px;font-weight:600"><input class="dc-swp-blk-skip" type="checkbox"' + skipChk + ' style="margin-right:5px">' + skipLbl + '</label></div>',
 			'<textarea class="dc-swp-blk-code large-text code" rows="8" spellcheck="false">' + codeSafe + '</textarea>',
 			'</div></div>',
 		].join( '' ) );
@@ -424,6 +427,11 @@ jQuery( function ( $ ) {
 	// Consent category change.
 	$( document ).on( 'change', '.dc-swp-blk-category', function () {
 		patchBlock( $( this ).closest( '.dc-swp-blk-item' ).data( 'id' ), { category: $( this ).val() } );
+	} );
+
+	// Skip for logged-in users toggle.
+	$( document ).on( 'change', '.dc-swp-blk-skip', function () {
+		patchBlock( $( this ).closest( '.dc-swp-blk-item' ).data( 'id' ), { skip_logged_in: $( this ).prop( 'checked' ) } );
 	} );
 
 	// Force Partytown toggle for unsupported scripts.

@@ -3199,6 +3199,9 @@ function dc_swp_output_inline_scripts() {
 			if ( empty( $blk['enabled'] ) || '' === trim( (string) ( $blk['code'] ?? '' ) ) ) {
 				continue;
 			}
+			if ( ! empty( $blk['skip_logged_in'] ) && is_user_logged_in() ) {
+				continue;
+			}
 			$parse_code( $blk['code'], ! empty( $blk['force_partytown'] ), $blk['category'] ?? '' );
 		}
 	} else {

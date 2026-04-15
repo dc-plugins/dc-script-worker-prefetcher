@@ -245,6 +245,7 @@ function dc_swp_sanitize_inline_scripts_option( $value ) {
 			'code'            => dc_swp_sanitize_js_code( $blk['code'] ?? '' ),
 			'enabled'         => ! empty( $blk['enabled'] ),
 			'force_partytown' => ! empty( $blk['force_partytown'] ),
+			'skip_logged_in'  => ! empty( $blk['skip_logged_in'] ),
 			'category'        => in_array( $blk['category'] ?? '', array( 'marketing', 'statistics', 'statistics-anonymous', 'functional', 'preferences' ), true ) ? $blk['category'] : 'marketing',
 		);
 	}
@@ -309,6 +310,7 @@ function dc_swp_admin_page_html() {
 						'code'            => dc_swp_sanitize_js_code( $blk['code'] ?? '' ),
 						'enabled'         => ! empty( $blk['enabled'] ),
 						'force_partytown' => ! empty( $blk['force_partytown'] ),
+						'skip_logged_in'  => ! empty( $blk['skip_logged_in'] ),
 						'category'        => in_array( $blk['category'] ?? '', array( 'marketing', 'statistics', 'statistics-anonymous', 'functional', 'preferences' ), true ) ? $blk['category'] : 'marketing',
 					);
 				}
@@ -1275,6 +1277,7 @@ function dc_swp_admin_page_html() {
 			'forcePtLabel'       => __( 'Force Enable Partytown', 'dc-sw-prefetch' ),
 			'forcePtNotice'      => __( 'Running script with unknown Partytown compatibility -- test your site in debug mode to confirm no render errors.', 'dc-sw-prefetch' ),
 			'blockCategoryLabel' => __( 'Consent category', 'dc-sw-prefetch' ),
+			'blockSkipLoggedIn'  => __( 'Skip for logged-in users', 'dc-sw-prefetch' ),
 			'consentGateEnabled' => $consent_gate,
 			'consentCategories'  => array( 'marketing', 'statistics', 'statistics-anonymous', 'functional', 'preferences' ),
 			'gtm'                => array(

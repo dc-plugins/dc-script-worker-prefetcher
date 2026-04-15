@@ -194,7 +194,7 @@ function wp_script_attributes( array $attributes ): string { return ''; }
 // User / auth context
 // -----------------------------------------------------------------------
 
-function is_user_logged_in(): bool { return false; }
+function is_user_logged_in(): bool { return (bool) ( $GLOBALS['_dc_swp_test_logged_in'] ?? false ); }
 function is_admin(): bool { return false; }
 function current_user_can(): bool { return false; }
 function check_ajax_referer(): int { return 1; }
