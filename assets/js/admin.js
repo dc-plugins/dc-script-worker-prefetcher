@@ -893,26 +893,13 @@ jQuery( function ( $ ) {
 			const safeId = $( '<span>' ).text( data.id ).html();
 			$res.html(
 				'<p style="color:#3cb034">\u2714 ' + ( pixelStr.detected || 'Detected' ) +
-				': <strong><code>' + safeId + '</code></strong></p>' +
-				'<button type="button" class="button button-secondary" id="dc-swp-pixel-use-detected" data-id="' + safeId + '">' +
-				( pixelStr.use || 'Use This ID' ) + '</button>'
+				': <strong><code>' + safeId + '</code></strong> \u2014 ' +
+				( pixelStr.willBeUsed || 'will be re-detected on every Save Settings' ) + '</p>'
 			);
 		} else {
 			$res.html( '<p style="color:#787c82"><em>' + ( pixelStr.none || 'No Meta Pixel found in page source.' ) + '</em></p>' );
 		}
 	}
-
-	$( document ).on( 'click', '#dc-swp-pixel-use-detected', function () {
-		const id = $( this ).data( 'id' );
-		syncPixelId( id );
-		$( '#dc-swp-pixel-id-own' ).val( id );
-		const msg = '<span style="color:#3cb034;font-weight:600">\u2714 <code>' +
-			$( '<span>' ).text( id ).html() + '</code> \u2014 ' +
-			( pixelStr.willBeUsed || 'will be used on next save' ) + '</span>';
-		$( this ).replaceWith( msg );
-		// Switch to own mode so the ID is submitted correctly.
-		$( 'input[name="dc_swp_pixel_mode"][value="own"]' ).prop( 'checked', true ).trigger( 'change' );
-	} );
 
 	// -- Wizard: ID validation in step 2 ------------------------------------
 	$( '#dc-swp-pixel-wizard-id' ).on( 'input', function () {

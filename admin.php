@@ -331,11 +331,18 @@ function dc_swp_admin_page_html() {
 		$_gtm_id_raw = sanitize_text_field( wp_unslash( $_POST['dc_swp_gtm_id'] ?? '' ) );
 		// Accept empty string (disables injection) or a valid tag ID format.
 		update_option( 'dc_swp_gtm_id', ( '' === $_gtm_id_raw || preg_match( '/^(GTM-[A-Z0-9]{4,10}|G-[A-Z0-9]{6,}|UA-\d{4,}-\d+)$/i', $_gtm_id_raw ) ) ? strtoupper( $_gtm_id_raw ) : '' );
-		// Meta Pixel mode system (v3.1.0+).
+		// Meta Pixel mode system.
 		$_valid_pixel_modes = array( 'off', 'own', 'detect', 'managed' );
 		$_pixel_mode_raw    = sanitize_key( wp_unslash( $_POST['dc_swp_pixel_mode'] ?? 'off' ) );
-		update_option( 'dc_swp_pixel_mode', in_array( $_pixel_mode_raw, $_valid_pixel_modes, true ) ? $_pixel_mode_raw : 'off' );
-		update_option( 'dc_swp_pixel_id', preg_replace( '/\D/', '', sanitize_text_field( wp_unslash( $_POST['dc_swp_pixel_id'] ?? '' ) ) ) );
+		$_pixel_mode        = in_array( $_pixel_mode_raw, $_valid_pixel_modes, true ) ? $_pixel_mode_raw : 'off';
+		update_option( 'dc_swp_pixel_mode', $_pixel_mode );
+		if ( 'detect' === $_pixel_mode ) {
+			// Re-scan on every save so the ID stays current if the upstream pixel changes.
+			delete_transient( 'dc_swp_pixel_detect_result' );
+			update_option( 'dc_swp_pixel_id', dc_swp_detect_existing_pixel_id() );
+		} else {
+			update_option( 'dc_swp_pixel_id', preg_replace( '/\D/', '', sanitize_text_field( wp_unslash( $_POST['dc_swp_pixel_id'] ?? '' ) ) ) );
+		}
 		// Integrations (v2.6.0+).
 		update_option( 'dc_swp_hubspot_portal_id', sanitize_text_field( wp_unslash( $_POST['dc_swp_hubspot_portal_id'] ?? '' ) ) );
 		update_option( 'dc_swp_klaviyo_site_id', sanitize_text_field( wp_unslash( $_POST['dc_swp_klaviyo_site_id'] ?? '' ) ) );
@@ -1278,9 +1285,8 @@ function dc_swp_admin_page_html() {
 				'valid'      => __( '✔ Valid Pixel ID', 'dc-sw-prefetch' ),
 				'invalid'    => __( '⚠ Invalid format. Expected: 10–20 digits only.', 'dc-sw-prefetch' ),
 				'detected'   => __( 'Detected', 'dc-sw-prefetch' ),
-				'use'        => __( 'Use This ID', 'dc-sw-prefetch' ),
 				'none'       => __( 'No Meta Pixel found in page source. Enter your Pixel ID manually.', 'dc-sw-prefetch' ),
-				'willBeUsed' => __( 'will be used on next save', 'dc-sw-prefetch' ),
+				'willBeUsed' => __( 'will be re-detected on every Save Settings', 'dc-sw-prefetch' ),
 				'active'     => __( 'Auto-detected and active', 'dc-sw-prefetch' ),
 				'saved'      => __( '✔ Saved', 'dc-sw-prefetch' ),
 			),
