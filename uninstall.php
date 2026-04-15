@@ -48,6 +48,9 @@ function dc_swp_uninstall() {
 		'dc_swp_fullstory_org_id',
 		'dc_swp_intercom_app_id',
 		'dc_swp_tt_pixel_id',
+		// Meta Pixel (v3.0.0+).
+		'dc_swp_pixel_mode',
+		'dc_swp_pixel_id',
 		// Legacy names (pre-1.6.0) -- remove if migration never ran.
 		'dampcig_pwa_sw_enabled',
 		'dampcig_pwa_footer_credit',
@@ -61,6 +64,9 @@ function dc_swp_uninstall() {
 		wp_cache_delete( 'patterns', 'dc_swp' );
 		wp_cache_delete( 'exclude_patterns', 'dc_swp' );
 	}
+
+	// Transients.
+	delete_transient( 'dc_swp_pixel_detect_result' );
 }
 
 dc_swp_uninstall();

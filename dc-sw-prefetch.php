@@ -13,6 +13,7 @@
  * License URI:       https://www.gnu.org/licenses/gpl-2.0.html
  * Text Domain:       dc-sw-prefetch
  * Domain Path:       /languages
+ * Update URI:        https://github.com/dc-plugins/dc-sw-prefetch
  * Requires at least: 6.8
  * Requires PHP:      8.0
  * Tested up to:      6.9
@@ -52,6 +53,16 @@ function dc_swp_migrate_options() {
 	}
 }
 register_activation_hook( __FILE__, 'dc_swp_migrate_options' );
+
+// ============================================================
+// I18N
+// ============================================================
+add_action(
+	'plugins_loaded',
+	function () {
+		load_plugin_textdomain( 'dc-sw-prefetch', false, dirname( plugin_basename( __FILE__ ) ) . '/languages' );
+	}
+);
 
 // ============================================================
 // WOOCOMMERCE HPOS COMPATIBILITY DECLARATION
@@ -1275,6 +1286,23 @@ function dc_swp_inject_pixel_head(): void {
 		return;
 	}
 
+	// If an enabled Script Block already loads fbevents.js via Partytown, skip
+	// injecting a second copy -- two instances in the worker cause a proxy error.
+	$fbevents_in_block = false;
+	$raw_blocks        = get_option( 'dc_swp_inline_scripts', '' );
+	if ( '' !== $raw_blocks ) {
+		$blocks = json_decode( $raw_blocks, true );
+		if ( is_array( $blocks ) ) {
+			foreach ( $blocks as $blk ) {
+				if ( ! empty( $blk['enabled'] ) && ! empty( $blk['code'] ) &&
+					str_contains( (string) $blk['code'], 'connect.facebook.net' ) ) {
+					$fbevents_in_block = true;
+					break;
+				}
+			}
+		}
+	}
+
 	$ldu_on        = dc_swp_is_meta_ldu_enabled();
 	$consent_aware = dc_swp_is_consent_gate_enabled() && function_exists( 'wp_has_consent' );
 
@@ -1311,13 +1339,17 @@ function dc_swp_inject_pixel_head(): void {
 	echo '<script' . $nonce_attr . ">\n" . $stub . "</script>\n";
 
 	// -- fbevents.js via Partytown worker ----------------------------------------
-	$safe_id = esc_attr( $pixel_id );
-	// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- pixel ID is digits-only (regex-validated); nonce is esc_attr.
-	echo '<script type="text/partytown"' . $nonce_attr . ' src="https://connect.facebook.net/en_US/fbevents.js"></script>' . "\n";
+	// Skip if a Script Block already loads fbevents.js -- loading it twice in the
+	// Partytown worker causes "Cannot set properties of undefined (setting 'version')".
+	if ( ! $fbevents_in_block ) {
+		$safe_id = esc_attr( $pixel_id );
+		// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- pixel ID is digits-only (regex-validated); nonce is esc_attr.
+		echo '<script type="text/partytown"' . $nonce_attr . ' src="https://connect.facebook.net/en_US/fbevents.js"></script>' . "\n";
 
-	// -- Main-thread init + PageView (forwarded to worker via fbq forward config) --
-	// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- pixel ID digits-only; nonce pre-escaped.
-	echo '<script' . $nonce_attr . ">fbq('init','" . $safe_id . "');fbq('track','PageView');</script>\n";
+		// -- Main-thread init + PageView (forwarded to worker via fbq forward config) --
+		// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- pixel ID digits-only; nonce pre-escaped.
+		echo '<script' . $nonce_attr . ">fbq('init','" . $safe_id . "');fbq('track','PageView');</script>\n";
+	}
 }
 
 /**
@@ -1537,7 +1569,10 @@ function dc_swp_partytown_config() {
 		require_once ABSPATH . 'wp-admin/includes/file.php';
 		WP_Filesystem();
 	}
-	$snippet = $wp_filesystem->get_contents( $snippet_file );
+	if ( empty( $wp_filesystem ) ) {
+		return;
+	}
+	$snippet = $wp_filesystem->get_contents( wp_normalize_path( $snippet_file ) );
 
 	// Build the Partytown config as a PHP structure so it is always valid JSON.
 	// forward list -- only officially tested services from https://partytown.qwik.dev/common-services/
