@@ -331,6 +331,11 @@ function dc_swp_admin_page_html() {
 		$_gtm_id_raw = sanitize_text_field( wp_unslash( $_POST['dc_swp_gtm_id'] ?? '' ) );
 		// Accept empty string (disables injection) or a valid tag ID format.
 		update_option( 'dc_swp_gtm_id', ( '' === $_gtm_id_raw || preg_match( '/^(GTM-[A-Z0-9]{4,10}|G-[A-Z0-9]{6,}|UA-\d{4,}-\d+)$/i', $_gtm_id_raw ) ) ? strtoupper( $_gtm_id_raw ) : '' );
+		// Meta Pixel mode system (v3.1.0+).
+		$_valid_pixel_modes = array( 'off', 'own', 'detect', 'managed' );
+		$_pixel_mode_raw    = sanitize_key( wp_unslash( $_POST['dc_swp_pixel_mode'] ?? 'off' ) );
+		update_option( 'dc_swp_pixel_mode', in_array( $_pixel_mode_raw, $_valid_pixel_modes, true ) ? $_pixel_mode_raw : 'off' );
+		update_option( 'dc_swp_pixel_id', preg_replace( '/\D/', '', sanitize_text_field( wp_unslash( $_POST['dc_swp_pixel_id'] ?? '' ) ) ) );
 		// Integrations (v2.6.0+).
 		update_option( 'dc_swp_hubspot_portal_id', sanitize_text_field( wp_unslash( $_POST['dc_swp_hubspot_portal_id'] ?? '' ) ) );
 		update_option( 'dc_swp_klaviyo_site_id', sanitize_text_field( wp_unslash( $_POST['dc_swp_klaviyo_site_id'] ?? '' ) ) );
@@ -359,6 +364,8 @@ function dc_swp_admin_page_html() {
 	$script_list_entries = dc_swp_get_script_list_entries();
 	$debug_mode          = get_option( 'dc_swp_debug_mode', 'no' ) === 'yes';
 	$gtm_mode            = get_option( 'dc_swp_gtm_mode', 'off' );
+	$pixel_mode          = get_option( 'dc_swp_pixel_mode', 'off' );
+	$pixel_id            = get_option( 'dc_swp_pixel_id', '' );
 	$resource_hints      = get_option( 'dc_swp_resource_hints', 'yes' ) === 'yes';
 	$health_monitor      = get_option( 'dc_swp_health_monitor', 'yes' ) === 'yes';
 	$perf_monitor        = get_option( 'dc_swp_perf_monitor', 'yes' ) === 'yes';
@@ -753,23 +760,144 @@ function dc_swp_admin_page_html() {
 
 		<!-- ===== TAB 3: META ADS ===== -->
 		<div id="tab-meta" class="dc-swp-tab-panel">
-			<!-- -- Meta Pixel (Client-Side) -------------------------------------- -->
+			<!-- -- Meta Pixel Mode Card ------------------------------------------ -->
 			<fieldset class="dc-swp-fieldset">
 			<legend><?php esc_html_e( 'Meta Pixel (Client-Side)', 'dc-sw-prefetch' ); ?></legend>
 			<table class="form-table">
 				<tr valign="top">
-					<th scope="row"><?php esc_html_e( 'Meta Pixel Limited Data Use (LDU)', 'dc-sw-prefetch' ); ?></th>
+					<th scope="row"><?php echo esc_html__( 'Meta Pixel', 'dc-sw-prefetch' ); ?></th>
 					<td>
-						<p class="dc-swp-info-section"><?php esc_html_e( 'Meta Pixel -- Separate LDU Mechanism', 'dc-sw-prefetch' ); ?></p>
-						<p class="description" style="margin-bottom:6px"><?php esc_html_e( 'Meta Pixel does not implement GCM v2. Enable Meta Pixel LDU below -- Meta applies Limited Data Use restrictions internally. Requires the Meta Pixel (fbevents.js) to be active on the frontend via the Partytown Script List.', 'dc-sw-prefetch' ); ?></p>
-						<div class="dc-swp-badges">
-							<?php echo $_badge( 'Meta Pixel', 'LDU API', 'meta', $_si . 'Meta%20Pixel-LDU%20API-1877f2' . $_sq ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
-						</div>
-						<label class="pwa-toggle" style="margin-top:10px;display:inline-block">
-							<input type="checkbox" name="dc_swp_meta_ldu" value="yes" <?php checked( $meta_ldu, true ); ?>>
-							<span class="pwa-slider"></span>
+						<!-- Hidden field -- always submitted; JS syncs from whichever panel is active -->
+						<input type="hidden" name="dc_swp_pixel_id" id="dc_swp_pixel_id_field"
+							value="<?php echo esc_attr( $pixel_id ); ?>">
+						<fieldset>
+						<?php
+						$_pixel_modes = array(
+							'off'     => __( 'Disabled -- no Pixel injection', 'dc-sw-prefetch' ),
+							'own'     => __( 'Enter Pixel ID -- I have my own Meta Pixel ID', 'dc-sw-prefetch' ),
+							'detect'  => __( 'Auto-Detect -- find active Pixel in page source', 'dc-sw-prefetch' ),
+							'managed' => __( 'Setup Guide -- step-by-step Meta Pixel onboarding', 'dc-sw-prefetch' ),
+						);
+						foreach ( $_pixel_modes as $_pv => $_pl ) :
+							?>
+						<label style="display:block;margin-bottom:6px">
+							<input type="radio" name="dc_swp_pixel_mode" value="<?php echo esc_attr( $_pv ); ?>"
+								<?php checked( $pixel_mode, $_pv ); ?>>
+							<?php echo esc_html( $_pl ); ?>
 						</label>
-						<p class="description"><?php echo wp_kses_post( __( 'Meta/Facebook Pixel does not support Google Consent Mode v2 — it uses its own Limited Data Use (LDU) consent API. Injects an <code>fbq</code> stub + <code>fbq("dataProcessingOptions",["LDU"],0,0)</code> in &lt;head&gt; before Partytown and Facebook Pixel scripts load. The Meta Pixel always runs as <code>text/partytown</code> — Meta applies LDU restrictions internally (data not used for ad targeting). Your CMP does not need to block the script via <code>text/plain</code>. <strong>When the WP Consent API is active:</strong> LDU is applied conditionally — consented visitors receive <code>fbq("consent","grant")</code> + <code>fbq("dataProcessingOptions",[],0,0)</code> (unrestricted), while non-consented visitors receive <code>fbq("consent","revoke")</code> + full LDU. Requires Meta Pixel to be added via the Partytown Script List or an Inline Script Block.', 'dc-sw-prefetch' ) ); ?></p>
+						<?php endforeach; ?>
+						</fieldset>
+
+						<!-- Panel: own -->
+						<div id="dc-swp-pixel-panel-own" class="dc-swp-gtm-panel" <?php echo 'own' !== $pixel_mode ? 'style="display:none"' : ''; ?>>
+							<input type="text" id="dc-swp-pixel-id-own"
+								class="regular-text" style="font-family:monospace"
+								value="<?php echo esc_attr( $pixel_id ); ?>"
+								placeholder="<?php echo esc_attr( __( '123456789012345', 'dc-sw-prefetch' ) ); ?>"
+								maxlength="20" inputmode="numeric" pattern="\d{10,20}">
+							<span id="dc-swp-pixel-id-status"></span>
+							<p class="description" style="margin-top:6px"><?php echo wp_kses_post( __( 'Enter your Meta Pixel ID (10–20 digits). Found in Meta Events Manager &#8594; Data Sources &#8594; Pixels. The plugin injects the full base code + PageView in <code>&lt;head&gt;</code> via <code>type="text/partytown"</code>.', 'dc-sw-prefetch' ) ); ?></p>
+						</div>
+
+						<!-- Panel: detect -->
+						<div id="dc-swp-pixel-panel-detect" class="dc-swp-gtm-panel"
+							data-saved-id="<?php echo esc_attr( $pixel_id ); ?>"
+							<?php echo 'detect' !== $pixel_mode ? 'style="display:none"' : ''; ?>>
+							<button type="button" id="dc-swp-pixel-detect-btn" class="button button-secondary">
+								<?php echo esc_html__( 'Scan Website', 'dc-sw-prefetch' ); ?>
+							</button>
+							<span id="dc-swp-pixel-detect-spinner" class="spinner" style="float:none;margin-left:4px;display:none;"></span>
+							<div id="dc-swp-pixel-detect-result" style="margin-top:8px"></div>
+							<p class="description" style="margin-top:6px"><?php echo wp_kses_post( __( 'Fetches the page HTML source and scans for an active Meta Pixel (fbevents.js <code>fbq(\'init\',...)</code> call). Only detects Pixels actually present in the rendered source.', 'dc-sw-prefetch' ) ); ?></p>
+						</div>
+
+						<!-- Panel: managed (wizard) -->
+						<div id="dc-swp-pixel-panel-managed" class="dc-swp-gtm-panel" <?php echo 'managed' !== $pixel_mode ? 'style="display:none"' : ''; ?>>
+							<div class="dc-swp-step-indicator">
+							<?php for ( $_pws = 1; $_pws <= 3; $_pws++ ) : ?>
+								<?php
+								if ( $_pws > 1 ) :
+									?>
+									<span class="dc-swp-step-connector"></span><?php endif; ?>
+									<span class="dc-swp-step-dot" data-step="<?php echo (int) $_pws; ?>"><?php echo (int) $_pws; ?></span>
+							<?php endfor; ?>
+							</div>
+							<?php
+							$_pixel_wiz_steps = array(
+								1 => array(
+									__( 'Step 1 -- Create Your Meta Pixel', 'dc-sw-prefetch' ),
+									__( 'Go to <a href="https://business.facebook.com/events_manager" target="_blank" rel="noopener">Meta Events Manager &#8599;</a>, click <strong>Connect Data Sources</strong>, select <strong>Web</strong>, then click <strong>Meta Pixel</strong> and follow the prompts to create your Pixel. Your Pixel ID (a 15-digit number) will appear once creation is complete.', 'dc-sw-prefetch' ),
+								),
+								2 => array(
+									__( 'Step 2 -- Enter Your Pixel ID', 'dc-sw-prefetch' ),
+									__( 'Copy your <strong>Pixel ID</strong> from Meta Events Manager and paste it below. It\'s a 10–20 digit number (e.g. <code>123456789012345</code>).', 'dc-sw-prefetch' ),
+								),
+								3 => array(
+									__( 'Step 3 -- Confirm &amp; Activate', 'dc-sw-prefetch' ),
+									__( 'The plugin will inject the Meta Pixel base code + PageView into <code>&lt;head&gt;</code> as <code>type="text/partytown"</code> — running it in a web worker. LDU and WP Consent API signals are applied automatically when enabled. Click <strong>Complete Setup</strong> to save.', 'dc-sw-prefetch' ),
+								),
+							);
+							foreach ( $_pixel_wiz_steps as $_psn => $_pwiz ) :
+								$_pst = $_pwiz[0];
+								$_psb = $_pwiz[1];
+								?>
+								<div id="dc-swp-pixel-wizard-step-<?php echo (int) $_psn; ?>" class="dc-swp-wizard-step">
+								<h4 style="margin-top:0"><?php echo esc_html( $_pst ); ?></h4>
+								<p><?php echo wp_kses_post( $_psb ); ?></p>
+								<?php if ( 2 === $_psn ) : ?>
+								<div style="margin:10px 0">
+									<input type="text" id="dc-swp-pixel-wizard-id"
+										class="regular-text" style="font-family:monospace"
+										value="<?php echo esc_attr( $pixel_id ); ?>"
+										placeholder="<?php echo esc_attr( __( '123456789012345', 'dc-sw-prefetch' ) ); ?>"
+										maxlength="20" inputmode="numeric" pattern="\d{10,20}">
+									<span id="dc-swp-pixel-wizard-status"></span>
+								</div>
+								<?php endif; ?>
+								<?php if ( 3 === $_psn ) : ?>
+								<div id="dc-swp-pixel-wizard-summary" style="margin:10px 0;padding:10px;background:#f0f7f0;border:1px solid #3cb034;border-radius:3px;display:none">
+									<strong><?php echo esc_html__( 'Pixel Active', 'dc-sw-prefetch' ); ?>:</strong> <code id="dc-swp-pixel-wizard-summary-id"></code>
+								</div>
+								<?php endif; ?>
+								<div class="dc-swp-wizard-nav">
+									<?php if ( $_psn > 1 ) : ?>
+									<button type="button" class="button dc-swp-pixel-wizard-btn" data-dir="prev" data-step="<?php echo (int) $_psn; ?>">
+										<?php echo esc_html__( '&#8592; Back', 'dc-sw-prefetch' ); ?>
+									</button>
+									<?php endif; ?>
+									<?php if ( $_psn < 3 ) : ?>
+									<button type="button" class="button button-primary dc-swp-pixel-wizard-btn"
+										data-dir="next" data-step="<?php echo (int) $_psn; ?>"
+										<?php echo 2 === $_psn ? 'id="dc-swp-pixel-wizard-step2-next" disabled' : ''; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- fully static HTML attribute. ?>>
+										<?php echo esc_html__( 'Next &#8594;', 'dc-sw-prefetch' ); ?>
+									</button>
+									<?php else : ?>
+									<button type="button" class="button button-primary" id="dc-swp-pixel-wizard-complete">
+										<?php echo esc_html__( '&#10004; Complete Setup', 'dc-sw-prefetch' ); ?>
+									</button>
+									<?php endif; ?>
+								</div>
+							</div>
+							<?php endforeach; ?>
+							<p class="description" style="margin-top:10px"><?php echo wp_kses_post( __( 'Follow the step-by-step guide to add your Meta Pixel and let this plugin inject and manage the base code.', 'dc-sw-prefetch' ) ); ?></p>
+						</div>
+
+						<!-- Sub-options shown when mode ≠ off -->
+						<div id="dc-swp-pixel-sub-options" <?php echo 'off' === $pixel_mode ? 'style="display:none"' : ''; ?>>
+							<hr style="margin:14px 0 10px">
+							<table class="form-table" style="margin:0">
+								<tr valign="top">
+									<th scope="row" style="padding-top:8px;padding-bottom:8px"><?php echo esc_html__( 'Meta LDU (Limited Data Use)', 'dc-sw-prefetch' ); ?></th>
+									<td style="padding-top:8px;padding-bottom:8px">
+										<label class="pwa-toggle">
+											<input type="checkbox" name="dc_swp_meta_ldu" value="yes" <?php checked( $meta_ldu, true ); ?>>
+											<span class="pwa-slider"></span>
+										</label>
+										<p class="description" style="margin-top:6px"><?php echo wp_kses_post( __( 'Injects <code>fbq("dataProcessingOptions",["LDU"],0,0)</code> before the Pixel loads. When WP Consent API is active, consented visitors receive <code>fbq("consent","grant")</code> + <code>fbq("dataProcessingOptions",[],0,0)</code> (unrestricted) while non-consented visitors receive <code>fbq("consent","revoke")</code> + full LDU.', 'dc-sw-prefetch' ) ); ?></p>
+									</td>
+								</tr>
+							</table>
+						</div>
 					</td>
 				</tr>
 			</table>
@@ -1122,6 +1250,16 @@ function dc_swp_admin_page_html() {
 				'willBeUsed'   => __( 'will be used on next save', 'dc-sw-prefetch' ),
 				'active'       => __( 'Auto-detected and active', 'dc-sw-prefetch' ),
 				'saved'        => __( '✔ Saved', 'dc-sw-prefetch' ),
+			),
+			'pixel'              => array(
+				'valid'      => __( '✔ Valid Pixel ID', 'dc-sw-prefetch' ),
+				'invalid'    => __( '⚠ Invalid format. Expected: 10–20 digits only.', 'dc-sw-prefetch' ),
+				'detected'   => __( 'Detected', 'dc-sw-prefetch' ),
+				'use'        => __( 'Use This ID', 'dc-sw-prefetch' ),
+				'none'       => __( 'No Meta Pixel found in page source. Enter your Pixel ID manually.', 'dc-sw-prefetch' ),
+				'willBeUsed' => __( 'will be used on next save', 'dc-sw-prefetch' ),
+				'active'     => __( 'Auto-detected and active', 'dc-sw-prefetch' ),
+				'saved'      => __( '✔ Saved', 'dc-sw-prefetch' ),
 			),
 			'gcm'                => array(
 				'checking'          => __( 'Checking for GCM v2 conflicts...', 'dc-sw-prefetch' ),

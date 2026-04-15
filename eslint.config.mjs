@@ -36,6 +36,7 @@ export default [
 				Object: 'readonly',
 				JSON: 'readonly',
 				Promise: 'readonly',
+				localStorage: 'readonly',
 				// WordPress / jQuery globals.
 				jQuery: 'readonly',
 				$: 'readonly',

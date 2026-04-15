@@ -735,6 +735,222 @@ jQuery( function ( $ ) {
 	} );
 } )( jQuery );
 
+// -- Meta Pixel -- panel switcher + detect + wizard ---------------------------
+( function ( $ ) {
+	const PIXEL_REGEX = /^\d{10,20}$/;
+	const pixelStr    = ( dcSwpAdminData.pixel || {} );
+
+	/** Sync the hidden form field that gets submitted. */
+	function syncPixelId( val ) {
+		$( '#dc_swp_pixel_id_field' ).val( val );
+	}
+
+	function validPixelId( val ) {
+		return PIXEL_REGEX.test( ( val || '' ).trim() );
+	}
+
+	/** Show the panel matching the active pixel mode; hide the rest. */
+	function showPixelPanel( mode ) {
+		$( '#dc-swp-pixel-panel-own, #dc-swp-pixel-panel-detect, #dc-swp-pixel-panel-managed' ).hide();
+		if ( 'off' !== mode ) {
+			$( '#dc-swp-pixel-panel-' + mode ).show();
+		}
+		$( '#dc-swp-pixel-sub-options' ).toggle( 'off' !== mode );
+	}
+
+	// -- Wizard step navigation ----------------------------------------------
+	function goToPixelStep( step ) {
+		$( '.dc-swp-wizard-step', '#dc-swp-pixel-panel-managed' ).removeClass( 'dc-swp-active' ).hide();
+		$( '#dc-swp-pixel-wizard-step-' + step ).addClass( 'dc-swp-active' ).show();
+		$( '#dc-swp-pixel-panel-managed .dc-swp-step-dot' ).each( function () {
+			const s = parseInt( $( this ).data( 'step' ), 10 );
+			$( this )
+				.toggleClass( 'active', s === step )
+				.toggleClass( 'done',   s < step );
+		} );
+	}
+
+	// -- Init ----------------------------------------------------------------
+	const initPixelMode = $( 'input[name="dc_swp_pixel_mode"]:checked' ).val() || 'off';
+	showPixelPanel( initPixelMode );
+	goToPixelStep( 1 );
+
+	// Restore detect active state on page reload.
+	if ( 'detect' === initPixelMode ) {
+		const savedPixelId = $( '#dc-swp-pixel-panel-detect' ).data( 'saved-id' );
+		if ( savedPixelId ) {
+			const safeId = $( '<span>' ).text( savedPixelId ).html();
+			$( '#dc-swp-pixel-detect-result' ).html(
+				'<p style="color:#3cb034;font-weight:600">\u2714 <code>' + safeId + '</code>' +
+				' \u2014 ' + ( pixelStr.active || 'Auto-detected and active' ) + '</p>'
+			);
+		}
+	}
+
+	// Restore managed active state on page reload.
+	if ( 'managed' === initPixelMode ) {
+		const storedPixelId = $( '#dc-swp-pixel-wizard-id' ).val().trim();
+		if ( validPixelId( storedPixelId ) ) {
+			$( '#dc-swp-pixel-wizard-step2-next' ).prop( 'disabled', false );
+			const safeId = $( '<span>' ).text( storedPixelId ).html();
+			$( '#dc-swp-pixel-panel-managed' ).prepend(
+				'<div id="dc-swp-pixel-managed-badge" style="margin-bottom:12px">' +
+				'<span style="display:inline-block;background:#3cb034;color:#fff;font-family:monospace;' +
+				'font-weight:700;font-size:13px;padding:4px 12px;border-radius:3px">' +
+				'\u2714 ' + safeId + '</span>' +
+				'<span style="color:#3cb034;font-size:12px;margin-left:8px">' +
+				( pixelStr.active || 'Active' ) + '</span>' +
+				'</div>'
+			);
+		}
+	}
+
+	// -- Mode radio change ---------------------------------------------------
+	$( 'input[name="dc_swp_pixel_mode"]' ).on( 'change', function () {
+		const mode = $( this ).val();
+		showPixelPanel( mode );
+
+		// Cross-fill: own ↔ managed.
+		if ( 'managed' === mode ) {
+			const ownVal = $( '#dc-swp-pixel-id-own' ).val().trim();
+			const wizVal = $( '#dc-swp-pixel-wizard-id' ).val().trim();
+			if ( ! wizVal && ownVal ) {
+				$( '#dc-swp-pixel-wizard-id' ).val( ownVal ).trigger( 'input' );
+			}
+		}
+		if ( 'own' === mode ) {
+			const wizVal2 = $( '#dc-swp-pixel-wizard-id' ).val().trim();
+			const ownEl   = $( '#dc-swp-pixel-id-own' );
+			if ( ! ownEl.val() && wizVal2 ) {
+				ownEl.val( wizVal2 ).trigger( 'input' );
+			}
+		}
+	} );
+
+	// -- Own mode: live validation -------------------------------------------
+	$( '#dc-swp-pixel-id-own' ).on( 'input', function () {
+		const val     = $( this ).val().trim();
+		const $status = $( '#dc-swp-pixel-id-status' );
+		if ( ! val ) {
+			$status.hide();
+			syncPixelId( '' );
+			return;
+		}
+		if ( validPixelId( val ) ) {
+			$status.text( pixelStr.valid || '\u2714 Valid' )
+				.addClass( 'dc-swp-gtm-valid' ).removeClass( 'dc-swp-gtm-invalid' ).show();
+			syncPixelId( val );
+		} else {
+			$status.text( pixelStr.invalid || '\u26a0 Invalid format' )
+				.addClass( 'dc-swp-gtm-invalid' ).removeClass( 'dc-swp-gtm-valid' ).show();
+		}
+	} ).trigger( 'input' );
+
+	// -- Detect mode: scan button --------------------------------------------
+	const PIXEL_DETECT_CACHE_KEY = 'dc_swp_pixel_detect_cache';
+	const PIXEL_DETECT_CACHE_TTL = 5 * 60 * 1000; // 5 min
+
+	$( '#dc-swp-pixel-detect-btn' ).on( 'click', function () {
+		const $btn  = $( this );
+		const $spin = $( '#dc-swp-pixel-detect-spinner' );
+		const $res  = $( '#dc-swp-pixel-detect-result' );
+		$btn.prop( 'disabled', true );
+		$spin.css( 'display', 'inline-block' );
+		$res.empty();
+
+		// Client-side 5-min cache (same pattern as GTM detect).
+		try {
+			const raw = localStorage.getItem( PIXEL_DETECT_CACHE_KEY );
+			if ( raw ) {
+				const entry = JSON.parse( raw );
+				if ( entry && ( Date.now() - entry.ts ) < PIXEL_DETECT_CACHE_TTL ) {
+					renderPixelDetectResult( $res, entry.data );
+					$btn.prop( 'disabled', false );
+					$spin.hide();
+					return;
+				}
+			}
+		} catch { /* localStorage unavailable */ }
+
+		$.post( ajaxurl, { action: 'dc_swp_detect_pixel', nonce: dcSwpAdminData.nonce },
+			function ( r ) {
+				$btn.prop( 'disabled', false );
+				$spin.hide();
+				if ( r.success && r.data ) {
+					try {
+						localStorage.setItem( PIXEL_DETECT_CACHE_KEY, JSON.stringify( { ts: Date.now(), data: r.data } ) );
+					} catch { /* ignore */ }
+					renderPixelDetectResult( $res, r.data );
+				} else {
+					$res.html( '<p style="color:#787c82"><em>' + ( pixelStr.none || 'No Meta Pixel found in page source.' ) + '</em></p>' );
+				}
+			}
+		).fail( function () { $btn.prop( 'disabled', false ); $spin.hide(); } );
+	} );
+
+	function renderPixelDetectResult( $res, data ) {
+		if ( data.found && data.id ) {
+			const safeId = $( '<span>' ).text( data.id ).html();
+			$res.html(
+				'<p style="color:#3cb034">\u2714 ' + ( pixelStr.detected || 'Detected' ) +
+				': <strong><code>' + safeId + '</code></strong></p>' +
+				'<button type="button" class="button button-secondary" id="dc-swp-pixel-use-detected" data-id="' + safeId + '">' +
+				( pixelStr.use || 'Use This ID' ) + '</button>'
+			);
+		} else {
+			$res.html( '<p style="color:#787c82"><em>' + ( pixelStr.none || 'No Meta Pixel found in page source.' ) + '</em></p>' );
+		}
+	}
+
+	$( document ).on( 'click', '#dc-swp-pixel-use-detected', function () {
+		const id = $( this ).data( 'id' );
+		syncPixelId( id );
+		$( '#dc-swp-pixel-id-own' ).val( id );
+		const msg = '<span style="color:#3cb034;font-weight:600">\u2714 <code>' +
+			$( '<span>' ).text( id ).html() + '</code> \u2014 ' +
+			( pixelStr.willBeUsed || 'will be used on next save' ) + '</span>';
+		$( this ).replaceWith( msg );
+		// Switch to own mode so the ID is submitted correctly.
+		$( 'input[name="dc_swp_pixel_mode"][value="own"]' ).prop( 'checked', true ).trigger( 'change' );
+	} );
+
+	// -- Wizard: ID validation in step 2 ------------------------------------
+	$( '#dc-swp-pixel-wizard-id' ).on( 'input', function () {
+		const val     = $( this ).val().trim();
+		const valid   = validPixelId( val );
+		const $status = $( '#dc-swp-pixel-wizard-status' );
+		$( '#dc-swp-pixel-wizard-step2-next' ).prop( 'disabled', ! valid );
+		if ( ! val ) { $status.hide(); return; }
+		if ( valid ) {
+			$status.text( pixelStr.valid || '\u2714 Valid' )
+				.addClass( 'dc-swp-gtm-valid' ).removeClass( 'dc-swp-gtm-invalid' ).show();
+			syncPixelId( val );
+		} else {
+			$status.text( pixelStr.invalid || '\u26a0 Invalid format' )
+				.addClass( 'dc-swp-gtm-invalid' ).removeClass( 'dc-swp-gtm-valid' ).show();
+		}
+	} ).trigger( 'input' );
+
+	// -- Wizard: next / prev navigation -------------------------------------
+	$( document ).on( 'click', '.dc-swp-pixel-wizard-btn', function () {
+		const dir  = $( this ).data( 'dir' );
+		const step = parseInt( $( this ).data( 'step' ), 10 );
+		goToPixelStep( 'next' === dir ? step + 1 : step - 1 );
+	} );
+
+	// -- Wizard: complete ----------------------------------------------------
+	$( '#dc-swp-pixel-wizard-complete' ).on( 'click', function () {
+		const id = $( '#dc-swp-pixel-wizard-id' ).val().trim();
+		if ( validPixelId( id ) ) {
+			syncPixelId( id );
+			$( '#dc-swp-pixel-wizard-summary-id' ).text( id );
+			$( '#dc-swp-pixel-wizard-summary' ).show();
+			$( this ).text( pixelStr.saved || '\u2714 Saved' ).prop( 'disabled', true );
+			$( 'form.pwa-cache-settings' ).submit();
+		}
+	} );
+} )( jQuery );
+
 // -- GCM v2 conflict + WP Consent API check ---------------------------------
 // Fired when the user enables the GCM v2 toggle, and on page load when it
 // is already enabled. Fetches the homepage via AJAX and warns if another

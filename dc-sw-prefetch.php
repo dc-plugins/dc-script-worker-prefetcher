@@ -983,6 +983,18 @@ function dc_swp_is_valid_gtm_id( string $id ): bool {
 }
 
 /**
+ * Return true when the given string is a valid Meta Pixel ID.
+ *
+ * Meta Pixel IDs are purely numeric, 10–20 digits.
+ *
+ * @param string $id Raw Pixel ID string.
+ * @return bool
+ */
+function dc_swp_is_valid_pixel_id( string $id ): bool {
+	return (bool) preg_match( '/^\d{10,20}$/', $id );
+}
+
+/**
  * Detect a live Google Tag ID by fetching and parsing the homepage HTML.
  *
  * Fetches the site's homepage via wp_remote_get() and scans the rendered
@@ -1151,6 +1163,184 @@ function dc_swp_ajax_detect_gtm() {
 }
 
 // ============================================================
+// META / FACEBOOK PIXEL -- MODE SYSTEM
+// Mirrors the GTM 4-mode pattern (off / own / detect / managed).
+// When pixel_mode is not 'off', dc_swp_inject_pixel_head() fires
+// at wp_head priority 1 and injects the full Pixel base code
+// (fbq stub + fbevents.js as text/partytown + init + PageView).
+// The legacy dc_swp_inject_meta_ldu_default() is kept for sites
+// that load Meta Pixel from another plugin -- it skips when the
+// new mode is active to avoid double injection.
+// ============================================================
+
+/**
+ * Detect a live Meta Pixel ID by fetching and parsing the homepage HTML.
+ *
+ * Scans for fbq('init','PIXEL_ID') inline calls and connect.facebook.net script tags.
+ *
+ * @return string First found Pixel ID (digits only), or '' if not found.
+ */
+function dc_swp_detect_existing_pixel_id(): string {
+	$cached = get_transient( 'dc_swp_pixel_detect_result' );
+	if ( false !== $cached ) {
+		return (string) $cached;
+	}
+
+	$response = wp_remote_get(
+		home_url( '/' ),
+		array(
+			'timeout'    => 15,
+			'sslverify'  => true,
+			'user-agent' => 'Mozilla/5.0 (DCSwPrefetch/1.0; Pixel-Detect)',
+		)
+	);
+
+	$found = '';
+
+	if ( ! is_wp_error( $response ) ) {
+		$body = wp_remote_retrieve_body( $response );
+
+		// 1. Script tag loading fbevents.js with a pixel_id query parameter.
+		if ( '' === $found && preg_match( '/connect\.facebook\.net[^"\']*?[?&]pixel_id=(\d{10,20})/i', $body, $m ) ) {
+			$found = $m[1];
+		}
+
+		// 2. Inline fbq init call using single or double quotes.
+		if ( '' === $found && preg_match( '/fbq\s*\(\s*["\']init["\']\s*,\s*["\'](\d{10,20})["\']/i', $body, $m ) ) {
+			$found = $m[1];
+		}
+	}
+
+	set_transient( 'dc_swp_pixel_detect_result', $found, 5 * MINUTE_IN_SECONDS );
+	return $found;
+}
+
+add_action( 'wp_ajax_dc_swp_detect_pixel', 'dc_swp_ajax_detect_pixel' );
+
+/**
+ * AJAX handler: detect a live Meta Pixel ID by scanning the homepage HTML.
+ *
+ * @return void
+ */
+function dc_swp_ajax_detect_pixel(): void {
+	check_ajax_referer( 'dc_swp_detect_nonce', 'nonce' );
+	if ( ! current_user_can( 'manage_options' ) ) {
+		wp_send_json_error( array( 'message' => 'Unauthorized' ), 403 );
+	}
+	$id = dc_swp_detect_existing_pixel_id();
+	wp_send_json_success(
+		array(
+			'id'    => $id,
+			'found' => '' !== $id,
+		)
+	);
+}
+
+// ============================================================
+// META / FACEBOOK PIXEL -- PIXEL HEAD INJECTION (new mode path)
+// ============================================================
+
+add_action( 'wp_head', 'dc_swp_inject_pixel_head', 1 );
+
+/**
+ * Inject the full Meta Pixel base code when pixel_mode is own / detect / managed.
+ *
+ * Emits:
+ *  1. fbq stub (same as LDU stub)
+ *  2. LDU / consent signals (when Meta LDU option is enabled)
+ *  3. <script type="text/partytown" src="...fbevents.js"> -- worker-offloaded
+ *  4. Inline main-thread: fbq('init', ID); fbq('track', 'PageView');
+ *
+ * @return void
+ */
+function dc_swp_inject_pixel_head(): void {
+	if ( dc_swp_is_bot_request() || is_admin() ) {
+		return;
+	}
+	if ( get_option( 'dc_swp_sw_enabled', 'yes' ) !== 'yes' ) {
+		return;
+	}
+
+	$pixel_mode = get_option( 'dc_swp_pixel_mode', 'off' );
+	if ( 'off' === $pixel_mode ) {
+		return;
+	}
+
+	$pixel_id = get_option( 'dc_swp_pixel_id', '' );
+	if ( '' === $pixel_id || ! dc_swp_is_valid_pixel_id( $pixel_id ) ) {
+		return;
+	}
+
+	if ( dc_swp_is_excluded_url() ) {
+		return;
+	}
+
+	$ldu_on        = dc_swp_is_meta_ldu_enabled();
+	$consent_aware = dc_swp_is_consent_gate_enabled() && function_exists( 'wp_has_consent' );
+
+	$nonce      = dc_swp_get_csp_nonce();
+	$nonce_attr = '' !== $nonce ? ' nonce="' . esc_attr( $nonce ) . '"' : '';
+
+	// -- fbq stub + optional LDU/consent signals (main thread, priority 1) ------
+	$stub  = "window._fbq=window._fbq||[];\n";
+	$stub .= "window.fbq=window.fbq||function(){\n";
+	$stub .= "  window._fbq.push?window._fbq.push(arguments):window._fbq.que.push(arguments);\n";
+	$stub .= "};\n";
+	$stub .= "window.fbq.push=window.fbq;\n";
+	$stub .= "window.fbq.loaded=true;\n";
+	$stub .= "window.fbq.version='2.0';\n";
+	$stub .= "window.fbq.queue=[];\n";
+
+	if ( $consent_aware ) {
+		if ( wp_has_consent( 'marketing' ) ) {
+			$stub .= "fbq('consent','grant');\n";
+			if ( $ldu_on ) {
+				$stub .= "fbq('dataProcessingOptions',[],0,0);\n";
+			}
+		} else {
+			$stub .= "fbq('consent','revoke');\n";
+			if ( $ldu_on ) {
+				$stub .= "fbq('dataProcessingOptions',['LDU'],0,0);\n";
+			}
+		}
+	} elseif ( $ldu_on ) {
+		$stub .= "fbq('dataProcessingOptions',['LDU'],0,0);\n";
+	}
+
+	// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- fully static JS + esc_attr nonce.
+	echo '<script' . $nonce_attr . ">\n" . $stub . "</script>\n";
+
+	// -- fbevents.js via Partytown worker ----------------------------------------
+	$safe_id = esc_attr( $pixel_id );
+	// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- pixel ID is digits-only (regex-validated); nonce is esc_attr.
+	echo '<script type="text/partytown"' . $nonce_attr . ' src="https://connect.facebook.net/en_US/fbevents.js"></script>' . "\n";
+
+	// -- Main-thread init + PageView (forwarded to worker via fbq forward config) --
+	// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- pixel ID digits-only; nonce pre-escaped.
+	echo '<script' . $nonce_attr . ">fbq('init','" . $safe_id . "');fbq('track','PageView');</script>\n";
+}
+
+/**
+ * Auto-add connect.facebook.net to the Partytown proxy allowlist when the Pixel
+ * mode is active, so the worker can fetch fbevents.js through the CORS proxy.
+ *
+ * Hooks into dc_swp_extra_proxy_hosts (same pattern as includes/integrations.php).
+ */
+add_filter(
+	'dc_swp_extra_proxy_hosts',
+	static function ( array $hosts ): array {
+		$mode = get_option( 'dc_swp_pixel_mode', 'off' );
+		if ( 'off' !== $mode ) {
+			$id = get_option( 'dc_swp_pixel_id', '' );
+			if ( '' !== $id && dc_swp_is_valid_pixel_id( $id ) ) {
+				$hosts[] = 'connect.facebook.net';
+			}
+		}
+		return $hosts;
+	}
+);
+
+// ============================================================
 // META / FACEBOOK PIXEL -- LIMITED DATA USE (LDU) MODE
 // When enabled, injects the fbq stub + dataProcessingOptions
 // at wp_head priority 1, before Partytown and any fbq scripts.
@@ -1175,6 +1365,11 @@ function dc_swp_inject_meta_ldu_default() {
 		return;
 	}
 	if ( get_option( 'dc_swp_sw_enabled', 'yes' ) !== 'yes' ) {
+		return;
+	}
+
+	// New pixel mode is active -- dc_swp_inject_pixel_head() handles everything.
+	if ( get_option( 'dc_swp_pixel_mode', 'off' ) !== 'off' ) {
 		return;
 	}
 
@@ -2026,6 +2221,8 @@ add_action( 'update_option_dc_swp_partytown_scripts', 'dc_swp_bust_page_cache' )
 add_action( 'update_option_dc_swp_inline_scripts', 'dc_swp_bust_page_cache' );
 add_action( 'update_option_dc_swp_gtm_mode', 'dc_swp_bust_page_cache' );
 add_action( 'update_option_dc_swp_gtm_id', 'dc_swp_bust_page_cache' );
+add_action( 'update_option_dc_swp_pixel_mode', 'dc_swp_bust_page_cache' );
+add_action( 'update_option_dc_swp_pixel_id', 'dc_swp_bust_page_cache' );
 add_action( 'update_option_dc_swp_exclusion_patterns', 'dc_swp_bust_page_cache' );
 
 /**
@@ -2038,6 +2235,7 @@ add_action( 'update_option_dc_swp_exclusion_patterns', 'dc_swp_bust_page_cache' 
 function dc_swp_bust_page_cache() {
 	wp_cache_delete( 'patterns', 'dc_swp' );
 	delete_transient( 'dc_swp_gcm_conflict_result' );
+	delete_transient( 'dc_swp_pixel_detect_result' );
 
 	// W3 Total Cache.
 	if ( function_exists( 'w3tc_pgcache_flush' ) ) {
