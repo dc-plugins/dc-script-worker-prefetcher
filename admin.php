@@ -908,31 +908,24 @@ function dc_swp_admin_page_html() {
 							<?php endforeach; ?>
 							<p class="description" style="margin-top:10px"><?php echo wp_kses_post( __( 'Follow the step-by-step guide to add your Meta Pixel and let this plugin inject and manage the base code.', 'dc-sw-prefetch' ) ); ?></p>
 						</div>
-
-						<!-- Sub-options shown when mode ≠ off -->
-						<div id="dc-swp-pixel-sub-options"
-						<?php
-						if ( 'off' === $pixel_mode ) :
-							?>
-							style="display:none"<?php endif; ?>>
-							<hr style="margin:14px 0 10px">
-							<table class="form-table" style="margin:0">
-								<tr valign="top">
-									<th scope="row" style="padding-top:8px;padding-bottom:8px"><?php echo esc_html__( 'Meta LDU (Limited Data Use)', 'dc-sw-prefetch' ); ?></th>
-									<td style="padding-top:8px;padding-bottom:8px">
-										<label class="pwa-toggle">
-											<input type="checkbox" name="dc_swp_meta_ldu" value="yes" <?php checked( $meta_ldu, true ); ?>>
-											<span class="pwa-slider"></span>
-										</label>
-										<p class="description" style="margin-top:6px"><?php echo wp_kses_post( __( 'Injects <code>fbq("dataProcessingOptions",["LDU"],0,0)</code> before the Pixel loads. When WP Consent API is active, consented visitors receive <code>fbq("consent","grant")</code> + <code>fbq("dataProcessingOptions",[],0,0)</code> (unrestricted) while non-consented visitors receive <code>fbq("consent","revoke")</code> + full LDU.', 'dc-sw-prefetch' ) ); ?></p>
-									</td>
-								</tr>
-							</table>
-						</div>
-					</td>
-				</tr>
-			</table>
-			</fieldset>
+						</td>
+					</tr>
+					<tr valign="top" id="dc-swp-pixel-sub-options"
+					<?php
+					if ( 'off' === $pixel_mode ) :
+						?>
+						style="display:none"<?php endif; ?>>
+						<th scope="row"><?php echo esc_html__( 'Meta LDU (Limited Data Use)', 'dc-sw-prefetch' ); ?></th>
+						<td>
+							<label class="pwa-toggle">
+								<input type="checkbox" name="dc_swp_meta_ldu" value="yes" <?php checked( $meta_ldu, true ); ?>>
+								<span class="pwa-slider"></span>
+							</label>
+							<p class="description" style="margin-top:6px"><?php echo wp_kses_post( __( 'Injects <code>fbq("dataProcessingOptions",["LDU"],0,0)</code> before the Pixel loads. When WP Consent API is active, consented visitors receive <code>fbq("consent","grant")</code> + <code>fbq("dataProcessingOptions",[],0,0)</code> (unrestricted) while non-consented visitors receive <code>fbq("consent","revoke")</code> + full LDU.', 'dc-sw-prefetch' ) ); ?></p>
+						</td>
+					</tr>
+				</table>
+				</fieldset>
 		</div><!-- /tab-meta -->
 
 
