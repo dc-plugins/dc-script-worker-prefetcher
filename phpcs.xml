@@ -11,6 +11,15 @@
     <rule ref="WordPress">
     </rule>
 
+    <!-- Declare the plugin's text domain so i18n sniffs don't flag it as a mismatch -->
+    <rule ref="WordPress.WP.I18n">
+        <properties>
+            <property name="text_domain" type="array">
+                <element value="dc-sw-prefetch"/>
+            </property>
+        </properties>
+    </rule>
+
     <!-- Declare plugin prefix so NamingConventions don't flag dc_swp_ functions -->
     <rule ref="WordPress.NamingConventions.PrefixAllGlobals">
         <properties>

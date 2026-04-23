@@ -100,15 +100,15 @@ the URL again.
 
 ## 5. Text-domain mismatch
 
-The plugin slug is `dc-script-worker-prefetcher` but the code used the older
-`dc-service-worker-prefetcher` text-domain in 193 places. All of those have
-been corrected (193 → 0). The plugin header `Text Domain:` and the
-`load_plugin_textdomain()` call now both use `dc-script-worker-prefetcher`,
-and the language files have been renamed accordingly:
+The plugin folder (and therefore the WP.org slug) is `dc-sw-prefetch`. The
+code had been using the older `dc-service-worker-prefetcher` text-domain in
+193 places. All of those have been corrected (193 → 0). The plugin header
+`Text Domain:` and the `load_plugin_textdomain()` call now both use
+`dc-sw-prefetch`, and the language files match accordingly:
 
-- `languages/dc-script-worker-prefetcher.pot`
-- `languages/dc-script-worker-prefetcher-da_DK.po`
-- `languages/dc-script-worker-prefetcher-da_DK.mo`
+- `languages/dc-sw-prefetch.pot`
+- `languages/dc-sw-prefetch-da_DK.po`
+- `languages/dc-sw-prefetch-da_DK.mo`
 
 ## 6. Unescaped `$body` (proxy endpoint) and `$ns_content` (noscript)
 
