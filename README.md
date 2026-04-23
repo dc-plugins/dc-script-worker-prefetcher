@@ -2,7 +2,7 @@
 
 > Offload third-party scripts to a Web Worker via Partytown + consent-aware loading.
 
-![Version](https://img.shields.io/badge/version-3.0.1-blue)
+![Version](https://img.shields.io/badge/version-3.1.0-blue)
 ![WordPress](https://img.shields.io/badge/WordPress-6.8%2B-21759b)
 ![PHP](https://img.shields.io/badge/PHP-8.0%2B-777bb4)
 ![WooCommerce](https://img.shields.io/badge/WooCommerce-10.7%2B-96588a)
@@ -103,7 +103,7 @@ Page request (PHP)
 
 ## Installation
 
-1. Upload the `dc-sw-prefetch` folder to `/wp-content/plugins/`.
+1. Upload the `dc-script-worker-prefetcher` folder to `/wp-content/plugins/`.
 2. Activate from the **Plugins** screen.
 3. Go to **SW Prefetch** in the admin menu.
 4. Add URL patterns for any third-party scripts you want to offload (e.g. `analytics.ahrefs.com` or the full GTM URL). Use the **Auto-Detect** button to scan your homepage.
@@ -133,14 +133,14 @@ Then commit `assets/partytown/` and `package.json`.
 ## Repository structure
 
 ```
-dc-sw-prefetch.php   — Main plugin file
-admin.php            — Admin settings page (EN/DA)
-uninstall.php        — Cleanup on deletion
-assets/partytown/    — Vendored Partytown lib (do NOT hand-edit)
-scripts/             — update-partytown.sh
-.github/workflows/   — deploy.yml, update-partytown.yml
-package.json         — Tracks vendored Partytown version
-languages/           — .pot translation template
+dc-script-worker-prefetcher.php   — Main plugin file
+admin.php                         — Admin settings page (EN/DA)
+uninstall.php                     — Cleanup on deletion
+assets/partytown/                 — Vendored Partytown lib (do NOT hand-edit)
+scripts/                          — update-partytown.sh
+.github/workflows/                — deploy.yml, update-partytown.yml
+package.json                      — Tracks vendored Partytown version
+languages/                        — .pot translation template
 ```
 
 ---
@@ -187,6 +187,16 @@ The administrator may configure additional services via the Partytown Script Lis
 ---
 
 ## Changelog
+
+### 3.1.0
+- Fix: Inline Script Blocks rebuilt as **Script Center** — JS is sanitised with `sanitize_text_field()` at save time and always rendered as `type="text/plain"` (consent-gated); no arbitrary script execution path remains.
+- Fix: Removed PayPal 1×1 tracking pixel and `paypalobjects.com` donate image; replaced with a plain text button.
+- Fix: Removed all `img.shields.io` requests from admin UI; Consent Architecture panel now uses pure-CSS badges.
+- Fix: Added FullStory to `readme.txt` External Services section.
+- Fix: All external `<script src>` echoes migrated to `wp_register_script()` + `wp_enqueue_script()` + `script_loader_tag` filter (GTM, GA4, Meta Pixel, HubSpot, Klaviyo, Script Center src rows).
+- Fix: Text domain corrected to `dc-sw-prefetch` (matching WP.org slug `dc-script-worker-prefetcher`); language files renamed accordingly.
+- Fix: Plugin folder and main file renamed to `dc-script-worker-prefetcher` to match the WP.org registered slug.
+- Fix: Admin hook suffix updated to `toplevel_page_dc-script-worker-prefetcher`; JS and CSS now enqueue correctly on the settings page.
 
 ### 3.0.1
 - Fix: Removed debug `console.log/debug/warn` calls from the viewport prefetch script that were printing to every visitor's DevTools console on WooCommerce shop pages.
