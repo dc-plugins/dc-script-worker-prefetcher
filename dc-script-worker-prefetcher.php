@@ -1569,6 +1569,8 @@ function dc_swp_partytown_config() {
 	// Inline Partytown snippet -- serves workers from /~partytown/.
 	// Debug mode uses the unminified build from assets/partytown/debug/; the serve
 	// endpoint already handles /~partytown/debug/* via its realpath security check.
+	// NOTE: `lib` is always /~partytown/ -- Partytown appends "debug/" itself when
+	// config.debug is true, so we must not duplicate it here.
 	$snippet_file = plugin_dir_path( __FILE__ ) . 'assets/partytown/' . ( $debug_mode ? 'debug/' : '' ) . 'partytown.js';
 	if ( ! file_exists( $snippet_file ) ) {
 		return;
@@ -1590,7 +1592,7 @@ function dc_swp_partytown_config() {
 	// dataLayer.push(), which is already forwarded. Forwarding 'gtag' separately is redundant.
 	// 'lintrk' (LinkedIn) and 'twq' (Twitter/X) are excluded -- not on the officially tested list.
 	$config = array(
-		'lib'     => '/~partytown/' . ( $debug_mode ? 'debug/' : '' ),
+		'lib'     => '/~partytown/',
 		'debug'   => $debug_mode,
 		// preserveBehavior:true on dataLayer.push ensures GTM and consent stacks
 		// also fire the original (main-thread) implementation, keeping tag-manager
