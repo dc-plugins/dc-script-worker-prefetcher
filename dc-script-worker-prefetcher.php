@@ -3317,7 +3317,7 @@ function dc_swp_output_inline_scripts() {
 			'<script type="text/plain" data-wp-consent-category="%1$s"%2$s>%3$s</script>' . "\n",
 			esc_attr( $cat ),
 			$nonce_attr, // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- pre-escaped via esc_attr above.
-			esc_html( $row['code'] )
+			$row['code'] // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- admin-controlled inline JS; content is sanitized at save time via dc_swp_sanitize_js_code(). esc_html() must NOT be used here: <script> content is a raw-text element; HTML-encoding operators and tags produces invalid JS.
 		);
 	}
 }
