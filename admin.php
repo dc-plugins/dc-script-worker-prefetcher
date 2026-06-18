@@ -207,10 +207,13 @@ function dc_swp_enqueue_admin_assets( $hook ) {
  * even before the browser refuses to execute the text/plain payload.
  *
  * @param string $code Raw JS body supplied by an administrator.
- * @return string Sanitized, single-line JS body string.
+ * @return string Sanitized JS body string (PHP tags stripped; HTML/JS left intact).
  */
 function dc_swp_sanitize_js_code( $code ) {
-	return sanitize_text_field( (string) $code );
+	// Strip PHP opening tags only -- prevents server-side execution if the stored
+	// value were ever eval'd. All other content (HTML <script> tags, JS operators,
+	// newlines) is intentionally left intact so multi-line script blocks survive.
+	return preg_replace( '/<\?(?:php\b)?/i', '', (string) $code );
 }
 
 /**
@@ -244,14 +247,15 @@ function dc_swp_sanitize_inline_scripts_option( $value ) {
 			continue;
 		}
 		$sanitized[] = array(
-			'id'             => sanitize_key( $blk['id'] ?? '' ),
-			'label'          => sanitize_text_field( $blk['label'] ?? '' ),
-			'code'           => dc_swp_sanitize_js_code( $blk['code'] ?? '' ),
-			'src'            => esc_url_raw( $blk['src'] ?? '' ),
-			'async'          => ! empty( $blk['async'] ),
-			'enabled'        => ! empty( $blk['enabled'] ),
-			'skip_logged_in' => ! empty( $blk['skip_logged_in'] ),
-			'category'       => in_array( $blk['category'] ?? '', $valid_cats, true ) ? $blk['category'] : 'marketing',
+			'id'              => sanitize_key( $blk['id'] ?? '' ),
+			'label'           => sanitize_text_field( $blk['label'] ?? '' ),
+			'code'            => dc_swp_sanitize_js_code( $blk['code'] ?? '' ),
+			'src'             => esc_url_raw( $blk['src'] ?? '' ),
+			'async'           => ! empty( $blk['async'] ),
+			'enabled'         => ! empty( $blk['enabled'] ),
+			'skip_logged_in'  => ! empty( $blk['skip_logged_in'] ),
+			'force_partytown' => ! empty( $blk['force_partytown'] ),
+			'category'        => in_array( $blk['category'] ?? '', $valid_cats, true ) ? $blk['category'] : 'marketing',
 		);
 	}
 	return wp_json_encode( $sanitized );
