@@ -3271,26 +3271,96 @@ function dc_swp_enqueue_script_center_src(): void {
 }
 
 /**
+ * Parse a raw admin-pasted script block (which may contain full <script> and
+ * <noscript> HTML) into an ordered list of output instructions.
+ *
+ * Admins paste complete pixel/analytics snippets that include the wrapping
+ * <script> tags. This function splits those into discrete parts so the
+ * renderer can emit each one correctly without creating nested <script> tags.
+ *
+ * Returned items have:
+ *   'type'  => 'inline' | 'src' | 'noscript'
+ *   'body'  => JS body (for 'inline') or full noscript HTML (for 'noscript')
+ *   'src'   => external URL string (for 'src' only)
+ *   'async' => bool (for 'src' only)
+ *
+ * If the code contains no <script> tags at all it is treated as a single
+ * 'inline' item so raw JS snippets are emitted unchanged.
+ *
+ * @param string $code Raw code field from a Script Center block.
+ * @return array List of parsed script parts.
+ */
+function dc_swp_parse_script_block( string $code ): array {
+	$parts   = array();
+	$offset  = 0;
+	$pattern = '/<(script|noscript)\b([^>]*)>([\s\S]*?)<\/\1\s*>/i';
+
+	while ( preg_match( $pattern, $code, $m, PREG_OFFSET_CAPTURE, $offset ) ) {
+		$tag_start = (int) $m[0][1];
+		$tag       = strtolower( $m[1][0] );
+		$attrs     = $m[2][0];
+		$body      = $m[3][0];
+		$tag_end   = $tag_start + strlen( $m[0][0] );
+
+		$offset = $tag_end;
+
+		if ( 'noscript' === $tag ) {
+			$parts[] = array(
+				'type' => 'noscript',
+				'body' => $m[0][0],
+			);
+		} elseif ( preg_match( '/\bsrc\s*=\s*["\']([^"\']+)["\']/', $attrs, $sm ) ) {
+			$parts[] = array(
+				'type'  => 'src',
+				'src'   => esc_url_raw( $sm[1] ),
+				'async' => (bool) preg_match( '/\basync\b/i', $attrs ),
+			);
+		} else {
+			$js = trim( $body );
+			if ( '' !== $js ) {
+				$parts[] = array(
+					'type' => 'inline',
+					'body' => $js,
+				);
+			}
+		}
+	}
+
+	// No <script> wrappers found -- treat the whole string as raw inline JS.
+	if ( empty( $parts ) ) {
+		$raw = trim( $code );
+		if ( '' !== $raw ) {
+			$parts[] = array(
+				'type' => 'inline',
+				'body' => $raw,
+			);
+		}
+	}
+
+	return $parts;
+}
+
+/**
  * Render Script Center "code" entries as inert <script type="text/plain">
- * blocks at wp_head priority 3. The browser does not execute text/plain;
- * a consent layer (WP Consent API listener / Partytown) swaps the type
- * once the visitor grants consent for data-wp-consent-category.
+ * blocks at wp_head priority 3.
  *
- * @return void
- * Render the JS body of each enabled Script Center row inside an inert
- * <script type="text/plain" data-wp-consent-category="..."></script> block.
- *
- * The browser does not execute type="text/plain". A consent layer (the WP
+ * The browser does not execute type="text/plain". A consent layer (WP
  * Consent API listener / Partytown) is responsible for switching the type
  * to text/javascript or text/partytown after the visitor grants consent
- * for the matching category. The JS body is single-line text after
- * sanitize_text_field(), so it cannot break out of the wrapping <script> tag.
+ * for the matching data-wp-consent-category.
  *
- * External src= URLs are NOT rendered here -- they are enqueued via
- * dc_swp_enqueue_script_center_src() so WP's script printer emits them
- * and the central script_loader_tag filter applies the same consent gate.
+ * Each block's code field is parsed by dc_swp_parse_script_block() so that
+ * admin-pasted full snippets (which include their own <script> wrappers) are
+ * not double-wrapped, producing invalid nested <script> tags.
+ *
+ * External src= URLs from the dedicated src field are NOT rendered here --
+ * they are enqueued via dc_swp_enqueue_script_center_src() so WP's script
+ * printer emits them and the central script_loader_tag filter applies the
+ * consent gate.
  *
  * Runs at wp_head priority 3, after Partytown lib is loaded (priority 2).
+ *
+ * @return void
  */
 function dc_swp_output_inline_scripts() {
 	if ( dc_swp_is_bot_request() || is_admin() ) {
@@ -3312,12 +3382,32 @@ function dc_swp_output_inline_scripts() {
 		if ( $row['skip_logged_in'] && is_user_logged_in() ) {
 			continue;
 		}
-		$cat = $row['category'] ? $row['category'] : dc_swp_get_script_list_category();
-		printf(
-			'<script type="text/plain" data-wp-consent-category="%1$s"%2$s>%3$s</script>' . "\n",
-			esc_attr( $cat ),
-			$nonce_attr, // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- pre-escaped via esc_attr above.
-			$row['code'] // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- admin-controlled inline JS; content is sanitized at save time via dc_swp_sanitize_js_code(). esc_html() must NOT be used here: <script> content is a raw-text element; HTML-encoding operators and tags produces invalid JS.
-		);
+		$cat      = $row['category'] ? $row['category'] : dc_swp_get_script_list_category();
+		$cat_attr = esc_attr( $cat );
+
+		foreach ( dc_swp_parse_script_block( $row['code'] ) as $part ) {
+			if ( 'inline' === $part['type'] ) {
+				printf(
+					'<script type="text/plain" data-wp-consent-category="%1$s"%2$s>%3$s</script>' . "\n",
+					$cat_attr, // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- pre-escaped via esc_attr above.
+					$nonce_attr, // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- pre-escaped via esc_attr above.
+					$part['body'] // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- admin-controlled inline JS; sanitized via dc_swp_sanitize_js_code() at save time. Must not use esc_html(): <script> is a raw-text element.
+				);
+			} elseif ( 'src' === $part['type'] ) {
+				// Inert text/plain tag -- not executed by browser. Consent gate
+				// requires type=text/plain which wp_enqueue_script() cannot emit.
+				// phpcs:disable WordPress.WP.EnqueuedResources.NonEnqueuedScript,WordPress.Security.EscapeOutput.OutputNotEscaped
+				printf(
+					'<script type="text/plain" data-wp-consent-category="%1$s"%2$s src="%3$s"%4$s></script>' . "\n",
+					$cat_attr,          // pre-escaped via esc_attr.
+					$nonce_attr,        // pre-escaped via esc_attr.
+					esc_url( $part['src'] ),
+					$part['async'] ? ' async' : '' // static string literal.
+				);
+				// phpcs:enable WordPress.WP.EnqueuedResources.NonEnqueuedScript,WordPress.Security.EscapeOutput.OutputNotEscaped
+			} elseif ( 'noscript' === $part['type'] ) {
+				echo $part['body'] . "\n"; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- admin-controlled noscript fallback; sanitized at save time via dc_swp_sanitize_js_code().
+			}
+		}
 	}
 }
