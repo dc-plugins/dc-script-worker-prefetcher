@@ -1,4 +1,4 @@
-/* Partytown 0.13.2 - MIT QwikDev */
+/* Partytown 0.14.0 - MIT QwikDev */
 (self => {
     const [getter, setter, callMethod, constructGlobal, definePrototypePropertyDescriptor, randomId, WinIdKey, InstanceIdKey, ApplyPathKey] = self.$bridgeToMedia$;
     delete self.$bridgeToMedia$;

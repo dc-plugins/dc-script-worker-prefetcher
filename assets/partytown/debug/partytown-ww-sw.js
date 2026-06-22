@@ -1,4 +1,4 @@
-/* Partytown 0.13.2 - MIT QwikDev */
+/* Partytown 0.14.0 - MIT QwikDev */
 (self => {
     var WorkerMessageType;
     !function(WorkerMessageType) {
@@ -256,7 +256,7 @@
         $instanceId$: $instanceId$,
         $refId$: setWorkerRef(value)
     } ] : (added = added || new Set) && Array.isArray(value) ? added.has(value) ? [ SerializedType.Array, [] ] : added.add(value) && [ SerializedType.Array, value.map((v => serializeForMain($winId$, $instanceId$, v, added))) ] : "object" === type ? value[InstanceIdKey] ? [ SerializedType.Instance, [ value[WinIdKey], value[InstanceIdKey] ] ] : value instanceof Event ? [ SerializedType.Event, serializeObjectForMain($winId$, $instanceId$, value, false, added) ] : supportsTrustedHTML && value instanceof TrustedHTML ? [ SerializedType.Primitive, value.toString() ] : value instanceof ArrayBuffer ? [ SerializedType.ArrayBuffer, value ] : ArrayBuffer.isView(value) ? [ SerializedType.ArrayBufferView, value.buffer, getConstructorName(value) ] : [ SerializedType.Object, serializeObjectForMain($winId$, $instanceId$, value, true, added) ] : void 0 : value;
-    const supportsTrustedHTML = "undefined" != typeof TrustedHTML;
+    const supportsTrustedHTML = "function" == typeof TrustedHTML;
     const serializeObjectForMain = (winId, instanceId, obj, includeFunctions, added, serializedObj, propName, propValue) => {
         serializedObj = {};
         if (!added.has(obj)) {
@@ -855,7 +855,7 @@
         }
         return {};
     };
-    const getPartytownScript = () => `<script src="${partytownLibUrl("partytown.js?v=0.13.2")}"><\/script>`;
+    const getPartytownScript = () => `<script src="${partytownLibUrl("partytown.js?v=0.14.0")}"><\/script>`;
     const createImageConstructor = env => class HTMLImageElement {
         constructor() {
             this.s = "";
@@ -1546,7 +1546,7 @@
                         (() => {
                             if (!webWorkerCtx.$initWindowMedia$) {
                                 self.$bridgeToMedia$ = [ getter, setter, callMethod, constructGlobal, definePrototypePropertyDescriptor, randomId, WinIdKey, InstanceIdKey, ApplyPathKey ];
-                                webWorkerCtx.$importScripts$(partytownLibUrl("partytown-media.js?v=0.13.2"));
+                                webWorkerCtx.$importScripts$(partytownLibUrl("partytown-media.js?v=0.14.0"));
                                 webWorkerCtx.$initWindowMedia$ = self.$bridgeFromMedia$;
                                 delete self.$bridgeFromMedia$;
                             }
@@ -1984,8 +1984,18 @@
                         let target = environments[$winId$].$window$;
                         let i = 0;
                         let l = len($forward$);
+                        webWorkerCtx.$config$.logForwardedEvents && logWorker(`Forwarded event received: ${$forward$.join(".")}()`, $winId$);
                         for (;i < l; i++) {
-                            i + 1 < l ? target = target[$forward$[i]] : target[$forward$[i]].apply(target, deserializeFromMain(null, $winId$, [], $args$));
+                            if (i + 1 < l) {
+                                target = target[$forward$[i]];
+                            } else {
+                                const deserializedArgs = deserializeFromMain(null, $winId$, [], $args$);
+                                webWorkerCtx.$config$.logForwardedEvents && logWorker(`Forwarded event execute: ${$forward$.join(".")}(${deserializedArgs.map((a => {
+                                    var _a;
+                                    return "object" == typeof a ? null === (_a = JSON.stringify(a)) || void 0 === _a ? void 0 : _a.slice(0, 60) : String(a);
+                                })).join(", ")})`, $winId$);
+                                target[$forward$[i]].apply(target, deserializedArgs);
+                            }
                         }
                     } catch (e) {
                         console.error(e);

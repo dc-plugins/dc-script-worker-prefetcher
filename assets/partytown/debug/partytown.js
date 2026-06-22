@@ -1,4 +1,4 @@
-/* Partytown 0.13.2 - MIT QwikDev */
+/* Partytown 0.14.0 - MIT QwikDev */
 const defaultPartytownForwardPropertySettings = {
     preserveBehavior: false
 };
@@ -69,7 +69,7 @@ const arrayMethods = Object.freeze((obj => {
             sandbox.style.visibility = "hidden";
             sandbox.setAttribute("aria-hidden", !0);
         }
-        sandbox.src = libPath + "partytown-" + (isAtomics ? "atomics.js?v=0.13.2" : "sandbox-sw.html?" + win._pttab);
+        sandbox.src = libPath + "partytown-" + (isAtomics ? "atomics.js?v=0.14.0" : "sandbox-sw.html?" + win._pttab);
         doc.querySelector(config.sandboxParent || "body").appendChild(sandbox);
     }
     function fallback(i, script) {

@@ -1,4 +1,4 @@
-/* Partytown 0.13.2 - MIT QwikDev */
+/* Partytown 0.14.0 - MIT QwikDev */
 (window => {
     const isPromise = v => "object" == typeof v && v && v.then;
     const noop = () => {};
@@ -261,7 +261,7 @@
         }
         return obj;
     };
-    let ErrorObject = null;
+    let ErrorObject = Error;
     const serializedValueIsError = value => {
         var _a;
         ErrorObject = (null === (_a = window.top) || void 0 === _a ? void 0 : _a.Error) || ErrorObject;
@@ -400,7 +400,8 @@
     };
     const mainForwardTrigger = (worker, $winId$, win) => {
         let queuedForwardCalls = win._ptf;
-        let forwards = (win.partytown || {}).forward || [];
+        let config = win.partytown || {};
+        let forwards = config.forward || [];
         let i;
         let mainForwardFn;
         let forwardCall = ($forward$, args) => worker.postMessage([ WorkerMessageType.ForwardMainTrigger, {
@@ -440,6 +441,7 @@
                     return (...args) => {
                         let returnValue;
                         originalFunction && (returnValue = originalFunction(args));
+                        config.logForwardedEvents && logMain(`Forward event: ${arr.join(".")}()`);
                         forwardCall(arr, args);
                         return returnValue;
                     };
@@ -448,6 +450,7 @@
         }));
         if (queuedForwardCalls) {
             for (i = 0; i < len(queuedForwardCalls); i += 2) {
+                config.logForwardedEvents && logMain(`Forward queued event: ${queuedForwardCalls[i].join(".")}()`);
                 forwardCall(queuedForwardCalls[i], queuedForwardCalls[i + 1]);
             }
         }
@@ -707,14 +710,14 @@
         };
     })(((accessReq, responseCallback) => mainAccessHandler(worker, accessReq).then(responseCallback))).then((onMessageHandler => {
         if (onMessageHandler) {
-            worker = new Worker(libPath + "partytown-ww-atomics.js?v=0.13.2", {
+            worker = new Worker(libPath + "partytown-ww-atomics.js?v=0.14.0", {
                 name: "Partytown 🎉"
             });
             worker.onmessage = ev => {
                 const msg = ev.data;
                 msg[0] === WorkerMessageType.AsyncAccessRequest ? mainAccessHandler(worker, msg[1]) : onMessageHandler(worker, msg);
             };
-            logMain("Created Partytown web worker (0.13.2)");
+            logMain("Created Partytown web worker (0.14.0)");
             worker.onerror = ev => console.error("Web Worker Error", ev);
             mainWindow.addEventListener("pt1", (ev => registerWindow(worker, getAndSetInstanceId(ev.detail.frameElement), ev.detail)));
         }
